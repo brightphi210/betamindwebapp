@@ -30,16 +30,7 @@ interface FilterOptions {
     sortBy: 'upcoming' | 'popular' | 'recent';
 }
 
-const Event: React.FC = () => {
-    const [filters, setFilters] = useState<FilterOptions>({
-        category: 'All',
-        searchQuery: '',
-        sortBy: 'upcoming',
-    });
-
-    const [itemsToShow, setItemsToShow] = useState(8);
-
-    const allEvents: Event[] = [
+const ALL_EVENTS: Event[] = [
         {
             id: '1',
             title: 'The Future of Quant Finance with AI',
@@ -198,8 +189,17 @@ const Event: React.FC = () => {
         },
     ];
 
+const Event: React.FC = () => {
+    const [filters, setFilters] = useState<FilterOptions>({
+        category: 'All',
+        searchQuery: '',
+        sortBy: 'upcoming',
+    });
+
+    const [itemsToShow, setItemsToShow] = useState(8);
+
     const filteredAndSortedEvents = useMemo(() => {
-        let result = [...allEvents];
+        let result = [...ALL_EVENTS];
 
         if (filters.category !== 'All') {
             result = result.filter(event => event.category === filters.category);
@@ -230,7 +230,7 @@ const Event: React.FC = () => {
 
     // Separate registered and suggested events
     const registeredEvents = filteredAndSortedEvents.slice(0, itemsToShow);
-    const suggestedEvents = allEvents.slice(itemsToShow, itemsToShow + 6);
+    const suggestedEvents = ALL_EVENTS.slice(itemsToShow, itemsToShow + 6);
 
     const handleFilterChange = (key: keyof FilterOptions, value: string) => {
         setFilters(prev => ({
@@ -300,7 +300,7 @@ const Event: React.FC = () => {
                             All Events
                         </h1>
                         <p className="text-white/50 text-sm">
-                            Explore {allEvents.length} upcoming events and workshops
+                            Explore {ALL_EVENTS.length} upcoming events and workshops
                         </p>
                     </div>
                     <div className="relative flex-1 sm:flex-none sm:w-72">

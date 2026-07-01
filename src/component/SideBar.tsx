@@ -16,27 +16,29 @@ const NAV_ITEMS = [
     { id: 'profile', name: 'Profile', icon: <FiUser className="lg:w-4 lg:h-4 w-5 h-5" />, path: '/dashboard/profile' },
 ];
 
-const SideBar = () => {
+const activeStyle = {
+    color: '#a6ff00',
+    fontWeight: 600,
+    borderBottom: '2px solid #a6ff00',
+    paddingBottom: '8px',
+    width: '50%',
+} as const;
+
+const inactiveStyle = {
+    color: 'rgba(255,255,255,.6)',
+    fontWeight: 400,
+    borderBottom: '2px solid transparent',
+    paddingBottom: '8px',
+} as const;
+
+interface NavListProps {
+    collapsed: boolean;
+}
+
+const NavList = ({ collapsed }: NavListProps) => {
     const location = useLocation();
-    const [isCollapsed, setIsCollapsed] = useState(false);
 
-    const activeStyle = {
-        color: '#a6ff00',
-        fontWeight: 600,
-        borderBottom: '2px solid #a6ff00',
-        paddingBottom: '8px',
-        width: '50%',
-    };
-
-    const inactiveStyle = {
-        color: 'rgba(255,255,255,.6)',
-        fontWeight: 400,
-        borderBottom: '2px solid transparent',
-        paddingBottom: '8px',
-    };
-
-    /* shared nav list for sidebar */
-    const NavList = ({ collapsed = false }: { collapsed?: boolean }) => (
+    return (
         <nav className="flex-1 z-50">
             <ul className="space-y-6">
                 {NAV_ITEMS.map((item) => {
@@ -71,6 +73,11 @@ const SideBar = () => {
             </ul>
         </nav>
     );
+};
+
+const SideBar = () => {
+    const location = useLocation();
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     return (
         <>
