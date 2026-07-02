@@ -1,7 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
-import Events from '../pages/mentorDasboard/Events'
-import Overview from '../pages/mentorDasboard/Overview'
 import NotFound from '../pages/NotFound'
+import EventCreate from '../pages/userDashboard/EventCreate'
+import EventPublicPage from '../pages/userDashboard/EventPublicPage'
+import Events from '../pages/userDashboard/Events'
+import Explore from '../pages/userDashboard/Explore'
+import Overview from '../pages/userDashboard/Overview'
 
 const Content = () => {
     return (
@@ -9,7 +12,10 @@ const Content = () => {
             <Routes>
                 <Route path='/' element={<Navigate to={'/dashboard/overview'} />} />
                 <Route path='/dashboard/overview' element={<Overview />} />
+                <Route path="/events/:id" element={<EventPublicPage />} />
                 <Route path='/dashboard/events' element={<Events />} />
+                <Route path='/dashboard/explore' element={<Explore />} />
+                <Route path='/dashboard/events/create' element={<EventCreate />} />
                 <Route path='*' element={<NotFound />} />
             </Routes>
         </div>

@@ -1,21 +1,20 @@
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import DashNavbar from "./component/DashNavbar";
-import SideBar from "./component/SideBar";
-import Content from "./content/Content";
-import "./index.css";
-import AuthProvider from "./providers/AuthProvider";
-import ProtectedRoute from "./providers/ProtectedRoute";
-import { GlobalProvider } from "./providers/GlobalContext";
 import ErrorBoundary from "./component/ErrorBoundary";
 import ToastContainer from "./component/ui/Toast";
+import Content from "./content/Content";
+import "./index.css";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import LoginPage from "./pages/auth/LoginPage";
+import PasswordResetPage from "./pages/auth/PasswordResetPage";
 import SignupPage from "./pages/auth/SignupPage";
 import VerifyEmailPage from "./pages/auth/VerifyEmailPage";
-import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
-import PasswordResetPage from "./pages/auth/PasswordResetPage";
 import Onboarding from "./pages/Onboarding";
-import MentorDashboard from "./pages/mentorDasboard/MentorDashboard";
+import MentorDashboard from "./pages/userDashboard/MentorDashboard";
+import AuthProvider from "./providers/AuthProvider";
+import { GlobalProvider } from "./providers/GlobalContext";
+import ProtectedRoute from "./providers/ProtectedRoute";
 
 const App = () => {
   const YOUR_GOOGLE_CLIENT_ID =
@@ -34,9 +33,9 @@ const App = () => {
                 <Route path="/verify-email" element={<VerifyEmailPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<PasswordResetPage />} />
-                <Route 
-                  path="/onboarding" 
-                  element={<ProtectedRoute element={<Onboarding />} requireOnboarding={false} />} 
+                <Route
+                  path="/onboarding"
+                  element={<ProtectedRoute element={<Onboarding />} requireOnboarding={false} />}
                 />
                 <Route
                   path="/mentor-dashboard"
@@ -53,9 +52,8 @@ const App = () => {
                   element={
                     <ProtectedRoute
                       element={
-                        <div className="flex min-h-screen bg-[#010C06]">
-                          <SideBar />
-                          <div className="flex-1 md:ml-44 pt-16 pb-20 md:pb-0">
+                        <div className="min-h-screen bg-black">
+                          <div className="pt-16 pb-20 md:pb-0">
                             <DashNavbar />
                             <div className="w-full">
                               <Content />
@@ -67,9 +65,9 @@ const App = () => {
                   }
                 />
               </Routes>
-          </BrowserRouter>
-        </AuthProvider>
-      </GoogleOAuthProvider>
+            </BrowserRouter>
+          </AuthProvider>
+        </GoogleOAuthProvider>
       </GlobalProvider>
     </ErrorBoundary>
   );
