@@ -3,6 +3,7 @@ import {
     FiMapPin
 } from 'react-icons/fi';
 import { Link, useParams } from 'react-router-dom';
+import Button from '../../component/ui/Button';
 import { EVENTS } from './Overview';
 
 // ─── Public Event Page ─────────────────────────────────────────────────────
@@ -150,11 +151,9 @@ const EventPublicPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                <button
-                                    className="w-full py-3.5 rounded-lg font-semibold text-xs bg-white text-black transition-transform hover:scale-[1.01]"
-                                >
+                                <Button variant="white" className="w-full py-3.5 text-xs">
                                     One-Click RSVP
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </div>

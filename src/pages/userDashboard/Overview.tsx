@@ -11,6 +11,7 @@ import {
     FiX,
 } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
+import Button from '../../component/ui/Button';
 import { MENTORS, type Mentor } from './Explore';
 
 export interface Attendee {
@@ -227,16 +228,16 @@ const LatestEventHero: React.FC<{ event: RegisteredEvent; onView: (event: Regist
                 {event.title}
             </h2>
             <div className="flex flex-wrap items-center gap-4">
-                <button
+                <Button
                     onClick={(e) => {
                         e.stopPropagation();
                         onView(event);
                     }}
-                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg font-semibold text-xs sm:text-sm text-black transition-transform hover:scale-[1.02]"
-                    style={{ background: '#a6ff00' }}
+                    variant="green"
+                    className="text-xs sm:text-sm"
                 >
                     {event.actionText}
-                </button>
+                </Button>
                 <span className="flex items-center gap-1.5 text-white/60 text-xs sm:text-sm">
                     <FiUsers size={13} />
                     {event.registered} registered
@@ -288,15 +289,16 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
-            <button
+            <Button
                 onClick={(e) => {
                     e.stopPropagation();
                     onView(event);
                 }}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg font-semibold text-xs transition-colors bg-white text-black cursor-pointer"
+                variant="white"
+                className="w-full sm:w-auto text-xs"
             >
                 {event.actionText}
-            </button>
+            </Button>
         </div>
     </div>
 );
@@ -357,21 +359,20 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-[rgba(205,220,57,.08)] shrink-0 gap-2">
                 <div className="flex items-center gap-2">
-                    <button
+                    <Button
                         onClick={handleCopyLink}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                        style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)' }}
+                        variant="dark"
+                        className="px-3 py-1.5 text-xs"
                     >
                         <FiCopy size={13} />
                         {copied ? 'Copied!' : 'Copy Link'}
-                    </button>
+                    </Button>
                     <a
                         href={event.publicUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                        style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)' }}
+                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors bg-[#010C06] text-white border border-white/10 hover:bg-[#0a140c]"
                     >
                         Event Page
                         <FiExternalLink size={13} />
@@ -467,20 +468,19 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                     <span className="text-white/40 text-xs truncate">{window.location.origin}{event.publicUrl}</span>
                     <button
                         onClick={handleCopyLink}
-                        className="text-xs font-semibold shrink-0 cursor-pointer"
-                        style={{ color: '#a6ff00' }}
+                        className="text-xs font-semibold shrink-0 cursor-pointer text-[#a6ff00]"
                     >
                         {copied ? 'Copied!' : 'Copy'}
                     </button>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2">
-                    <button
-                        className="w-full py-3.5 rounded-lg font-semibold text-sm text-black transition-transform hover:scale-[1.01]"
-                        style={{ background: '#a6ff00' }}
+                    <Button
+                        variant="green"
+                        className="w-full py-3.5 text-sm"
                     >
                         {event.actionText}
-                    </button>
+                    </Button>
                     <a
                         href={event.publicUrl}
                         target="_blank"

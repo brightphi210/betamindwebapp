@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     FiBell,
     FiCalendar,
     FiCompass,
     FiHome,
+    FiLogOut,
     FiPlus,
+    FiSettings,
     FiUser,
 } from 'react-icons/fi';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import avatar from '../assets/Avatar.png';
 import betamindLogo from '../assets/betamindlogo.png';
 
@@ -21,18 +23,36 @@ const NAV_ITEMS = [
 const DashNavbar = () => {
     const location = useLocation();
     const [showMobileMenu, setShowMobileMenu] = useState(false);
+    const [showProfileMenu, setShowProfileMenu] = useState(false);
+    const profileMenuRef = useRef<HTMLDivElement>(null);
 
     const profileData = {
         username: 'alexander_chen',
+        name: 'Bright',
+        email: 'chibuzorphilip2001@gmail.com',
         image: null,
     };
+
+    // Close the profile dropdown on outside click
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+                setShowProfileMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+
+    const navigate = useNavigate()
 
     return (
         <>
             <nav
                 className="fixed top-0 left-0 right-0 z-30 transition-all duration-300 h-16"
                 style={{
-                    background: 'rgba(6, 10, 4, 0.85) ',
+                    background: 'rgba(6, 10, 4, 0.85)',
                     backdropFilter: 'blur(20px) saturate(150%)',
                     WebkitBackdropFilter: 'blur(20px) saturate(150%)',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
@@ -100,7 +120,7 @@ const DashNavbar = () => {
                             </Link>
 
                             <button
-                                className="p-2 rounded-lg transition-colors text-white/60 hover:text-white"
+                                className="p-2 rounded-lg transition-colors text-white/60 hover:text-white relative"
                                 style={{ background: 'transparent' }}
                                 onMouseEnter={(e) => {
                                     (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)';
@@ -111,26 +131,157 @@ const DashNavbar = () => {
                                 title="Notifications"
                             >
                                 <FiBell className="w-5 h-5" />
+                                <span
+                                    className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
+                                    style={{ background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.7)' }}
+                                />
                             </button>
 
-                            <Link
-                                to="/dashboard/profile"
-                                className="flex items-center gap-2 sm:gap-3 no-underline cursor-pointer flex-shrink-0"
-                            >
-                                <div
-                                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
+                            {/* Avatar + dropdown */}
+                            <div className="relative" ref={profileMenuRef}>
+                                <button
+                                    onClick={() => setShowProfileMenu((prev) => !prev)}
+                                    aria-haspopup="true"
+                                    aria-expanded={showProfileMenu}
+                                    className="flex items-center gap-2 sm:gap-3 cursor-pointer flex-shrink-0 rounded-full"
                                     style={{
-                                        background: 'rgba(255,255,255,0.08)',
-                                        border: '1px solid rgba(255,255,255,0.15)',
+                                        outline: showProfileMenu ? '2px solid rgba(166,255,0,0.4)' : 'none',
+                                        outlineOffset: '2px',
                                     }}
                                 >
-                                    {profileData?.image ? (
-                                        <img src={profileData.image} alt="avatar" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <img src={avatar} alt="avatar" className="w-full object-cover" />
-                                    )}
+                                    <div
+                                        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
+                                        style={{
+                                            background: 'rgba(255,255,255,0.08)',
+                                            border: '1px solid rgba(255,255,255,0.15)',
+                                        }}
+                                    >
+                                        {profileData?.image ? (
+                                            <img src={profileData.image} alt="avatar" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <img src={avatar} alt="avatar" className="w-full object-cover" />
+                                        )}
+                                    </div>
+                                </button>
+
+                                {/* Dropdown panel */}
+                                <div
+                                    className={`absolute right-0 top-full mt-3 w-64 rounded-2xl overflow-hidden origin-top-right transition-all duration-200 ease-out ${showProfileMenu
+                                        ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
+                                        : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
+                                        }`}
+                                    style={{
+                                        background: 'rgba(12, 16, 9, 0.97)',
+                                        backdropFilter: 'blur(24px) saturate(150%)',
+                                        WebkitBackdropFilter: 'blur(24px) saturate(150%)',
+                                        border: '1px solid rgba(166,255,0,0.12)',
+                                        boxShadow: '0 20px 48px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04)',
+                                    }}
+                                >
+                                    {/* top glow line, matches navbar */}
+                                    <div
+                                        className="h-px w-full"
+                                        style={{ background: 'linear-gradient(90deg, transparent, rgba(166,255,0,0.3), transparent)' }}
+                                    />
+
+                                    {/* Identity block */}
+                                    <Link
+                                        to="/dashboard/profile"
+                                        onClick={() => setShowProfileMenu(false)}
+                                        className="flex items-center gap-3 px-5 py-4 no-underline transition-colors"
+                                        onMouseEnter={(e) => {
+                                            (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.04)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+                                        }}
+                                    >
+                                        <div
+                                            className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
+                                            style={{
+                                                background: 'rgba(255,255,255,0.08)',
+                                                border: '1px solid rgba(166,255,0,0.25)',
+                                            }}
+                                        >
+                                            {profileData?.image ? (
+                                                <img src={profileData.image} alt="avatar" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <img src={avatar} alt="avatar" className="w-full object-cover" />
+                                            )}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-white text-base font-semibold leading-tight truncate">
+                                                {profileData.name}
+                                            </p>
+                                            <p className="text-xs leading-tight truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                                                {profileData.email}
+                                            </p>
+                                        </div>
+                                    </Link>
+
+                                    <div className="h-px w-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
+
+                                    {/* Menu items */}
+                                    <div className="py-2">
+                                        <Link
+                                            to="/dashboard/profile"
+                                            onClick={() => setShowProfileMenu(false)}
+                                            className="flex items-center gap-3 px-5 py-2 text-xs no-underline transition-colors"
+                                            style={{ color: 'rgba(255,255,255,0.75)' }}
+                                            onMouseEnter={(e) => {
+                                                (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
+                                                (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+                                                (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
+                                            }}
+                                        >
+                                            <FiUser className="w-4 h-4" style={{ color: '#a6ff00' }} />
+                                            View Profile
+                                        </Link>
+                                        <Link
+                                            to="/dashboard/settings"
+                                            onClick={() => setShowProfileMenu(false)}
+                                            className="flex items-center gap-3 px-5 py-2 text-xs no-underline transition-colors"
+                                            style={{ color: 'rgba(255,255,255,0.75)' }}
+                                            onMouseEnter={(e) => {
+                                                (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
+                                                (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+                                                (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
+                                            }}
+                                        >
+                                            <FiSettings className="w-4 h-4" style={{ color: '#a6ff00' }} />
+                                            Settings
+                                        </Link>
+                                    </div>
+
+                                    <div className="h-px w-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
+
+                                    <div className="py-2">
+                                        <button
+                                            onClick={() => {
+                                                localStorage.removeItem('betamindToken')
+                                                navigate('/login')
+                                            }}
+                                            className="w-full flex items-center gap-3 px-5 py-2 text-xs text-left transition-colors"
+                                            style={{ color: 'rgba(255,120,120,0.85)', background: 'transparent' }}
+                                            onMouseEnter={(e) => {
+                                                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                                            }}
+                                        >
+                                            <FiLogOut className="w-4 h-4" />
+                                            Sign Out
+                                        </button>
+                                    </div>
                                 </div>
-                            </Link>
+                            </div>
 
                             {/* Mobile menu toggle */}
                             <button
@@ -164,10 +315,10 @@ const DashNavbar = () => {
                 className={`lg:hidden fixed top-16 left-0 right-0 z-20 overflow-hidden transition-all duration-300 ease-in-out ${showMobileMenu ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                     }`}
                 style={{
-                    background: 'rgba(6, 10, 4, 0.95)',
+                    background: 'rgba(6, 10, 4, 0.85)',
                     backdropFilter: 'blur(24px) saturate(150%)',
                     WebkitBackdropFilter: 'blur(24px) saturate(150%)',
-                    borderBottom: showMobileMenu ? '1px solid rgba(205,220,57,.15)' : '1px solid transparent',
+                    borderBottom: showMobileMenu ? '1px solid rgba(205,220,57,.2)' : '1px solid transparent',
                     boxShadow: showMobileMenu ? '0 12px 32px rgba(0,0,0,0.5)' : 'none',
                 }}
             >
@@ -178,7 +329,7 @@ const DashNavbar = () => {
                         opacity: showMobileMenu ? 1 : 0,
                     }}
                 >
-                    <ul className="flex flex-col gap-4 mb-4">
+                    <ul className="flex flex-col gap-2 mb-4">
                         {NAV_ITEMS.map((item) => {
                             const isActive = location.pathname === item.path;
                             return (
@@ -186,7 +337,7 @@ const DashNavbar = () => {
                                     <Link
                                         to={item.path}
                                         onClick={() => setShowMobileMenu(false)}
-                                        className="flex items-center gap-3 text-sm"
+                                        className="flex items-center gap-3 text-xs"
                                         style={{
                                             color: isActive ? '#a6ff00' : 'rgba(255,255,255,.6)',
                                             fontWeight: isActive ? 600 : 400,

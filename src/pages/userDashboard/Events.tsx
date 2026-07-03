@@ -11,6 +11,7 @@ import {
 } from 'react-icons/fi';
 import type { Attendee, RegisteredEvent } from '../../component/dummyData/EventData';
 import { EVENTS } from '../../component/dummyData/EventData';
+import Button from '../../component/ui/Button';
 
 const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
     <div className="flex flex-col items-center justify-center py-24 sm:py-32">
@@ -37,8 +38,7 @@ const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
         {tab === 'upcoming' && (
             <a
                 href="/dashboard/explore"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm text-black transition-transform hover:scale-[1.02]"
-                style={{ background: '#a6ff00' }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 bg-[#a6ff00] text-black border border-[#a6ff00] hover:opacity-90"
             >
                 <FiPlus size={16} />
                 Explore Events
@@ -129,15 +129,16 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
-            <button
+            <Button
                 onClick={(e) => {
                     e.stopPropagation();
                     onView(event);
                 }}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg font-semibold text-xs transition-colors bg-white text-black cursor-pointer"
+                variant="white"
+                className="w-full sm:w-auto text-xs"
             >
                 {event.actionText}
-            </button>
+            </Button>
         </div>
     </div>
 );
@@ -167,14 +168,14 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-[rgba(205,220,57,.08)] shrink-0 gap-2">
                 <div className="flex items-center gap-2">
-                    <button
+                    <Button
                         onClick={handleCopyLink}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                        style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)' }}
+                        variant="dark"
+                        className="px-3 py-1.5 text-xs"
                     >
                         <FiCopy size={13} />
                         {copied ? 'Copied!' : 'Copy Link'}
-                    </button>
+                    </Button>
                     <a
                         href={event.publicUrl}
                         target="_blank"
@@ -282,12 +283,12 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2">
-                    <button
-                        className="w-full py-3.5 rounded-lg font-semibold text-sm text-black transition-transform hover:scale-[1.01]"
-                        style={{ background: '#a6ff00' }}
+                    <Button
+                        variant="green"
+                        className="w-full py-3.5 text-sm"
                     >
                         {event.actionText}
-                    </button>
+                    </Button>
                     <a
                         href={event.publicUrl}
                         target="_blank"

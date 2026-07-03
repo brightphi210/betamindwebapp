@@ -1,51 +1,37 @@
-import React from 'react';
-import type { IconType } from 'react-icons';
-
-export interface PillOption {
-  id: string;
-  label: string;
-  icon?: IconType;
-}
+import React from "react";
 
 interface PillSelectProps {
-  options: PillOption[];
+  options: string[];
   selectedIds: string[];
-  onChange: (selectedIds: string[]) => void;
+  onChange: (ids: string[]) => void;
   multi?: boolean;
 }
 
-export const PillSelect: React.FC<PillSelectProps> = ({ options, selectedIds, onChange, multi = true }) => {
-  const toggleSelection = (id: string) => {
+const PillSelect: React.FC<PillSelectProps> = ({ options, selectedIds, onChange, multi = false }) => {
+  const toggle = (option: string) => {
     if (multi) {
-      if (selectedIds.includes(id)) {
-        onChange(selectedIds.filter(val => val !== id));
-      } else {
-        onChange([...selectedIds, id]);
-      }
-    } else {
-      onChange([id]);
+      const next = selectedIds.includes(option)
+        ? selectedIds.filter((id) => id !== option)
+        : [...selectedIds, option];
+      onChange(next);
+      return;
     }
+
+    onChange(selectedIds.includes(option) ? [] : [option]);
   };
 
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="flex flex-wrap gap-2">
       {options.map((option) => {
-        const isSelected = selectedIds.includes(option.id);
-        const Icon = option.icon;
-        
+        const active = selectedIds.includes(option);
         return (
           <button
-            key={option.id}
+            key={option}
             type="button"
-            onClick={() => toggleSelection(option.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-all duration-200 ${
-              isSelected 
-                ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-black" 
-                : "bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.08)] text-white hover:border-[rgba(255,255,255,0.2)] hover:bg-[rgba(255,255,255,0.05)]"
-            }`}
+            onClick={() => toggle(option)}
+            className={`rounded-full px-3 py-2 text-sm transition-colors ${active ? "bg-[#a6ff00] text-black" : "bg-[rgba(255,255,255,0.06)] text-white/80 border border-[rgba(255,255,255,0.12)]"}`}
           >
-            {Icon && <Icon className={`w-4 h-4 ${isSelected ? "text-black" : "text-[var(--color-text-secondary)]"}`} />}
-            {option.label}
+            {option}
           </button>
         );
       })}

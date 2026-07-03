@@ -99,7 +99,7 @@ const PasswordResetPage = () => {
         <Button
           type="submit"
           fullWidth
-          variant="primary"
+          variant="green"
           isLoading={isLoading}
         >
           Reset Password

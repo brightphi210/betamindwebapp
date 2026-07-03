@@ -35,7 +35,7 @@ const ForgotPasswordPage = () => {
         onChange={(e) => setEmail(e.target.value)}
         autoComplete="email"
       />
-      <Button type="submit" fullWidth variant="primary" isLoading={isLoading}>
+      <Button type="submit" fullWidth variant="green" isLoading={isLoading}>
         Send Reset Link
       </Button>
     </form>

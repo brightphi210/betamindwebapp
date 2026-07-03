@@ -19,12 +19,12 @@ const NotFound: React.FC = () => {
         <p className="text-[var(--color-text-secondary)] mb-8">
           The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.
         </p>
-        
+
         <div className="flex justify-center gap-4">
-          <Button onClick={() => navigate(-1)} variant="outline">
+          <Button onClick={() => navigate(-1)} variant="white">
             Go Back
           </Button>
-          <Button onClick={() => navigate('/dashboard/overview')} variant="primary">
+          <Button onClick={() => navigate('/dashboard/overview')} variant="green">
             Dashboard
           </Button>
         </div>

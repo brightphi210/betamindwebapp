@@ -1,4 +1,4 @@
-import React, { type InputHTMLAttributes, useState } from "react";
+import React, { useState, type InputHTMLAttributes } from "react";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -16,11 +16,7 @@ export const Input: React.FC<InputProps> = ({
   ...props
 }) => {
   const [isFocused, setIsFocused] = useState(false);
-
-  // Determine if the label should be "active" (floated up)
-  // Value might be a number, string, or readonly array. Check if it exists and has length/value.
-  const hasValue =
-    value !== undefined && value !== null && String(value).length > 0;
+  const hasValue = value !== undefined && value !== null && String(value).length > 0;
   const isActive = isFocused || hasValue;
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -33,7 +29,6 @@ export const Input: React.FC<InputProps> = ({
     if (onBlur) onBlur(e);
   };
 
-  // Use React's built-in useId hook to generate a stable, pure ID for accessibility
   const generatedId = React.useId();
   const inputId = id || generatedId;
 
@@ -46,9 +41,7 @@ export const Input: React.FC<InputProps> = ({
           top: isActive ? "8px" : "50%",
           transform: isActive ? "translateY(0)" : "translateY(-50%)",
           fontSize: isActive ? "11px" : "12px",
-          color: isActive
-            ? "var(--color-primary)"
-            : "var(--color-text-secondary)",
+          color: isActive ? "#a6ff00" : "#A8A8A8",
         }}
       >
         {label}
@@ -60,14 +53,12 @@ export const Input: React.FC<InputProps> = ({
         onFocus={handleFocus}
         onBlur={handleBlur}
         placeholder={isFocused ? placeholder : ""}
-        className="w-full rounded-lg px-4 text-sm outline-none transition-all duration-200 focus-visible:outline-none"
+        className="w-full rounded-md px-4 text-sm outline-none transition-all duration-200 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.09)] text-white placeholder:text-[#A8A8A8] focus:border-[#a6ff00] focus:bg-[rgba(255,255,255,0.05)] focus-visible:outline-none"
         style={{
-          color: "var(--color-text-primary)",
-          paddingTop: isActive ? "20px" : "12px",
-          paddingBottom: isActive ? "6px" : "12px",
-          backgroundColor: "rgba(255,255,255,0.07)",
-          border: `1px solid ${isActive ? "var(--color-primary)" : "rgba(255,255,255,0.12)"}`,
-          minHeight: "46px",
+          paddingTop: isActive ? "22px" : "14px",
+          paddingBottom: isActive ? "10px" : "14px",
+          minHeight: "55px",
+          boxShadow: isFocused ? "0 0 0 1px rgba(166,255,0,0.18)" : undefined,
         }}
         {...props}
       />

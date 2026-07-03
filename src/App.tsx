@@ -5,11 +5,7 @@ import ErrorBoundary from "./component/ErrorBoundary";
 import ToastContainer from "./component/ui/Toast";
 import Content from "./content/Content";
 import "./index.css";
-import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import LoginPage from "./pages/auth/LoginPage";
-import PasswordResetPage from "./pages/auth/PasswordResetPage";
-import SignupPage from "./pages/auth/SignupPage";
-import VerifyEmailPage from "./pages/auth/VerifyEmailPage";
 import Onboarding from "./pages/Onboarding";
 import MentorDashboard from "./pages/userDashboard/MentorDashboard";
 import AuthProvider from "./providers/AuthProvider";
@@ -29,14 +25,7 @@ const App = () => {
               <ToastContainer />
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
-                <Route path="/signup" element={<SignupPage />} />
-                <Route path="/verify-email" element={<VerifyEmailPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/reset-password" element={<PasswordResetPage />} />
-                <Route
-                  path="/onboarding"
-                  element={<ProtectedRoute element={<Onboarding />} requireOnboarding={false} />}
-                />
+                <Route path="/onboarding" element={<Onboarding />} />
                 <Route
                   path="/mentor-dashboard"
                   element={

@@ -77,10 +77,10 @@ const VerifyEmailPage = () => {
         your inbox and click the link to verify your account.
       </p>
       <div className="flex flex-col gap-3 w-full mt-2">
-        <Button variant="outline" fullWidth>
+        <Button variant="white" fullWidth>
           Open email app
         </Button>
-        <Button variant="primary" fullWidth onClick={handleVerified}>
+        <Button variant="green" fullWidth onClick={handleVerified}>
           I have verified
         </Button>
       </div>
