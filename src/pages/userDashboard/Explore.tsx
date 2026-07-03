@@ -7,11 +7,16 @@ import {
     FiCode,
     FiDollarSign,
     FiEdit3,
+    FiInstagram,
+    FiLinkedin,
     FiPenTool,
     FiPlayCircle,
     FiStar,
     FiTrendingUp,
+    FiTwitter,
+    FiYoutube,
 } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export interface Topic {
@@ -22,12 +27,22 @@ export interface Topic {
     color: string; // icon + border tint
 }
 
+export interface MentorSocial {
+    platform: 'instagram' | 'x' | 'linkedin' | 'youtube';
+    url: string;
+}
+
 export interface Mentor {
     id: string;
     name: string;
     avatar: string;
+    banner: string;
     bio: string;
     tag: string;
+    title?: string;
+    verified?: boolean;
+    categories?: string[];
+    socials?: MentorSocial[];
 }
 
 export interface DigitalProduct {
@@ -57,43 +72,87 @@ export const MENTORS: Mentor[] = [
         id: 'm1',
         name: 'Amara Chen',
         avatar: 'https://i.pravatar.cc/80?img=47',
-        bio: 'Ex-Google PM helping founders turn rough ideas into shippable products.',
+        banner: 'https://picsum.photos/seed/amarabanner/1200/400',
+        bio: 'Ex-Google PM helping founders turn rough ideas into shippable products. I focus on scoping, prioritization, and getting to a v1 people actually want.',
         tag: 'Product Strategy',
+        title: 'Product Lead, ex-Google',
+        verified: true,
+        categories: ['Product', 'Strategy', 'Startups'],
+        socials: [
+            { platform: 'linkedin', url: '#' },
+            { platform: 'x', url: '#' },
+        ],
     },
     {
         id: 'm2',
         name: 'Diego Ramirez',
         avatar: 'https://i.pravatar.cc/80?img=51',
-        bio: 'Senior engineer coaching devs through system design interviews and career growth.',
+        banner: 'https://picsum.photos/seed/diegobanner/1200/400',
+        bio: 'Senior engineer coaching devs through system design interviews and career growth. 8 years shipping distributed systems at scale.',
         tag: 'Engineering',
+        title: 'Staff Engineer',
+        verified: true,
+        categories: ['Engineering', 'System Design', 'Career'],
+        socials: [
+            { platform: 'linkedin', url: '#' },
+            { platform: 'youtube', url: '#' },
+        ],
     },
     {
         id: 'm3',
         name: 'Priya Nair',
         avatar: 'https://i.pravatar.cc/80?img=32',
-        bio: 'Brand designer who has shaped identities for 3 unicorn startups.',
+        banner: 'https://picsum.photos/seed/priyabanner/1200/400',
+        bio: 'Brand designer who has shaped identities for 3 unicorn startups. I help founders find a visual language that actually says something.',
         tag: 'Design',
+        title: 'Brand Designer & Founder',
+        verified: true,
+        categories: ['Design', 'Branding'],
+        socials: [
+            { platform: 'instagram', url: '#' },
+            { platform: 'linkedin', url: '#' },
+        ],
     },
     {
         id: 'm4',
         name: 'Jonah Field',
         avatar: 'https://i.pravatar.cc/80?img=14',
-        bio: 'Growth marketer specializing in zero-to-one acquisition for early stage teams.',
+        banner: 'https://picsum.photos/seed/jonahbanner/1200/400',
+        bio: 'Growth marketer specializing in zero-to-one acquisition for early stage teams. Ran growth at two YC startups.',
         tag: 'Growth',
+        title: 'Growth Marketer',
+        categories: ['Growth', 'Marketing'],
+        socials: [
+            { platform: 'x', url: '#' },
+        ],
     },
     {
         id: 'm5',
         name: 'Sofia Bianchi',
         avatar: 'https://i.pravatar.cc/80?img=45',
-        bio: 'Angel investor and former CFO guiding founders through fundraising.',
+        banner: 'https://picsum.photos/seed/sofiabanner/1200/400',
+        bio: 'Angel investor and former CFO guiding founders through fundraising, from pre-seed pitch decks to Series A term sheets.',
         tag: 'Finance',
+        title: 'Angel Investor, ex-CFO',
+        verified: true,
+        categories: ['Finance', 'Fundraising'],
+        socials: [
+            { platform: 'linkedin', url: '#' },
+        ],
     },
     {
         id: 'm6',
         name: 'Marcus Lee',
         avatar: 'https://i.pravatar.cc/80?img=60',
-        bio: 'Bestselling author teaching clear, persuasive writing for busy professionals.',
+        banner: 'https://picsum.photos/seed/marcusbanner/1200/400',
+        bio: 'Bestselling author teaching clear, persuasive writing for busy professionals. Two decades in newsrooms before that.',
         tag: 'Writing',
+        title: 'Author & Writing Coach',
+        categories: ['Writing', 'Communication'],
+        socials: [
+            { platform: 'instagram', url: '#' },
+            { platform: 'x', url: '#' },
+        ],
     },
 ];
 
@@ -181,10 +240,18 @@ const TopicCard: React.FC<{ topic: Topic }> = ({ topic }) => (
     </button>
 );
 
+const SOCIAL_ICON_MAP: Record<MentorSocial['platform'], React.ReactNode> = {
+    instagram: <FiInstagram size={13} />,
+    x: <FiTwitter size={13} />,
+    linkedin: <FiLinkedin size={13} />,
+    youtube: <FiYoutube size={13} />,
+};
+
 // ─── Mentor card (same shape as the Featured Calendars cards) ──────────────
 const MentorCard: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
-    <div
-        className="rounded-xl lg:p-5 p-3 sm:p-6 flex flex-col"
+    <Link
+        to={`/dashboard/mentors/${mentor.id}`}
+        className="rounded-xl lg:p-5 p-3 sm:p-6 flex flex-col transition-colors hover:bg-white/[0.03]"
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
     >
         <div className="flex items-start justify-between mb-4">
@@ -195,6 +262,7 @@ const MentorCard: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
                 style={{ border: '1px solid rgba(255,255,255,0.1)' }}
             />
             <button
+                onClick={(e) => e.preventDefault()}
                 className="px-4 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer shrink-0"
                 style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)' }}
             >
@@ -203,13 +271,22 @@ const MentorCard: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
         </div>
         <h3 className="text-white font-bold text-base mb-1.5">{mentor.name}</h3>
         <p className="text-white/40 text-sm leading-relaxed lg:mb-4 mb-2 line-clamp-2">{mentor.bio}</p>
-        <span
-            className="inline-block w-fit px-2.5 py-1 rounded-md text-xs font-semibold"
-            style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
-        >
-            {mentor.tag}
-        </span>
-    </div>
+        <div className="flex items-center justify-between mt-auto">
+            <span
+                className="inline-block w-fit px-2.5 py-1 rounded-md text-xs font-semibold"
+                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
+            >
+                {mentor.tag}
+            </span>
+            {mentor.socials && mentor.socials.length > 0 && (
+                <div className="flex items-center gap-2 text-white/30">
+                    {mentor.socials.slice(0, 2).map((s) => (
+                        <span key={s.platform}>{SOCIAL_ICON_MAP[s.platform]}</span>
+                    ))}
+                </div>
+            )}
+        </div>
+    </Link>
 );
 
 // ─── Digital product card ───────────────────────────────────────────────────

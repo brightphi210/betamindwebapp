@@ -30,6 +30,7 @@ const INTERESTS = [
 const Onboarding = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState<"details" | "interests">("details");
+  const [username, setUsername] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
@@ -72,6 +73,12 @@ const Onboarding = () => {
                 </div>
 
                 <div className="space-y-4">
+                  <Input
+                    label="USERNAME"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="betamind_user"
+                  />
                   <Input label="080 9123 4567" value={phone} onChange={(e) => setPhone(e.target.value)} />
                   <Input
                     label="ADDRESS"
@@ -115,7 +122,7 @@ const Onboarding = () => {
               {step === "details" ? "Back" : "Previous"}
             </Button>
             {step === "details" ? (
-              <Button variant="green" onClick={() => setStep("interests")} disabled={!phone || !address}>
+              <Button variant="green" onClick={() => setStep("interests")} disabled={!username || !phone || !address}>
                 Next
               </Button>
             ) : (

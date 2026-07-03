@@ -24,10 +24,10 @@ export interface RegisteredEvent {
     title: string;
     time: string;
     date: string;
-    dateLabel: string; // e.g. "Today", "Wednesday", "Nov 15"
+    dateLabel: string;
     location?: string;
     registered: number;
-    thumbnail: string; // image url
+    thumbnail: string;
     status: 'upcoming' | 'past';
     actionText: string;
     host?: string;
@@ -145,7 +145,7 @@ const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
     </div>
 );
 
-// ─── Overlapping avatar stack ──────────────────────────────────────────────
+
 const AvatarStack: React.FC<{ attendees: Attendee[]; total: number; size?: number }> = ({
     attendees,
     total,
@@ -185,7 +185,7 @@ const AvatarStack: React.FC<{ attendees: Attendee[]; total: number; size?: numbe
     );
 };
 
-// ─── Latest upcoming event spotlight ───────────────────────────────────────
+
 const LatestEventHero: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEvent) => void }> = ({
     event,
     onView,
@@ -303,7 +303,6 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
     </div>
 );
 
-// ─── Compact mentor card (Overview theme) ──────────────────────────────────
 const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
     <div
         className="rounded-2xl lg:p-5 p-3 flex flex-col"
@@ -334,7 +333,7 @@ const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
     </div>
 );
 
-// ─── Event Detail Drawer Content ───────────────────────────────────────────
+
 const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () => void }> = ({
     event,
     onClose,
@@ -504,7 +503,7 @@ const Overview: React.FC = () => {
 
     const filtered = EVENTS.filter((e) => e.status === tab);
 
-    // Group by dateLabel, preserving order
+
     const grouped = filtered.reduce<Record<string, RegisteredEvent[]>>((acc, event) => {
         acc[event.dateLabel] = acc[event.dateLabel] || [];
         acc[event.dateLabel].push(event);

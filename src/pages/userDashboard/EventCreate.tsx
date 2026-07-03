@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
     FiAlignLeft,
     FiCalendar,
+    FiCamera,
     FiCheck,
     FiChevronDown,
     FiClock,
@@ -9,63 +10,59 @@ import {
     FiEdit2,
     FiExternalLink,
     FiGlobe,
+    FiImage,
     FiMapPin,
-    FiShuffle,
     FiTag,
     FiUserCheck,
     FiUsers,
 } from 'react-icons/fi';
 
-// ─── Cover art (deterministic "generated" mosaic, shuffle cycles through) ──
-const COVER_THEMES: { name: string; palette: string[] }[] = [
-    { name: 'Minimal', palette: ['#f0b429', '#8b7ec8', '#f4c9b8', '#3fa796', '#e6584f', '#4fa8c9'] },
-    { name: 'Citrus', palette: ['#ffb703', '#fb8500', '#8ecae6', '#219ebc', '#023047', '#ffd166'] },
-    { name: 'Botanic', palette: ['#a6ff00', '#2d5a27', '#e8e4d0', '#6b8f71', '#1a2e1a', '#c9d97a'] },
-    { name: 'Dusk', palette: ['#f472b6', '#a78bfa', '#facc15', '#5eead4', '#fb923c', '#60a5fa'] },
-];
-
-const CoverArt: React.FC<{ palette: string[] }> = ({ palette }) => (
-    <svg viewBox="0 0 300 300" className="w-full h-full">
-        <rect width="300" height="300" fill="#0c0a06" />
-        <rect x="15" y="20" width="55" height="55" fill={palette[0]} />
-        <rect x="15" y="85" width="55" height="55" fill={palette[0]} />
-        <polygon points="85,20 140,20 112,60" fill={palette[1]} />
-        <polygon points="85,80 140,80 112,120" fill={palette[1]} />
-        <rect x="155" y="20" width="30" height="115" fill={palette[2]} />
-        <rect x="200" y="20" width="30" height="115" fill={palette[2]} />
-        <polygon points="15,150 70,150 15,210" fill={palette[3]} />
-        <polygon points="15,215 70,215 70,270 15,270" fill={palette[3]} opacity="0.5" />
-        <circle cx="150" cy="150" r="40" fill={palette[4]} />
-        <path d="M195,110 a40,40 0 0 1 0,80 Z" fill={palette[5]} />
-        <path d="M195,110 a40,40 0 0 0 0,80 Z" fill={palette[5]} opacity="0.7" />
-        <polygon points="85,150 140,180 85,210" fill={palette[1]} />
-        <polygon points="60,215 115,215 87,255" fill={palette[0]} />
-        <rect x="130" y="215" width="55" height="55" fill={palette[0]} />
-        <path d="M200,215 a27.5,27.5 0 0 1 55,0 Z" fill={palette[3]} />
-        <polygon points="235,245 265,245 250,215" fill={palette[1]} />
-        <polygon points="250,270 265,245 280,270" fill={palette[4]} />
-        <polygon points="220,270 235,245 250,270" fill={palette[4]} opacity="0.6" />
-    </svg>
-);
-
 // ─── Small building blocks matched to app styling ──────────────────────────
-const FieldRow: React.FC<{
+const IconInputRow: React.FC<{
     icon: React.ReactNode;
-    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    placeholder: string;
     subtext?: string;
-    onClick?: () => void;
-}> = ({ icon, label, subtext, onClick }) => (
-    <button
-        onClick={onClick}
-        className="w-full flex items-center gap-3 rounded-xl px-4 py-3.5 text-left transition-colors hover:bg-white/[0.04] cursor-pointer"
+}> = ({ icon, value, onChange, placeholder, subtext }) => (
+    <div
+        className="w-full rounded-xl px-4 py-3.5"
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
     >
-        <span className="text-white/40 shrink-0">{icon}</span>
-        <div className="min-w-0">
-            <p className="text-white/80 text-sm font-medium">{label}</p>
-            {subtext && <p className="text-white/30 text-xs mt-0.5">{subtext}</p>}
+        <div className="flex items-center gap-3">
+            <span className="text-white/40 shrink-0">{icon}</span>
+            <input
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder={placeholder}
+                className="flex-1 bg-transparent outline-none text-white text-sm placeholder-white/30"
+            />
         </div>
-    </button>
+        {subtext && <p className="text-white/30 text-xs mt-1 ml-7">{subtext}</p>}
+    </div>
+);
+
+const IconTextAreaRow: React.FC<{
+    icon: React.ReactNode;
+    value: string;
+    onChange: (v: string) => void;
+    placeholder: string;
+}> = ({ icon, value, onChange, placeholder }) => (
+    <div
+        className="w-full rounded-xl px-4 py-3.5"
+        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+    >
+        <div className="flex items-start gap-3">
+            <span className="text-white/40 shrink-0 mt-0.5">{icon}</span>
+            <textarea
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder={placeholder}
+                rows={3}
+                className="flex-1 bg-transparent outline-none text-white text-sm placeholder-white/30 resize-none"
+            />
+        </div>
+    </div>
 );
 
 const Toggle: React.FC<{ checked: boolean; onChange: () => void }> = ({ checked, onChange }) => (
@@ -87,7 +84,9 @@ type TicketMode = 'free' | 'paid';
 
 const EventCreate: React.FC = () => {
     const [step, setStep] = useState<Step>('form');
-    const [themeIndex, setThemeIndex] = useState(0);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [coverImage, setCoverImage] = useState<string | null>(null);
 
     const [eventName, setEventName] = useState('');
     const [startDate, setStartDate] = useState('');
@@ -109,11 +108,15 @@ const EventCreate: React.FC = () => {
 
     const [linkCopied, setLinkCopied] = useState(false);
 
-    const theme = COVER_THEMES[themeIndex];
     const eventLink = `betamind.app/e/${eventName ? eventName.toLowerCase().replace(/\s+/g, '-') : 'your-event'}`;
 
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) setCoverImage(URL.createObjectURL(file));
+    };
+
     const handleCreate = () => {
-        // TODO: wire up to create-event mutation
+        // TODO: wire up to create-event mutation (send coverImage file, not just the blob URL)
         setStep('success');
     };
 
@@ -151,7 +154,13 @@ const EventCreate: React.FC = () => {
                         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
                     >
                         <div className="aspect-[2/1] w-full">
-                            <CoverArt palette={theme.palette} />
+                            {coverImage ? (
+                                <img src={coverImage} alt={eventName || 'Event cover'} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                                    <FiImage size={28} className="text-white/20" />
+                                </div>
+                            )}
                         </div>
                         <div className="p-5 text-left">
                             <h3 className="text-white font-bold text-lg mb-1">{eventName || 'Event Name'}</h3>
@@ -207,34 +216,50 @@ const EventCreate: React.FC = () => {
         >
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                 <div className="flex flex-col lg:flex-row gap-10">
-                    {/* Left: cover art + theme */}
+                    {/* Left: cover image upload */}
                     <div className="w-full lg:w-[300px] shrink-0">
                         <div
-                            className="w-full aspect-square rounded-2xl overflow-hidden"
+                            className="relative w-full aspect-square rounded-2xl overflow-hidden cursor-pointer group"
                             style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                            onClick={() => fileInputRef.current?.click()}
                         >
-                            <CoverArt palette={theme.palette} />
-                        </div>
-
-                        <div className="flex items-center gap-2 mt-3">
-                            <div
-                                className="flex-1 flex items-center justify-between gap-3 rounded-lg px-4 py-2.5"
-                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                            >
-                                <div>
-                                    <p className="text-white/30 text-[11px]">Theme</p>
-                                    <p className="text-white text-sm font-semibold">{theme.name}</p>
+                            {coverImage ? (
+                                <img src={coverImage} alt="Event cover" className="w-full h-full object-cover" />
+                            ) : (
+                                <div
+                                    className="w-full h-full flex flex-col items-center justify-center gap-2"
+                                    style={{ background: 'rgba(255,255,255,0.02)' }}
+                                >
+                                    <FiImage size={28} className="text-white/20" />
+                                    <p className="text-white/30 text-xs">Add cover image</p>
                                 </div>
-                            </div>
+                            )}
                             <button
-                                onClick={() => setThemeIndex((i) => (i + 1) % COVER_THEMES.length)}
-                                className="p-3 rounded-lg shrink-0 cursor-pointer transition-colors hover:bg-white/[0.06]"
-                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                                title="Shuffle cover"
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    fileInputRef.current?.click();
+                                }}
+                                className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-black shadow cursor-pointer"
                             >
-                                <FiShuffle size={16} className="text-white/60" />
+                                <FiCamera size={15} />
                             </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleImageChange}
+                            />
                         </div>
+                        {coverImage && (
+                            <button
+                                onClick={() => setCoverImage(null)}
+                                className="mt-3 w-full text-xs text-white/40 hover:text-white/70 cursor-pointer transition-colors"
+                            >
+                                Remove image
+                            </button>
+                        )}
                     </div>
 
                     {/* Right: form */}
@@ -325,20 +350,22 @@ const EventCreate: React.FC = () => {
 
                         {/* Location */}
                         <div className="mb-3">
-                            <FieldRow
+                            <IconInputRow
                                 icon={<FiMapPin size={17} />}
-                                label={location || 'Add Event Location'}
+                                value={location}
+                                onChange={setLocation}
+                                placeholder="Add Event Location"
                                 subtext="Offline location or virtual link"
-                                onClick={() => setLocation((v) => v || 'Virtual — link TBD')}
                             />
                         </div>
 
                         {/* Description */}
                         <div className="mb-8">
-                            <FieldRow
+                            <IconTextAreaRow
                                 icon={<FiAlignLeft size={17} />}
-                                label={description || 'Add Description'}
-                                onClick={() => setDescription((v) => v)}
+                                value={description}
+                                onChange={setDescription}
+                                placeholder="Add Description"
                             />
                         </div>
 

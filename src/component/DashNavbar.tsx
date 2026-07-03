@@ -103,12 +103,26 @@ const DashNavbar = () => {
                         <div className="flex items-center gap-3">
                             {/* Create Event — full button on desktop, icon-only on mobile */}
                             <Link
+                                to="/mentor-onboarding"
+                                className="hidden sm:flex items-center bg-white gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                            >
+                                Become a Mentor
+                            </Link>
+                            <Link
                                 to="/dashboard/events/create"
-                                className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                                className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
                                 style={{ background: '#a6ff00' }}
                             >
                                 <FiPlus size={14} />
                                 Create Event
+                            </Link>
+                            <Link
+                                to="/mentor-onboarding"
+                                aria-label="Become a mentor"
+                                className="sm:hidden p-2 rounded-lg flex items-center justify-center transition-transform hover:scale-[1.02]"
+                                style={{ background: '#a6ff00' }}
+                            >
+                                <FiUser size={16} className="text-black" />
                             </Link>
                             <Link
                                 to="/dashboard/events/create"
@@ -171,10 +185,10 @@ const DashNavbar = () => {
                                         : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
                                         }`}
                                     style={{
-                                        background: 'rgba(12, 16, 9, 0.97)',
+                                        background: 'rgba(12, 16, 9, 0.95)',
                                         backdropFilter: 'blur(24px) saturate(150%)',
                                         WebkitBackdropFilter: 'blur(24px) saturate(150%)',
-                                        border: '1px solid rgba(166,255,0,0.12)',
+                                        border: '1px solid rgba(166,255,0,0.1)',
                                         boxShadow: '0 20px 48px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04)',
                                     }}
                                 >
@@ -223,23 +237,6 @@ const DashNavbar = () => {
 
                                     {/* Menu items */}
                                     <div className="py-2">
-                                        <Link
-                                            to="/dashboard/profile"
-                                            onClick={() => setShowProfileMenu(false)}
-                                            className="flex items-center gap-3 px-5 py-2 text-xs no-underline transition-colors"
-                                            style={{ color: 'rgba(255,255,255,0.75)' }}
-                                            onMouseEnter={(e) => {
-                                                (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
-                                                (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
-                                                (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
-                                            }}
-                                        >
-                                            <FiUser className="w-4 h-4" style={{ color: '#a6ff00' }} />
-                                            View Profile
-                                        </Link>
                                         <Link
                                             to="/dashboard/settings"
                                             onClick={() => setShowProfileMenu(false)}

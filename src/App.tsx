@@ -6,6 +6,7 @@ import ToastContainer from "./component/ui/Toast";
 import Content from "./content/Content";
 import "./index.css";
 import LoginPage from "./pages/auth/LoginPage";
+import MentorOnboarding from "./pages/MentorOnboarding";
 import Onboarding from "./pages/Onboarding";
 import MentorDashboard from "./pages/userDashboard/MentorDashboard";
 import AuthProvider from "./providers/AuthProvider";
@@ -26,6 +27,7 @@ const App = () => {
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/onboarding" element={<Onboarding />} />
+                <Route path="/mentor-onboarding" element={<MentorOnboarding />} />
                 <Route
                   path="/mentor-dashboard"
                   element={
