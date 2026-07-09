@@ -43,6 +43,7 @@ export interface Mentor {
     verified?: boolean;
     categories?: string[];
     socials?: MentorSocial[];
+    yearsExperience?: number;
 }
 
 export interface DigitalProduct {
@@ -82,6 +83,7 @@ export const MENTORS: Mentor[] = [
             { platform: 'linkedin', url: '#' },
             { platform: 'x', url: '#' },
         ],
+        yearsExperience: 9,
     },
     {
         id: 'm2',
@@ -97,6 +99,7 @@ export const MENTORS: Mentor[] = [
             { platform: 'linkedin', url: '#' },
             { platform: 'youtube', url: '#' },
         ],
+        yearsExperience: 8,
     },
     {
         id: 'm3',
@@ -112,6 +115,7 @@ export const MENTORS: Mentor[] = [
             { platform: 'instagram', url: '#' },
             { platform: 'linkedin', url: '#' },
         ],
+        yearsExperience: 11,
     },
     {
         id: 'm4',
@@ -125,6 +129,7 @@ export const MENTORS: Mentor[] = [
         socials: [
             { platform: 'x', url: '#' },
         ],
+        yearsExperience: 6,
     },
     {
         id: 'm5',
@@ -139,6 +144,7 @@ export const MENTORS: Mentor[] = [
         socials: [
             { platform: 'linkedin', url: '#' },
         ],
+        yearsExperience: 15,
     },
     {
         id: 'm6',
@@ -153,6 +159,7 @@ export const MENTORS: Mentor[] = [
             { platform: 'instagram', url: '#' },
             { platform: 'x', url: '#' },
         ],
+        yearsExperience: 20,
     },
 ];
 

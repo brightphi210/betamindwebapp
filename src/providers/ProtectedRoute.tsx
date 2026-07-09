@@ -1,12 +1,10 @@
 import { useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { useGlobalContext } from "./GlobalContext";
+import { useNavigate } from "react-router-dom";
 
-const ProtectedRoute = ({ element, requireOnboarding = true }: { element: React.ReactNode; requireOnboarding?: boolean }) => {
+const ProtectedRoute = ({ element }: { element: React.ReactNode; }) => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { user } = useGlobalContext();
   const isAuthenticated = localStorage.getItem("betamindToken");
+
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -14,15 +12,14 @@ const ProtectedRoute = ({ element, requireOnboarding = true }: { element: React.
       return;
     }
 
-    // Fallback to local storage if user is not in context yet (e.g., hard refresh)
-    const storedUserStr = localStorage.getItem("user");
-    const storedUser = storedUserStr ? JSON.parse(storedUserStr) : null;
-    const isUserOnboarded = user?.onboarded ?? storedUser?.onboarded ?? false;
+    // const storedUserStr = localStorage.getItem("user");
+    // const storedUser = storedUserStr ? JSON.parse(storedUserStr) : null;
+    // const isUserOnboarded = user?.onboarded ?? storedUser?.onboarded ?? false;
 
-    if (requireOnboarding && !isUserOnboarded && location.pathname !== '/onboarding') {
-      navigate("/onboarding");
-    }
-  }, [isAuthenticated, navigate, user, location.pathname, requireOnboarding]);
+    // if (requireOnboarding && !isUserOnboarded && location.pathname !== '/onboarding') {
+    //   navigate("/onboarding");
+    // }
+  }, [isAuthenticated, navigate]);
 
   return isAuthenticated ? <>{element}</> : null;
 };

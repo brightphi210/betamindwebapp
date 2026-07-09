@@ -9,6 +9,8 @@ import {
     FiSettings,
     FiUser,
 } from 'react-icons/fi';
+import { HiMenuAlt3 } from 'react-icons/hi';
+import { MdClose } from 'react-icons/md';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import avatar from '../assets/Avatar.png';
 import betamindLogo from '../assets/betamindlogo.png';
@@ -68,7 +70,7 @@ const DashNavbar = () => {
                 <div className="w-full h-full px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto items-center">
                     <div className="flex items-center justify-between gap-4 h-full">
                         {/* Logo */}
-                        <div className="w-28 flex-shrink-0">
+                        <div className="w-24 shrink-0">
                             <img src={betamindLogo} alt="Betamind Logo" className="w-full" />
                         </div>
 
@@ -100,7 +102,7 @@ const DashNavbar = () => {
                         </div>
 
                         {/* Right side: create event + bell + avatar */}
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                             {/* Create Event — full button on desktop, icon-only on mobile */}
                             <Link
                                 to="/mentor-onboarding"
@@ -116,21 +118,13 @@ const DashNavbar = () => {
                                 <FiPlus size={14} />
                                 Create Event
                             </Link>
+
                             <Link
                                 to="/mentor-onboarding"
-                                aria-label="Become a mentor"
-                                className="sm:hidden p-2 rounded-lg flex items-center justify-center transition-transform hover:scale-[1.02]"
-                                style={{ background: '#a6ff00' }}
+                                className="lg:hidden flex  items-center bg-white gap-1.5 px-3 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
                             >
-                                <FiUser size={16} className="text-black" />
-                            </Link>
-                            <Link
-                                to="/dashboard/events/create"
-                                aria-label="Create event"
-                                className="sm:hidden p-2 rounded-lg flex items-center justify-center transition-transform hover:scale-[1.02]"
-                                style={{ background: '#a6ff00' }}
-                            >
-                                <FiPlus size={16} className="text-black" />
+                                <FiPlus size={14} />
+                                Mentor
                             </Link>
 
                             <button
@@ -157,14 +151,14 @@ const DashNavbar = () => {
                                     onClick={() => setShowProfileMenu((prev) => !prev)}
                                     aria-haspopup="true"
                                     aria-expanded={showProfileMenu}
-                                    className="flex items-center gap-2 sm:gap-3 cursor-pointer flex-shrink-0 rounded-full"
+                                    className="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0 rounded-full"
                                     style={{
                                         outline: showProfileMenu ? '2px solid rgba(166,255,0,0.4)' : 'none',
                                         outlineOffset: '2px',
                                     }}
                                 >
                                     <div
-                                        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
+                                        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0"
                                         style={{
                                             background: 'rgba(255,255,255,0.08)',
                                             border: '1px solid rgba(255,255,255,0.15)',
@@ -211,7 +205,7 @@ const DashNavbar = () => {
                                         }}
                                     >
                                         <div
-                                            className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
+                                            className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0"
                                             style={{
                                                 background: 'rgba(255,255,255,0.08)',
                                                 border: '1px solid rgba(166,255,0,0.25)',
@@ -280,25 +274,14 @@ const DashNavbar = () => {
                                 </div>
                             </div>
 
-                            {/* Mobile menu toggle */}
                             <button
-                                className="lg:hidden p-2 rounded-lg transition-colors text-white/60 hover:text-white"
-                                style={{ background: 'transparent' }}
-                                onMouseEnter={(e) => {
-                                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                                }}
+                                className="lg:hidden rounded-lg transition-colors text-white/60 hover:text-white"
                                 onClick={() => setShowMobileMenu((prev) => !prev)}
-                                title="Menu"
+                                title={showMobileMenu ? "Close menu" : "Menu"}
                                 aria-expanded={showMobileMenu}
                             >
-                                <span
-                                    className="text-xl inline-block transition-transform duration-300"
-                                    style={{ transform: showMobileMenu ? 'rotate(90deg)' : 'rotate(0deg)' }}
-                                >
-                                    ☰
+                                <span className="text-2xl inline-block transition-all duration-300">
+                                    {showMobileMenu ? <MdClose /> : <HiMenuAlt3 />}
                                 </span>
                             </button>
                         </div>
@@ -306,8 +289,7 @@ const DashNavbar = () => {
                 </div>
             </nav>
 
-            {/* Mobile dropdown nav — always mounted so it can animate open/close
-                via max-height + opacity instead of popping in/out instantly. */}
+
             <div
                 className={`lg:hidden fixed top-16 left-0 right-0 z-20 overflow-hidden transition-all duration-300 ease-in-out ${showMobileMenu ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                     }`}
@@ -320,13 +302,13 @@ const DashNavbar = () => {
                 }}
             >
                 <div
-                    className="px-4 py-4 transition-all duration-300 ease-in-out"
+                    className="p-8 pt-5 transition-all duration-300 ease-in-out"
                     style={{
                         transform: showMobileMenu ? 'translateY(0)' : 'translateY(-8px)',
                         opacity: showMobileMenu ? 1 : 0,
                     }}
                 >
-                    <ul className="flex flex-col gap-2 mb-4">
+                    <ul className="flex flex-col gap-6 mb-4">
                         {NAV_ITEMS.map((item) => {
                             const isActive = location.pathname === item.path;
                             return (
@@ -334,7 +316,7 @@ const DashNavbar = () => {
                                     <Link
                                         to={item.path}
                                         onClick={() => setShowMobileMenu(false)}
-                                        className="flex items-center gap-3 text-xs"
+                                        className="flex items-center gap-3 text-sm"
                                         style={{
                                             color: isActive ? '#a6ff00' : 'rgba(255,255,255,.6)',
                                             fontWeight: isActive ? 600 : 400,
@@ -351,7 +333,7 @@ const DashNavbar = () => {
                     <Link
                         to="/dashboard/events/create"
                         onClick={() => setShowMobileMenu(false)}
-                        className="flex items-center justify-center gap-1.5 w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-black"
+                        className="flex items-center justify-center gap-1.5 w-fit px-4 py-2.5 rounded-lg text-xs font-semibold text-black"
                         style={{ background: '#a6ff00' }}
                     >
                         <FiPlus size={16} />
