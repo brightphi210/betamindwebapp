@@ -56,9 +56,11 @@ const MentorProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) =
                 </div>
             </div>
         </div>
-        <Button variant="white" className="w-full text-xs py-2">
-            {product.type === 'Course' ? 'View Course' : 'View Book'}
-        </Button>
+        <Link to={`/dashboard/products/${product.id}`}>
+            <Button variant="white" className="w-full text-xs py-2">
+                {product.type === 'Course' ? 'View Course' : 'View Book'}
+            </Button>
+        </Link>
     </div>
 );
 

@@ -298,7 +298,8 @@ const MentorCard: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
 
 // ─── Digital product card ───────────────────────────────────────────────────
 const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) => (
-    <div
+    <Link
+        to={`/dashboard/products/${product.id}`}
         className="rounded-xl overflow-hidden flex flex-col transition-colors hover:bg-white/[0.03] cursor-pointer"
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
     >
@@ -323,7 +324,7 @@ const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) => (
                 <span className="text-white font-bold text-sm">{product.price}</span>
             </div>
         </div>
-    </div>
+    </Link>
 );
 
 // ─── Page ────────────────────────────────────────────────────────────────────
