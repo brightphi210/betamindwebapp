@@ -1,4 +1,5 @@
 import React from 'react';
+import { BsStarFill } from 'react-icons/bs';
 import {
     FiBarChart2,
     FiBookOpen,
@@ -7,14 +8,9 @@ import {
     FiCode,
     FiDollarSign,
     FiEdit3,
-    FiInstagram,
-    FiLinkedin,
     FiPenTool,
     FiPlayCircle,
-    FiStar,
-    FiTrendingUp,
-    FiTwitter,
-    FiYoutube,
+    FiTrendingUp
 } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 
@@ -247,19 +243,14 @@ const TopicCard: React.FC<{ topic: Topic }> = ({ topic }) => (
     </button>
 );
 
-const SOCIAL_ICON_MAP: Record<MentorSocial['platform'], React.ReactNode> = {
-    instagram: <FiInstagram size={13} />,
-    x: <FiTwitter size={13} />,
-    linkedin: <FiLinkedin size={13} />,
-    youtube: <FiYoutube size={13} />,
-};
+
 
 // ─── Mentor card (same shape as the Featured Calendars cards) ──────────────
 const MentorCard: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
     <Link
         to={`/dashboard/mentors/${mentor.id}`}
-        className="rounded-xl lg:p-5 p-3 sm:p-6 flex flex-col transition-colors hover:bg-white/[0.03]"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+        className="rounded-2xl lg:p-5 p-3 flex flex-col"
+        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
     >
         <div className="flex items-start justify-between mb-4">
             <img
@@ -285,13 +276,6 @@ const MentorCard: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
             >
                 {mentor.tag}
             </span>
-            {mentor.socials && mentor.socials.length > 0 && (
-                <div className="flex items-center gap-2 text-white/30">
-                    {mentor.socials.slice(0, 2).map((s) => (
-                        <span key={s.platform}>{SOCIAL_ICON_MAP[s.platform]}</span>
-                    ))}
-                </div>
-            )}
         </div>
     </Link>
 );
@@ -300,11 +284,15 @@ const MentorCard: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
 const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) => (
     <Link
         to={`/dashboard/products/${product.id}`}
-        className="rounded-xl overflow-hidden flex flex-col transition-colors hover:bg-white/[0.03] cursor-pointer"
+        className="rounded-xl overflow-hidden flex flex-col transition-colors hover:bg-white/3 cursor-pointer"
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
     >
         <div className="relative">
-            <img src={product.thumbnail} alt={product.title} className="w-full h-full aspect-video object-cover" />
+            <img
+                src={product.thumbnail}
+                alt={product.title}
+                className="w-full h-40 sm:h-48 object-cover"
+            />
             <span
                 className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
                 style={{ background: 'rgba(0,0,0,0.55)', color: '#fff', backdropFilter: 'blur(4px)' }}
@@ -317,10 +305,10 @@ const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) => (
             <h3 className="text-white font-bold text-base mb-1 break-words">{product.title}</h3>
             <p className="text-white/40 text-sm mb-3">{product.author}</p>
             <div className="flex items-center justify-between mt-auto">
-                <span className="flex items-center gap-1 text-white/60 text-xs">
-                    <FiStar size={13} className="text-amber-400 fill-amber-400" />
-                    {product.rating}
-                </span>
+                <div className="flex items-center gap-1 text-white/60 text-xs">
+                    <BsStarFill size={13} className="text-amber-400 fill-amber-400" />
+                    <p>{product.rating}</p>
+                </div>
                 <span className="text-white font-bold text-sm">{product.price}</span>
             </div>
         </div>

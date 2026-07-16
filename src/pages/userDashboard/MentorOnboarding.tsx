@@ -1,9 +1,31 @@
 import { useRef, useState } from "react";
-import { FiArrowLeft, FiArrowRight, FiCamera, FiCheck, FiImage, FiUser } from "react-icons/fi";
+import { FiArrowLeft, FiArrowRight, FiCamera, FiCheck, FiImage } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
-import Button from "../component/ui/Button";
+import LoadingOverlay from "../../component/LoadingOverlay";
+import Button from "../../component/ui/Button";
+import { useCreateMentor } from "../../hooks/mutations/allMutation";
+import { useGlobalContext } from "../../providers/GlobalContext";
 
-const CATEGORIES = ["Tech", "Finance", "Business", "Design", "Product", "Marketing", "Leadership", "Education"];
+// Hardcoded category options for the button picker — same list used in
+// MentorProfile.tsx so the onboarding and edit flows stay in sync. Edit
+// this list to match what you actually want mentors to choose from.
+const CATEGORY_OPTIONS = [
+    "tech",
+    "finance",
+    "business",
+    "design",
+    "product",
+    "marketing",
+    "leadership",
+    "education",
+    "politics",
+    "media",
+    "health",
+    "lifestyle",
+    "sports",
+    "entertainment",
+    "science",
+];
 
 const cardBg = "rgba(255,255,255,0.02)";
 const cardBorder = "1px solid rgba(205,220,57,.08)";
@@ -55,7 +77,6 @@ const AreaField: React.FC<{
     </div>
 );
 
-// Prefixed "handle" input, matching the instagram.com/ · x.com/ pattern in the reference
 const SocialField: React.FC<{
     badge: string;
     prefix: string;
@@ -91,17 +112,28 @@ type Step = "professional" | "social" | "account";
 
 const MentorOnboarding = () => {
     const navigate = useNavigate();
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { addToast } = useGlobalContext();
+
+    const { mutate, isPending } = useCreateMentor();
+
     const bannerInputRef = useRef<HTMLInputElement>(null);
 
     const [step, setStep] = useState<Step>("professional");
-    const [avatar, setAvatar] = useState<string | null>(null);
+
+    // Preview URLs (for <img> display)
     const [banner, setBanner] = useState<string | null>(null);
+
+    // Actual File objects to submit
+    const [bannerFile, setBannerFile] = useState<File | null>(null);
+
     const [nickname, setNickname] = useState("");
     const [occupation, setOccupation] = useState("");
     const [bio, setBio] = useState("");
     const [experience, setExperience] = useState("");
-    const [category, setCategory] = useState("");
+
+    // Categories — button picker from a fixed list, same pattern as MentorProfile.tsx
+    const [categories, setCategories] = useState<string[]>([]);
+
     const [linkedin, setLinkedin] = useState("");
     const [xHandle, setXHandle] = useState("");
 
@@ -111,17 +143,21 @@ const MentorOnboarding = () => {
     const [accountNumber, setAccountNumber] = useState("");
 
     const professionalComplete = !!(nickname && occupation && bio && experience);
-    const socialComplete = !!category;
+    const socialComplete = categories.length > 0;
     const accountComplete = !!(bankName && accountName && accountNumber);
 
-    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) setAvatar(URL.createObjectURL(file));
+    const toggleCategory = (cat: string) => {
+        setCategories((prev) =>
+            prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+        );
     };
 
     const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) setBanner(URL.createObjectURL(file));
+        if (file) {
+            setBanner(URL.createObjectURL(file));
+            setBannerFile(file);
+        }
     };
 
     const goNext = () => {
@@ -135,6 +171,62 @@ const MentorOnboarding = () => {
         else navigate("/dashboard/overview");
     };
 
+    const handleFinish = () => {
+        if (!accountComplete) return;
+
+        const formData = new FormData();
+        formData.append("occupation", occupation);
+        formData.append("bio", bio);
+        formData.append("nick_name", nickname);
+        formData.append("years_of_experience", String(parseInt(experience, 10) || 0));
+
+        if (bannerFile) formData.append("cover_images", bannerFile);
+
+        // Categories as a JSON-stringified array — the backend expects a single
+        // field it can json.loads() itself, not repeated plain-string fields.
+        formData.append("categories", JSON.stringify(categories));
+
+        // Social links as a JSON-stringified array of {platform, url} objects.
+        // Bracket notation (social_links[0][platform]) was NOT being parsed by
+        // the backend into a list — it was treating social_links as one field
+        // and expecting JSON, so each item came back with platform/url "required".
+        // ASSUMPTION: confirm the backend wants a list of {platform, url} dicts
+        // and not some other shape (e.g. {linkedin: url, twitter: url}).
+        const links = [
+            linkedin && { platform: "linkedin", url: `https://linkedin.com/in/${linkedin}` },
+            xHandle && { platform: "twitter", url: `https://x.com/${xHandle}` },
+        ].filter(Boolean) as { platform: string; url: string }[];
+
+        formData.append("social_links", JSON.stringify(links));
+
+        // Bank details as flat fields — this is the main fix. Sending these as a
+        // single JSON string previously resulted in bank_account: null on the server.
+        // ASSUMPTION: confirm these exact flat field names with backend
+        // (e.g. it might expect bank_account_bank_name, or a nested serializer
+        // that DOES want bank_account[bank_name] bracket notation instead).
+        formData.append("bank_name", bankName);
+        formData.append("account_name", accountName);
+        formData.append("account_number", accountNumber);
+        formData.append("currency", "NGN");
+
+        mutate(formData, {
+            onSuccess: () => {
+                navigate("/dashboard/mentor/success", {
+                    state: { productName: categories[0] ?? "Mentorship" },
+                });
+            },
+            onError: (error: any) => {
+                console.error("Error creating mentor profile:", error);
+                const message =
+                    error?.response?.data?.message ||
+                    error?.response?.data?.detail ||
+                    "Something went wrong. Please try again.";
+
+                addToast(message, "error");
+            },
+        });
+    };
+
     return (
         <div
             className="min-h-screen w-full text-white"
@@ -143,6 +235,7 @@ const MentorOnboarding = () => {
                     "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
             }}
         >
+            <LoadingOverlay visible={isPending} />
             <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
                 {/* Back to dashboard */}
                 <button
@@ -165,19 +258,19 @@ const MentorOnboarding = () => {
                 {/* Step tabs */}
                 <div className="mb-10 flex items-center gap-6" style={{ borderBottom: cardBorder }}>
                     <span
-                        className={`border-b-2 pb-3 text-sm font-semibold transition-colors ${step === "professional" ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
+                        className={`border-b-2 pb-3 text-xs font-semibold transition-colors ${step === "professional" ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
                             }`}
                     >
                         Professional Info
                     </span>
                     <span
-                        className={`border-b-2 pb-3 text-sm font-semibold transition-colors ${step === "social" ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
+                        className={`border-b-2 pb-3 text-xs font-semibold transition-colors ${step === "social" ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
                             }`}
                     >
                         Category &amp; Socials
                     </span>
                     <span
-                        className={`border-b-2 pb-3 text-sm font-semibold transition-colors ${step === "account" ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
+                        className={`border-b-2 pb-3 text-xs font-semibold transition-colors ${step === "account" ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
                             }`}
                     >
                         Account Details
@@ -220,43 +313,7 @@ const MentorOnboarding = () => {
                                         onChange={handleBannerChange}
                                     />
 
-                                    {/* Avatar overlapping bottom-left of banner */}
-                                    <div className="absolute -bottom-10 left-4 sm:-bottom-12 sm:left-6">
-                                        <div className="relative">
-                                            <div
-                                                className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl sm:h-24 sm:w-24"
-                                                style={{
-                                                    background: cardBg,
-                                                    border: "3px solid #05080340",
-                                                    boxShadow: "0 0 0 2px rgba(166,255,0,.35)",
-                                                }}
-                                            >
-                                                {avatar ? (
-                                                    <img src={avatar} alt="Profile" className="h-full w-full object-cover" />
-                                                ) : (
-                                                    <FiUser size={26} className="text-white/20" />
-                                                )}
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => fileInputRef.current?.click()}
-                                                className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-white text-black shadow"
-                                            >
-                                                <FiCamera size={13} />
-                                            </button>
-                                            <input
-                                                ref={fileInputRef}
-                                                type="file"
-                                                accept="image/*"
-                                                className="hidden"
-                                                onChange={handleAvatarChange}
-                                            />
-                                        </div>
-                                    </div>
                                 </div>
-                                <p className="text-xs text-white/40">
-                                    Cover: 1500×500 recommended. Profile photo: PNG or JPG, up to 5MB.
-                                </p>
                             </div>
 
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -285,8 +342,9 @@ const MentorOnboarding = () => {
                             <Field
                                 label="Years of Experience"
                                 value={experience}
-                                onChange={setExperience}
-                                placeholder="e.g. 4 years"
+                                onChange={(v) => setExperience(v.replace(/[^0-9]/g, ""))}
+                                placeholder="e.g. 4"
+                                helper="Enter a whole number of years."
                             />
                         </div>
                     </div>
@@ -299,24 +357,20 @@ const MentorOnboarding = () => {
                             <div>
                                 <p className="mb-2 text-sm font-semibold text-white">Category</p>
                                 <div className="flex flex-wrap gap-2">
-                                    {CATEGORIES.map((item) => {
-                                        const active = category === item;
+                                    {CATEGORY_OPTIONS.map((cat) => {
+                                        const active = categories.includes(cat);
                                         return (
                                             <button
-                                                key={item}
+                                                key={cat}
                                                 type="button"
-                                                onClick={() => setCategory(item)}
-                                                className={`rounded-full px-3.5 py-2 text-sm font-medium transition-all ${active
+                                                onClick={() => toggleCategory(cat)}
+                                                className={`rounded-full px-3.5 py-2 text-sm font-medium capitalize transition-all ${active
                                                     ? "bg-[#a6ff00] text-black"
                                                     : "text-white hover:border-[#a6ff00] hover:text-[#a6ff00]"
                                                     }`}
-                                                style={
-                                                    active
-                                                        ? undefined
-                                                        : { background: cardBg, border: cardBorder }
-                                                }
+                                                style={active ? undefined : { background: cardBg, border: cardBorder }}
                                             >
-                                                {item}
+                                                {cat}
                                             </button>
                                         );
                                     })}
@@ -376,7 +430,7 @@ const MentorOnboarding = () => {
                     </div>
                 )}
 
-                <div className="mt-10 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                <div className="mt-10 flex  gap-3 sm:flex-row justify-between">
                     <Button variant="white" onClick={goBack}>
                         <span className="flex items-center justify-center gap-2">
                             {step !== "professional" && <FiArrowLeft size={15} />}
@@ -395,11 +449,7 @@ const MentorOnboarding = () => {
                             </span>
                         </Button>
                     ) : (
-                        <Button
-                            variant="green"
-                            onClick={() => navigate("/dashboard/overview")}
-                            disabled={!accountComplete}
-                        >
+                        <Button variant="green" onClick={handleFinish} disabled={!accountComplete || isPending}>
                             <span className="flex items-center justify-center gap-2">
                                 <FiCheck size={15} />
                                 Finish

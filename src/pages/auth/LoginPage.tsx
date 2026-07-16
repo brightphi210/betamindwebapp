@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../../assets/beta1.png";
 import loginImage from "../../assets/loginImage.jpeg";
 import GoogleAuthButton from "../../component/GoogleAuthButton";
-import Button from "../../component/ui/Button";
+import MyButton from "../../component/ui/Button";
 
 const OrDivider = () => (
   <div className="my-4 flex items-center gap-4">
@@ -13,12 +14,24 @@ const OrDivider = () => (
   </div>
 );
 
-// Lime-tinted radial glow fading to the app's near-black, used behind the
-// auth panel on both mobile (full-bleed hero) and desktop (right panel).
 const AUTH_PANEL_GRADIENT =
   'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7))'
+
+const inputBaseClass =
+  "w-full rounded-md px-4 py-3.5 text-sm text-white placeholder-gray-500 outline-none transition-colors";
+const inputBorderStyle = { border: "1px solid rgba(255,255,255,0.15)" };
+
+const handleFocusBorder = (e: React.FocusEvent<HTMLInputElement>) => {
+  e.currentTarget.style.borderColor = "#a6ff00";
+};
+const handleBlurBorder = (e: React.FocusEvent<HTMLInputElement>) => {
+  e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+};
+
 const EmailContinueForm = () => {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
   const handleContinue = () => {
@@ -32,20 +45,37 @@ const EmailContinueForm = () => {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="Email Address"
-        className="w-full rounded-md px-4 py-3.5 text-sm text-white placeholder-gray-500 outline-none transition-colors"
-        style={{
-          border: "1px solid rgba(255,255,255,0.15)",
-        }}
-        onFocus={(e) => {
-          (e.currentTarget as HTMLInputElement).style.borderColor = "#a6ff00";
-        }}
-        onBlur={(e) => {
-          (e.currentTarget as HTMLInputElement).style.borderColor = "rgba(255,255,255,0.15)";
-        }}
+        className={inputBaseClass}
+        style={inputBorderStyle}
+        onFocus={handleFocusBorder}
+        onBlur={handleBlurBorder}
       />
-      <Button variant="white" fullWidth onClick={handleContinue}>
+
+      <div className="relative">
+        <input
+          type={showPassword ? "text" : "password"}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
+          className={`${inputBaseClass} pr-11`}
+          style={inputBorderStyle}
+          onFocus={handleFocusBorder}
+          onBlur={handleBlurBorder}
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword((prev) => !prev)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-300"
+          aria-label={showPassword ? "Hide password" : "Show password"}
+        >
+          {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+        </button>
+      </div>
+
+      <MyButton variant="white" fullWidth onClick={handleContinue}>
         Continue
-      </Button>
+      </MyButton>
+
     </div>
   );
 };
@@ -60,9 +90,9 @@ const LoginPage = () => {
     >
       <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-center lg:px-8 lg:py-8">
         {/* Mobile: full-bleed radial-gradient hero, no bordered card */}
-        <div className="w-full lg:hidden -mx-4 -mt-4 sm:-mx-6">
+        <div className="w-full lg:hidden lg:-mx-4 -mt-4 sm:-mx-6">
           <div
-            className="px-6 pt-8 pb-10 sm:px-8"
+            className="lg:px-6 px-4 pt-8 pb-10 sm:px-8"
           // style={{ background: AUTH_PANEL_GRADIENT }}
           >
             <div className="mb-10 flex h-9 w-9 items-center justify-center overflow-hidden rounded-sm">
@@ -116,9 +146,12 @@ const LoginPage = () => {
             <OrDivider />
             <EmailContinueForm />
 
-            <div className="mt-5 flex items-center justify-end">
+            <div className="mt-5 flex items-center justify-between text-sm">
               <Link to="/forgot-password" className="text-xs text-white transition-colors hover:underline">
                 Forgot password?
+              </Link>
+              <Link to="/signup" className="text-xs text-white transition-colors hover:underline">
+                Sign up
               </Link>
             </div>
           </div>

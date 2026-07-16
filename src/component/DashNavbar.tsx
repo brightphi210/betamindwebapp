@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { BsPerson } from 'react-icons/bs';
 import {
     FiBell,
     FiCalendar,
@@ -14,12 +15,13 @@ import { MdClose } from 'react-icons/md';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import avatar from '../assets/Avatar.png';
 import betamindLogo from '../assets/betamindlogo.png';
+import { useGetMyUserProfile } from '../hooks/queries/allQueriess';
+import LoadingOverlay from './LoadingOverlay';
 
 const NAV_ITEMS = [
     { id: 'home', name: 'Home', icon: <FiHome className="w-4 h-4" />, path: '/dashboard/overview' },
     { id: 'events', name: 'Events', icon: <FiCalendar className="w-4 h-4" />, path: '/dashboard/events' },
     { id: 'explore', name: 'Explore', icon: <FiCompass className="w-4 h-4" />, path: '/dashboard/explore' },
-    { id: 'profile', name: 'Profile', icon: <FiUser className="w-4 h-4" />, path: '/dashboard/profile' },
 ];
 
 const DashNavbar = () => {
@@ -28,12 +30,10 @@ const DashNavbar = () => {
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
 
-    const profileData = {
-        username: 'alexander_chen',
-        name: 'Bright',
-        email: 'chibuzorphilip2001@gmail.com',
-        image: null,
-    };
+    const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
+    const userProfile = myProfile?.data;
+
+    console.log('User Profile', userProfile)
 
     // Close the profile dropdown on outside click
     useEffect(() => {
@@ -51,6 +51,7 @@ const DashNavbar = () => {
 
     return (
         <>
+            <LoadingOverlay visible={userLoading} />
             <nav
                 className="fixed top-0 left-0 right-0 z-30 transition-all duration-300 h-16"
                 style={{
@@ -103,13 +104,22 @@ const DashNavbar = () => {
 
                         {/* Right side: create event + bell + avatar */}
                         <div className="flex items-center gap-4">
-                            {/* Create Event — full button on desktop, icon-only on mobile */}
-                            <Link
-                                to="/mentor-onboarding"
-                                className="hidden sm:flex items-center bg-white gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
-                            >
-                                Become a Mentor
-                            </Link>
+
+                            {userProfile?.is_mentor ?
+                                <Link
+                                    to="/dashboard/profile"
+                                    className="hidden sm:flex items-center bg-white gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                                >
+                                    <FiUser />
+                                    View Profile
+                                </Link> :
+                                <Link
+                                    to="/mentor-onboarding"
+                                    className="hidden sm:flex items-center bg-white gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                                >
+                                    Become a Mentor
+                                </Link>
+                            }
                             <Link
                                 to="/dashboard/events/create"
                                 className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
@@ -158,8 +168,8 @@ const DashNavbar = () => {
                                             border: '1px solid rgba(255,255,255,0.15)',
                                         }}
                                     >
-                                        {profileData?.image ? (
-                                            <img src={profileData.image} alt="avatar" className="w-full h-full object-cover" />
+                                        {userProfile?.avatar ? (
+                                            <img src={userProfile.avatar} alt="avatar" className="w-full h-full object-cover" />
                                         ) : (
                                             <img src={avatar} alt="avatar" className="w-full object-cover" />
                                         )}
@@ -188,7 +198,7 @@ const DashNavbar = () => {
 
                                     {/* Identity block */}
                                     <Link
-                                        to="/dashboard/profile"
+                                        to="/dashboard/setting"
                                         onClick={() => setShowProfileMenu(false)}
                                         className="flex items-center gap-3 px-5 py-4 no-underline transition-colors"
                                         onMouseEnter={(e) => {
@@ -205,18 +215,18 @@ const DashNavbar = () => {
                                                 border: '1px solid rgba(166,255,0,0.25)',
                                             }}
                                         >
-                                            {profileData?.image ? (
-                                                <img src={profileData.image} alt="avatar" className="w-full h-full object-cover" />
+                                            {userProfile?.avatar ? (
+                                                <img src={userProfile.avatar} alt="avatar" className="w-full h-full object-cover" />
                                             ) : (
                                                 <img src={avatar} alt="avatar" className="w-full object-cover" />
                                             )}
                                         </div>
                                         <div className="min-w-0">
                                             <p className="text-white text-base font-semibold leading-tight truncate">
-                                                {profileData.name}
+                                                {userProfile?.first_name} {userProfile?.last_name}
                                             </p>
                                             <p className="text-xs leading-tight truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                                                {profileData.email}
+                                                {userProfile?.email}
                                             </p>
                                         </div>
                                     </Link>
@@ -226,7 +236,27 @@ const DashNavbar = () => {
                                     {/* Menu items */}
                                     <div className="py-2">
                                         <Link
-                                            to="/dashboard/settings"
+                                            to="/dashboard/profile"
+                                            onClick={() => setShowProfileMenu(false)}
+                                            className="flex items-center gap-3 px-5 py-2 text-xs no-underline transition-colors"
+                                            style={{ color: 'rgba(255,255,255,0.75)' }}
+                                            onMouseEnter={(e) => {
+                                                (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
+                                                (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+                                                (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
+                                            }}
+                                        >
+                                            <BsPerson className="w-4 h-4" style={{ color: '#a6ff00' }} />
+                                            Profile
+                                        </Link>
+                                    </div>
+
+                                    <div className="py-2">
+                                        <Link
+                                            to="/dashboard/setting"
                                             onClick={() => setShowProfileMenu(false)}
                                             className="flex items-center gap-3 px-5 py-2 text-xs no-underline transition-colors"
                                             style={{ color: 'rgba(255,255,255,0.75)' }}
@@ -325,13 +355,23 @@ const DashNavbar = () => {
                     </ul>
 
                     <div className="flex gap-3">
-                        <Link
-                            to="/mentor-onboarding"
-                            className="lg:hidden flex w-full items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
-                        >
-                            <FiPlus size={16} />
-                            Create Mentor
-                        </Link>
+
+                        {userProfile?.is_mentor ?
+                            <Link
+                                to="/dashboard/profile"
+                                className="lg:hidden flex w-full justify-center items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                            >
+                                <FiUser />
+                                View Profile
+                            </Link> :
+                            <Link
+                                to="/mentor-onboarding"
+                                className="lg:hidden flex w-full items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                            >
+                                <FiPlus size={16} />
+                                Become a Mentor
+                            </Link>
+                        }
 
                         <Link
                             to="/dashboard/events/create"

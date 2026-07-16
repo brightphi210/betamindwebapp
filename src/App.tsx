@@ -6,9 +6,10 @@ import ToastContainer from "./component/ui/Toast";
 import Content from "./content/Content";
 import "./index.css";
 import LoginPage from "./pages/auth/LoginPage";
-import MentorOnboarding from "./pages/MentorOnboarding";
+import SignupPage from "./pages/auth/SignupPage";
 import Onboarding from "./pages/Onboarding";
 import MentorDashboard from "./pages/userDashboard/MentorDashboard";
+import MentorOnboarding from "./pages/userDashboard/MentorOnboarding";
 import AuthProvider from "./providers/AuthProvider";
 import { GlobalProvider } from "./providers/GlobalContext";
 import ProtectedRoute from "./providers/ProtectedRoute";
@@ -26,6 +27,7 @@ const App = () => {
               <ToastContainer />
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/signup" element={<SignupPage />} />
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/mentor-onboarding" element={<MentorOnboarding />} />
                 <Route

@@ -10,7 +10,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   isLoading?: boolean;
 }
 
-const Button: React.FC<ButtonProps> = ({
+const MyButton: React.FC<ButtonProps> = ({
   children,
   variant = "green",
   fullWidth = false,
@@ -53,4 +53,4 @@ const Button: React.FC<ButtonProps> = ({
   );
 };
 
-export default Button;
+export default MyButton;
