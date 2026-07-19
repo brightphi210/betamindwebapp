@@ -133,13 +133,13 @@ const Mentor: React.FC = () => {
                     overflow-hidden banner box so it doesn't get clipped */}
                 <div className="relative mb-16 sm:mb-20">
                     <div
-                        className="rounded-2xl overflow-hidden"
+                        className="rounded-xl overflow-hidden"
                         style={{ border: '1px solid rgba(255,255,255,0.08)' }}
                     >
                         <img
                             src={mentor.banner}
                             alt={mentor.name}
-                            className="w-full h-44 sm:h-64 object-cover"
+                            className="w-full h-32 lg:h-38 object-cover"
                         />
                         <div
                             className="absolute inset-0 rounded-2xl"

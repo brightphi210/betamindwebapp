@@ -130,24 +130,25 @@ const DashNavbar = () => {
                             </Link>
 
 
-
-                            <button
-                                className="p-2 rounded-lg transition-colors text-white/60 hover:text-white relative"
-                                style={{ background: 'transparent' }}
-                                onMouseEnter={(e) => {
-                                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                                }}
-                                title="Notifications"
-                            >
-                                <FiBell className="w-7 h-7" />
-                                <span
-                                    className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
-                                    style={{ background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.7)' }}
-                                />
-                            </button>
+                            <Link to={'/dashboard/notifications'}>
+                                <button
+                                    className="p-2 rounded-lg transition-colors text-white/60 hover:text-white relative"
+                                    style={{ background: 'transparent' }}
+                                    onMouseEnter={(e) => {
+                                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                                    }}
+                                    title="Notifications"
+                                >
+                                    <FiBell className="w-7 h-7" />
+                                    <span
+                                        className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
+                                        style={{ background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.7)' }}
+                                    />
+                                </button>
+                            </Link>
 
                             {/* Avatar + dropdown */}
                             <div className="relative" ref={profileMenuRef}>

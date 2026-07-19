@@ -253,6 +253,35 @@ const draftFromMentorProfile = (mentorProfile: any): Draft => {
     };
 };
 
+// ---------- Not verified gate screen ----------
+
+const NotVerifiedScreen: React.FC<{ pageBackground: string; onBack: () => void }> = ({
+    pageBackground,
+    onBack,
+}) => (
+    <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
+        <div className="mx-auto flex max-w-2xl flex-col items-center px-4 py-24 pt-40 text-center sm:px-6">
+            <div
+                className="mb-6 flex h-25 w-25 items-center justify-center rounded-2xl bg-neutral-900"
+            >
+                <FiClock size={50} className="text-emerald-300-400" />
+            </div>
+            <h1 className="text-xl font-black sm:text-2xl px-4">Your mentor profile isn't verified yet</h1>
+            <p className="mt-3 mb-8 max-w-md text-xs px-4 text-white/40">
+                Thanks for submitting your mentor application. Our team is reviewing your details and you'll be
+                notified as soon as your profile is approved. Once verified, you'll get full access to your mentor
+                profile and dashboard.
+            </p>
+            <Button variant="green" onClick={onBack}>
+                <span className="flex items-center gap-2">
+                    <FiArrowLeft size={15} />
+                    Back to Dashboard
+                </span>
+            </Button>
+        </div>
+    </div>
+);
+
 const MentorProfile = () => {
     const navigate = useNavigate();
     const { addToast } = useGlobalContext();
@@ -392,6 +421,14 @@ const MentorProfile = () => {
     const loading = mentorLoading || userLoading;
     const isSaving = isPending || isPreparingSave;
 
+    if (loading) {
+        return (
+            <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
+                <LoadingOverlay visible={true} />
+            </div>
+        );
+    }
+
     if (!userProfile?.is_mentor) {
         return (
             <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
@@ -418,6 +455,16 @@ const MentorProfile = () => {
         );
     }
 
+    // Gate: mentor profile exists but hasn't been approved yet.
+    if (!mentorProfile?.is_approved) {
+        return (
+            <NotVerifiedScreen
+                pageBackground={pageBackground}
+                onBack={() => navigate("/dashboard/overview")}
+            />
+        );
+    }
+
     const categoryLabels: string[] = mentorProfile?.categories ?? [];
     const savedLinks: SocialLink[] = mentorProfile?.social_links ?? [];
     const savedLinkedin = cleanHandle(extractLink(savedLinks, "linkedin"));
@@ -426,7 +473,7 @@ const MentorProfile = () => {
 
     return (
         <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
-            <LoadingOverlay visible={isSaving || loading} />
+            <LoadingOverlay visible={isSaving} />
             <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
                 <button
                     type="button"

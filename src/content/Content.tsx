@@ -6,6 +6,7 @@ import Events from '../pages/userDashboard/Events'
 import Explore from '../pages/userDashboard/Explore'
 import Mentor from '../pages/userDashboard/Mentor'
 import MentorOnboardingSuccess from '../pages/userDashboard/Mentoronboardingsuccess'
+import Notifications from '../pages/userDashboard/Notifications'
 import Overview from '../pages/userDashboard/Overview'
 import Product from '../pages/userDashboard/Product'
 import MentorProfile from '../pages/userDashboard/Profile'
@@ -21,6 +22,7 @@ const Content = () => {
                 <Route path='/dashboard/explore' element={<Explore />} />
                 <Route path='/dashboard/profile' element={<MentorProfile />} />
                 <Route path='/dashboard/setting' element={<SettingsPage />} />
+                <Route path='/dashboard/notifications' element={<Notifications />} />
                 <Route path='/dashboard/events/create' element={<EventCreate />} />
                 <Route path='/dashboard/mentor/success' element={<MentorOnboardingSuccess />} />
                 <Route path="/events/:id" element={<EventPublicPage />} />
