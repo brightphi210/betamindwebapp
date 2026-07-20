@@ -14,16 +14,14 @@ import {
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import LoadingOverlay from "../../component/LoadingOverlay";
+import { cardBg, cardBorder, fieldClass, pageBackground } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
 import { useUpdateMentorProfile } from "../../hooks/mutations/allMutation";
 import { useGetMyMentorProfile, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
 import { useGlobalContext } from "../../providers/GlobalContext";
 
-type SocialLink = { platform: string; url: string; id?: string };
-
 // Hardcoded category options for the button picker — no categories endpoint exists,
-// and the backend stores these as plain strings (confirmed from GET response:
-// categories: ["phones","laptops","tablets"]). Edit this list to match what you
+// and the backend stores these as plain strings. Edit this list to match what you
 // actually want mentors to choose from.
 const CATEGORY_OPTIONS = [
     "tech",
@@ -43,12 +41,9 @@ const CATEGORY_OPTIONS = [
     "science",
 ];
 
-const cardBg = "rgba(255,255,255,0.02)";
-const cardBorder = "1px solid rgba(205,220,57,.08)";
+// Page-specific tint for the social-link input prefixes (linkedin.com/in/, x.com/@).
+// Not part of the shared MentorDashboardStyles set since it's only used here.
 const prefixBg = "rgba(255,255,255,0.03)";
-
-const fieldClass =
-    "w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 outline-none transition-colors focus:border-[#a6ff00]";
 
 // ---------- Shared editable field components ----------
 
@@ -180,11 +175,11 @@ const VerificationBadge: React.FC<{ isApproved: boolean }> = ({ isApproved }) =>
         </div>
     );
 
-const extractLink = (links: SocialLink[], platform: string) => links.find((l) => l.platform === platform);
-
-const cleanHandle = (link?: SocialLink) => {
-    if (!link) return "";
-    const clean = link.url.replace(/\/$/, "");
+// Extracts a bare handle ("yourname") from a stored full URL
+// ("https://linkedin.com/in/yourname") for display in the prefix inputs.
+const extractHandle = (url?: string) => {
+    if (!url) return "";
+    const clean = url.replace(/\/$/, "");
     return clean.substring(clean.lastIndexOf("/") + 1).replace(/^@/, "");
 };
 
@@ -199,10 +194,8 @@ type Draft = {
     experience: string;
     categories: string[];
     linkedin: string;
-    linkedinId?: string;
     xHandle: string;
-    xHandleId?: string;
-    bankId?: string;
+    website: string;
     bankName: string;
     accountName: string;
     accountNumber: string;
@@ -218,20 +211,19 @@ const emptyDraft: Draft = {
     experience: "",
     categories: [],
     linkedin: "",
-    linkedinId: undefined,
     xHandle: "",
-    xHandleId: undefined,
-    bankId: undefined,
+    website: "",
     bankName: "",
     accountName: "",
     accountNumber: "",
     routingOrSortCode: "",
 };
 
+// NOTE: backend returns/expects the singular key "social_link" as a flat
+// object: { twitter, linkedin, website } — not an array of {platform, url}.
 const draftFromMentorProfile = (mentorProfile: any): Draft => {
-    const links: SocialLink[] = mentorProfile?.social_links ?? [];
-    const linkedin = extractLink(links, "linkedin");
-    const twitter = extractLink(links, "twitter");
+    const socialLink = mentorProfile?.social_link ?? {};
+    const bank = mentorProfile?.bank_account ?? {};
 
     return {
         banner: mentorProfile?.cover_images ?? null,
@@ -241,30 +233,23 @@ const draftFromMentorProfile = (mentorProfile: any): Draft => {
         bio: mentorProfile?.bio ?? "",
         experience: mentorProfile?.years_of_experience != null ? String(mentorProfile.years_of_experience) : "",
         categories: mentorProfile?.categories ?? [],
-        linkedin: cleanHandle(linkedin),
-        linkedinId: linkedin?.id,
-        xHandle: cleanHandle(twitter),
-        xHandleId: twitter?.id,
-        bankId: mentorProfile?.bank_account?.id,
-        bankName: mentorProfile?.bank_account?.bank_name ?? "",
-        accountName: mentorProfile?.bank_account?.account_name ?? "",
-        accountNumber: mentorProfile?.bank_account?.account_number ?? "",
-        routingOrSortCode: mentorProfile?.bank_account?.routing_or_sort_code ?? "",
+        linkedin: extractHandle(socialLink.linkedin),
+        xHandle: extractHandle(socialLink.twitter),
+        website: socialLink.website ?? "",
+        bankName: bank.bank_name ?? "",
+        accountName: bank.account_name ?? "",
+        accountNumber: bank.account_number ?? "",
+        routingOrSortCode: bank.routing_or_sort_code ?? "",
     };
 };
 
 // ---------- Not verified gate screen ----------
 
-const NotVerifiedScreen: React.FC<{ pageBackground: string; onBack: () => void }> = ({
-    pageBackground,
-    onBack,
-}) => (
+const NotVerifiedScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => (
     <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
         <div className="mx-auto flex max-w-2xl flex-col items-center px-4 py-24 pt-40 text-center sm:px-6">
-            <div
-                className="mb-6 flex h-25 w-25 items-center justify-center rounded-2xl bg-neutral-900"
-            >
-                <FiClock size={50} className="text-emerald-300-400" />
+            <div className="mb-6 flex h-25 w-25 items-center justify-center rounded-2xl bg-neutral-900">
+                <FiClock size={50} className="text-emerald-400" />
             </div>
             <h1 className="text-xl font-black sm:text-2xl px-4">Your mentor profile isn't verified yet</h1>
             <p className="mt-3 mb-8 max-w-md text-xs px-4 text-white/40">
@@ -291,7 +276,6 @@ const MentorProfile = () => {
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
     const mentorProfile = myMentorProfile?.data;
     const userProfile = myProfile?.data;
-    console.log('Mentor Profile', mentorProfile)
 
     const { mutate: updateMentor, isPending } = useUpdateMentorProfile();
 
@@ -347,24 +331,12 @@ const MentorProfile = () => {
 
         setIsPreparingSave(true);
         try {
-            const socialLinks = [
-                draft.linkedin && {
-                    id: draft.linkedinId,
-                    platform: "linkedin",
-                    url: `https://linkedin.com/in/${draft.linkedin}`,
-                },
-                draft.xHandle && {
-                    id: draft.xHandleId,
-                    platform: "twitter",
-                    url: `https://x.com/${draft.xHandle}`,
-                },
-            ].filter(Boolean);
-
             const formData = new FormData();
             formData.append("occupation", draft.occupation);
             formData.append("bio", draft.bio);
             formData.append("nick_name", draft.nickname);
             formData.append("years_of_experience", String(parseInt(draft.experience, 10) || 0));
+
             let bannerFile = draft.bannerFile;
             if (!bannerFile && draft.banner) {
                 try {
@@ -376,11 +348,21 @@ const MentorProfile = () => {
                 }
             }
             if (bannerFile) formData.append("cover_images", bannerFile);
+
             formData.append("categories", JSON.stringify(draft.categories));
+
+            // Backend expects the singular key "social_link" as a flat object,
+            // e.g. { twitter, linkedin, website } — NOT "social_links" as an array.
+            const socialLink = {
+                linkedin: draft.linkedin ? `https://linkedin.com/in/${draft.linkedin}` : "",
+                twitter: draft.xHandle ? `https://x.com/${draft.xHandle}` : "",
+                website: draft.website || "",
+            };
+            formData.append("social_link", JSON.stringify(socialLink));
+
             formData.append(
                 "bank_account",
                 JSON.stringify({
-                    id: draft.bankId,
                     bank_name: draft.bankName,
                     account_name: draft.accountName,
                     account_number: draft.accountNumber,
@@ -388,7 +370,6 @@ const MentorProfile = () => {
                     currency: "NGN",
                 })
             );
-            formData.append("social_links", JSON.stringify(socialLinks));
 
             updateMentor(formData, {
                 onSuccess: () => {
@@ -414,9 +395,6 @@ const MentorProfile = () => {
         social: "Category & Socials",
         account: "Account Details",
     };
-
-    const pageBackground =
-        "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)";
 
     const loading = mentorLoading || userLoading;
     const isSaving = isPending || isPreparingSave;
@@ -457,47 +435,21 @@ const MentorProfile = () => {
 
     // Gate: mentor profile exists but hasn't been approved yet.
     if (!mentorProfile?.is_approved) {
-        return (
-            <NotVerifiedScreen
-                pageBackground={pageBackground}
-                onBack={() => navigate("/dashboard/overview")}
-            />
-        );
+        return <NotVerifiedScreen onBack={() => navigate("/dashboard/overview")} />;
     }
 
     const categoryLabels: string[] = mentorProfile?.categories ?? [];
-    const savedLinks: SocialLink[] = mentorProfile?.social_links ?? [];
-    const savedLinkedin = cleanHandle(extractLink(savedLinks, "linkedin"));
-    const savedXHandle = cleanHandle(extractLink(savedLinks, "twitter"));
+    const savedSocialLink = mentorProfile?.social_link ?? {};
+    const savedLinkedin = extractHandle(savedSocialLink.linkedin);
+    const savedXHandle = extractHandle(savedSocialLink.twitter);
+    const savedWebsite: string = savedSocialLink.website ?? "";
     const bank = mentorProfile?.bank_account;
 
     return (
         <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
             <LoadingOverlay visible={isSaving} />
+            {/* max-w-4xl matches the Explore page container width */}
             <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-                <button
-                    type="button"
-                    onClick={() => navigate("/dashboard/overview")}
-                    className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-white/50 transition-colors hover:text-white"
-                >
-                    <FiArrowLeft size={15} />
-                    Back to Dashboard
-                </button>
-
-                <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <h1 className="mt-2 text-3xl font-black leading-tight sm:text-4xl">Mentor Profile</h1>
-                            <VerificationBadge isApproved={!!mentorProfile?.is_approved} />
-                        </div>
-                        <p className="mt-3 max-w-2xl text-sm text-white/40 sm:text-base">
-                            {isEditing
-                                ? "Update your professional background, category, and payout details."
-                                : "Here's how your profile looks. Edit any section whenever you need to."}
-                        </p>
-                    </div>
-                </div>
-
                 <div className="mb-10 flex items-center gap-6" style={{ borderBottom: cardBorder }}>
                     {(["professional", "social", "account"] as Step[]).map((s) => (
                         <button
@@ -710,6 +662,12 @@ const MentorProfile = () => {
                                                 onChange={(v) => setDraft((d) => ({ ...d, xHandle: v }))}
                                                 placeholder="yourhandle"
                                             />
+                                            <Field
+                                                label="Website"
+                                                value={draft.website}
+                                                onChange={(v) => setDraft((d) => ({ ...d, website: v }))}
+                                                placeholder="https://yourwebsite.com"
+                                            />
                                         </>
                                     ) : (
                                         <>
@@ -725,6 +683,7 @@ const MentorProfile = () => {
                                                 url={`x.com/@${savedXHandle}`}
                                                 handle={savedXHandle}
                                             />
+                                            <ViewRow label="Website" value={savedWebsite} placeholder="Not linked" />
                                         </>
                                     )}
                                 </div>
@@ -764,6 +723,13 @@ const MentorProfile = () => {
                                         placeholder="0123456789"
                                         helper="10-digit NUBAN account number."
                                     />
+                                    <Field
+                                        label="Routing / Sort Code"
+                                        value={draft.routingOrSortCode}
+                                        onChange={(v) => setDraft((d) => ({ ...d, routingOrSortCode: v }))}
+                                        placeholder="Optional — for non-NGN accounts"
+                                        helper="Leave blank if not applicable."
+                                    />
                                 </>
                             ) : (
                                 <>
@@ -773,6 +739,7 @@ const MentorProfile = () => {
                                         label="Account Number"
                                         value={bank?.account_number ? `••••••${bank.account_number.slice(-4)}` : ""}
                                     />
+                                    <ViewRow label="Routing / Sort Code" value={bank?.routing_or_sort_code ?? ""} />
                                 </>
                             )}
                         </div>

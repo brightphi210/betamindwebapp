@@ -107,11 +107,11 @@ const DashNavbar = () => {
 
                             {userProfile?.is_mentor ?
                                 <Link
-                                    to="/dashboard/profile"
+                                    to="/dashboard/mentor"
                                     className="hidden sm:flex items-center bg-white gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
                                 >
                                     <FiUser />
-                                    View Profile
+                                    Mentor Profile
                                 </Link> :
                                 <Link
                                     to="/mentor-onboarding"
@@ -359,11 +359,11 @@ const DashNavbar = () => {
 
                         {userProfile?.is_mentor ?
                             <Link
-                                to="/dashboard/profile"
+                                to="/dashboard/mentor"
                                 className="lg:hidden flex w-full justify-center items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
                             >
                                 <FiUser />
-                                View Profile
+                                Mentor Profile
                             </Link> :
                             <Link
                                 to="/mentor-onboarding"

@@ -10,9 +10,12 @@ import {
     FiEdit3,
     FiPenTool,
     FiPlayCircle,
-    FiTrendingUp
+    FiTrendingUp,
+    FiUsers,
 } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
+import LoadingOverlay from '../../component/LoadingOverlay';
+import { useGetMentors } from '../../hooks/queries/allQueriess';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export interface Topic {
@@ -23,6 +26,11 @@ export interface Topic {
     color: string; // icon + border tint
 }
 
+// NOTE: kept for backward compatibility (referenced elsewhere as a loose type),
+// but the real API mentor payload looks nothing like this — see the inline
+// `any`-typed usage in MentorCard below for the actual shape:
+// { id, name, nick_name, occupation, bio, categories: string[],
+//   profile: { avatar }, social_link: { linkedin, twitter, website }, ... }
 export interface MentorSocial {
     platform: 'instagram' | 'x' | 'linkedin' | 'youtube';
     url: string;
@@ -62,101 +70,6 @@ export const TOPICS: Topic[] = [
     { id: 't6', name: 'Business', count: '2K Mentors', icon: <FiBriefcase size={25} />, color: '#fb923c' },
     { id: 't7', name: 'Photography', count: '410 Mentors', icon: <FiCamera size={25} />, color: '#5eead4' },
     { id: 't8', name: 'Product', count: '1.6K Mentors', icon: <FiBarChart2 size={25} />, color: '#f87171' },
-];
-
-export const MENTORS: Mentor[] = [
-    {
-        id: 'm1',
-        name: 'Amara Chen',
-        avatar: 'https://i.pravatar.cc/80?img=47',
-        banner: 'https://picsum.photos/seed/amarabanner/1200/400',
-        bio: 'Ex-Google PM helping founders turn rough ideas into shippable products. I focus on scoping, prioritization, and getting to a v1 people actually want.',
-        tag: 'Product Strategy',
-        title: 'Product Lead, ex-Google',
-        verified: true,
-        categories: ['Product', 'Strategy', 'Startups'],
-        socials: [
-            { platform: 'linkedin', url: '#' },
-            { platform: 'x', url: '#' },
-        ],
-        yearsExperience: 9,
-    },
-    {
-        id: 'm2',
-        name: 'Diego Ramirez',
-        avatar: 'https://i.pravatar.cc/80?img=51',
-        banner: 'https://picsum.photos/seed/diegobanner/1200/400',
-        bio: 'Senior engineer coaching devs through system design interviews and career growth. 8 years shipping distributed systems at scale.',
-        tag: 'Engineering',
-        title: 'Staff Engineer',
-        verified: true,
-        categories: ['Engineering', 'System Design', 'Career'],
-        socials: [
-            { platform: 'linkedin', url: '#' },
-            { platform: 'youtube', url: '#' },
-        ],
-        yearsExperience: 8,
-    },
-    {
-        id: 'm3',
-        name: 'Priya Nair',
-        avatar: 'https://i.pravatar.cc/80?img=32',
-        banner: 'https://picsum.photos/seed/priyabanner/1200/400',
-        bio: 'Brand designer who has shaped identities for 3 unicorn startups. I help founders find a visual language that actually says something.',
-        tag: 'Design',
-        title: 'Brand Designer & Founder',
-        verified: true,
-        categories: ['Design', 'Branding'],
-        socials: [
-            { platform: 'instagram', url: '#' },
-            { platform: 'linkedin', url: '#' },
-        ],
-        yearsExperience: 11,
-    },
-    {
-        id: 'm4',
-        name: 'Jonah Field',
-        avatar: 'https://i.pravatar.cc/80?img=14',
-        banner: 'https://picsum.photos/seed/jonahbanner/1200/400',
-        bio: 'Growth marketer specializing in zero-to-one acquisition for early stage teams. Ran growth at two YC startups.',
-        tag: 'Growth',
-        title: 'Growth Marketer',
-        categories: ['Growth', 'Marketing'],
-        socials: [
-            { platform: 'x', url: '#' },
-        ],
-        yearsExperience: 6,
-    },
-    {
-        id: 'm5',
-        name: 'Sofia Bianchi',
-        avatar: 'https://i.pravatar.cc/80?img=45',
-        banner: 'https://picsum.photos/seed/sofiabanner/1200/400',
-        bio: 'Angel investor and former CFO guiding founders through fundraising, from pre-seed pitch decks to Series A term sheets.',
-        tag: 'Finance',
-        title: 'Angel Investor, ex-CFO',
-        verified: true,
-        categories: ['Finance', 'Fundraising'],
-        socials: [
-            { platform: 'linkedin', url: '#' },
-        ],
-        yearsExperience: 15,
-    },
-    {
-        id: 'm6',
-        name: 'Marcus Lee',
-        avatar: 'https://i.pravatar.cc/80?img=60',
-        banner: 'https://picsum.photos/seed/marcusbanner/1200/400',
-        bio: 'Bestselling author teaching clear, persuasive writing for busy professionals. Two decades in newsrooms before that.',
-        tag: 'Writing',
-        title: 'Author & Writing Coach',
-        categories: ['Writing', 'Communication'],
-        socials: [
-            { platform: 'instagram', url: '#' },
-            { platform: 'x', url: '#' },
-        ],
-        yearsExperience: 20,
-    },
 ];
 
 export const PRODUCTS: DigitalProduct[] = [
@@ -243,41 +156,83 @@ const TopicCard: React.FC<{ topic: Topic }> = ({ topic }) => (
     </button>
 );
 
+// ─── Mentor card (real API mentor shape — matches MentorCardCompact in Overview.tsx) ──
+// Fields used: id, name, nick_name, occupation, bio, categories (string[]),
+// profile.avatar, is_approved. `mentor` is typed loosely since it comes
+// straight off the API response, same convention used in Overview.tsx.
+const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
+    const categories: string[] = mentor?.categories ?? [];
 
+    return (
+        <Link
+            to={`/dashboard/mentors/${mentor.id}`}
+            className="rounded-2xl lg:p-5 p-3 flex flex-col"
+            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
+        >
+            <div className="flex items-start justify-between mb-4">
+                <img
+                    src={mentor?.profile?.avatar}
+                    alt={mentor?.name}
+                    className="w-14 h-14 rounded-xl object-cover"
+                    style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                />
+                <button
+                    onClick={(e) => e.preventDefault()}
+                    className="px-4 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer shrink-0"
+                    style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)' }}
+                >
+                    Follow
+                </button>
+            </div>
 
-// ─── Mentor card (same shape as the Featured Calendars cards) ──────────────
-const MentorCard: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
-    <Link
-        to={`/dashboard/mentors/${mentor.id}`}
-        className="rounded-2xl lg:p-5 p-3 flex flex-col"
+            <h3 className="text-white font-bold text-base mb-1">{mentor?.nick_name || mentor?.name}</h3>
+
+            {mentor?.occupation && (
+                <p className="text-white/30 text-xs mb-2">{mentor.occupation}</p>
+            )}
+
+            <p className="text-white/40 text-sm leading-relaxed lg:mb-4 mb-2 line-clamp-2">{mentor?.bio}</p>
+
+            {categories.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-auto">
+                    {categories.slice(0, 1).map((category) => (
+                        <span
+                            key={category}
+                            className="inline-block w-fit px-2.5 py-1 rounded-md text-xs font-semibold capitalize"
+                            style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
+                        >
+                            {category}
+                        </span>
+                    ))}
+                </div>
+            )}
+        </Link>
+    );
+};
+
+const MentorCardSkeleton: React.FC = () => (
+    <div
+        className="rounded-2xl lg:p-5 p-3 flex flex-col animate-pulse"
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
     >
         <div className="flex items-start justify-between mb-4">
-            <img
-                src={mentor.avatar}
-                alt={mentor.name}
-                className="w-14 h-14 rounded-xl object-cover"
-                style={{ border: '1px solid rgba(255,255,255,0.1)' }}
-            />
-            <button
-                onClick={(e) => e.preventDefault()}
-                className="px-4 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer shrink-0"
-                style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)' }}
-            >
-                Follow
-            </button>
+            <div className="w-14 h-14 rounded-xl bg-white/5" />
+            <div className="w-16 h-7 rounded-full bg-white/5" />
         </div>
-        <h3 className="text-white font-bold text-base mb-1.5">{mentor.name}</h3>
-        <p className="text-white/40 text-sm leading-relaxed lg:mb-4 mb-2 line-clamp-2">{mentor.bio}</p>
-        <div className="flex items-center justify-between mt-auto">
-            <span
-                className="inline-block w-fit px-2.5 py-1 rounded-md text-xs font-semibold"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
-            >
-                {mentor.tag}
-            </span>
-        </div>
-    </Link>
+        <div className="h-4 w-2/3 rounded bg-white/5 mb-2" />
+        <div className="h-3 w-full rounded bg-white/5 mb-1.5" />
+        <div className="h-3 w-4/5 rounded bg-white/5" />
+    </div>
+);
+
+const NoMentorsState: React.FC = () => (
+    <div
+        className="flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl col-span-full"
+        style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}
+    >
+        <FiUsers size={22} className="text-white/20 mb-3" />
+        <p className="text-white/40 text-sm">No mentors available right now</p>
+    </div>
 );
 
 // ─── Digital product card ───────────────────────────────────────────────────
@@ -317,6 +272,9 @@ const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) => (
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 const Explore: React.FC = () => {
+    const { mentors, isLoading: mentorsLoading } = useGetMentors();
+    const allMentors: any[] = mentors?.data?.results ?? [];
+
     return (
         <div
             className="w-full min-h-screen"
@@ -325,6 +283,8 @@ const Explore: React.FC = () => {
                     'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
             }}
         >
+            <LoadingOverlay visible={mentorsLoading} />
+
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                 {/* Header */}
                 <div className="mb-14">
@@ -348,13 +308,17 @@ const Explore: React.FC = () => {
                     </div>
                 </section>
 
-                {/* Mentors */}
+                {/* Mentors — wired to real data via useGetMentors, same source Overview.tsx uses */}
                 <section className="mb-16">
                     <SectionHeader title="Featured Mentors" subtitle="Learn 1:1 from people who've done it" />
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {MENTORS.map((mentor) => (
-                            <MentorCard key={mentor.id} mentor={mentor} />
-                        ))}
+                        {mentorsLoading ? (
+                            Array.from({ length: 6 }).map((_, i) => <MentorCardSkeleton key={i} />)
+                        ) : allMentors.length > 0 ? (
+                            allMentors.map((mentor) => <MentorCard key={mentor.id} mentor={mentor} />)
+                        ) : (
+                            <NoMentorsState />
+                        )}
                     </div>
                 </section>
 

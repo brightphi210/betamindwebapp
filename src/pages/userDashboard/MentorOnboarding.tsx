@@ -120,10 +120,10 @@ const MentorOnboarding = () => {
 
     const [step, setStep] = useState<Step>("professional");
 
-    // Preview URLs (for <img> display)
+    // Preview URL (for <img> display)
     const [banner, setBanner] = useState<string | null>(null);
 
-    // Actual File objects to submit
+    // Actual File object to submit
     const [bannerFile, setBannerFile] = useState<File | null>(null);
 
     const [nickname, setNickname] = useState("");
@@ -136,11 +136,13 @@ const MentorOnboarding = () => {
 
     const [linkedin, setLinkedin] = useState("");
     const [xHandle, setXHandle] = useState("");
+    const [website, setWebsite] = useState("");
 
     // Bank details (Account Details step)
     const [bankName, setBankName] = useState("");
     const [accountName, setAccountName] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
+    const [routingOrSortCode, setRoutingOrSortCode] = useState("");
 
     const professionalComplete = !!(nickname && occupation && bio && experience);
     const socialComplete = categories.length > 0;
@@ -186,28 +188,30 @@ const MentorOnboarding = () => {
         // field it can json.loads() itself, not repeated plain-string fields.
         formData.append("categories", JSON.stringify(categories));
 
-        // Social links as a JSON-stringified array of {platform, url} objects.
-        // Bracket notation (social_links[0][platform]) was NOT being parsed by
-        // the backend into a list — it was treating social_links as one field
-        // and expecting JSON, so each item came back with platform/url "required".
-        // ASSUMPTION: confirm the backend wants a list of {platform, url} dicts
-        // and not some other shape (e.g. {linkedin: url, twitter: url}).
-        const links = [
-            linkedin && { platform: "linkedin", url: `https://linkedin.com/in/${linkedin}` },
-            xHandle && { platform: "twitter", url: `https://x.com/${xHandle}` },
-        ].filter(Boolean) as { platform: string; url: string }[];
+        // Backend expects the singular key "social_link" as a flat object:
+        // { twitter, linkedin, website } — NOT "social_links" as an array of
+        // {platform, url} dicts, and NOT bracket notation.
+        const socialLink = {
+            linkedin: linkedin ? `https://linkedin.com/in/${linkedin}` : "",
+            twitter: xHandle ? `https://x.com/${xHandle}` : "",
+            website: website || "",
+        };
+        formData.append("social_link", JSON.stringify(socialLink));
 
-        formData.append("social_links", JSON.stringify(links));
-
-        // Bank details as flat fields — this is the main fix. Sending these as a
-        // single JSON string previously resulted in bank_account: null on the server.
-        // ASSUMPTION: confirm these exact flat field names with backend
-        // (e.g. it might expect bank_account_bank_name, or a nested serializer
-        // that DOES want bank_account[bank_name] bracket notation instead).
-        formData.append("bank_name", bankName);
-        formData.append("account_name", accountName);
-        formData.append("account_number", accountNumber);
-        formData.append("currency", "NGN");
+        // Bank details as a nested "bank_account" JSON object — sending these as
+        // flat top-level fields (bank_name, account_name, ...) was previously
+        // resulting in bank_account: null on the server, since the backend reads
+        // a single "bank_account" field and json.loads()s it itself.
+        formData.append(
+            "bank_account",
+            JSON.stringify({
+                bank_name: bankName,
+                account_name: accountName,
+                account_number: accountNumber,
+                routing_or_sort_code: routingOrSortCode,
+                currency: "NGN",
+            })
+        );
 
         mutate(formData, {
             onSuccess: () => {
@@ -281,7 +285,7 @@ const MentorOnboarding = () => {
                     <div>
                         <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Your Profile</h2>
                         <div className="space-y-5">
-                            {/* Cover banner + overlapping avatar */}
+                            {/* Cover banner */}
                             <div>
                                 <p className="mb-2 text-sm font-semibold text-white">Cover Photo</p>
                                 <div className="relative mb-14 sm:mb-16">
@@ -394,6 +398,12 @@ const MentorOnboarding = () => {
                                         onChange={setXHandle}
                                         placeholder="yourhandle"
                                     />
+                                    <Field
+                                        label="Website"
+                                        value={website}
+                                        onChange={setWebsite}
+                                        placeholder="https://yourwebsite.com"
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -425,6 +435,13 @@ const MentorOnboarding = () => {
                                 onChange={(v) => setAccountNumber(v.replace(/[^0-9]/g, ""))}
                                 placeholder="0123456789"
                                 helper="10-digit NUBAN account number."
+                            />
+                            <Field
+                                label="Routing / Sort Code"
+                                value={routingOrSortCode}
+                                onChange={setRoutingOrSortCode}
+                                placeholder="Optional — for non-NGN accounts"
+                                helper="Leave blank if not applicable."
                             />
                         </div>
                     </div>

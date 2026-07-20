@@ -14,7 +14,7 @@ import { Link } from 'react-router-dom';
 import LoadingOverlay from '../../component/LoadingOverlay';
 import Button from '../../component/ui/Button';
 import { useGetMentors } from '../../hooks/queries/allQueriess';
-import { MENTORS, type Mentor } from './Explore';
+import { type Mentor } from './Explore';
 
 export interface Attendee {
     name: string;
@@ -305,15 +305,16 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
     </div>
 );
 
-const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
-    <div
+const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }: any) => (
+    <Link
+        to={`/dashboard/mentors/${mentor.id}`}
         className="rounded-2xl lg:p-5 p-3 flex flex-col"
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
     >
         <div className="flex items-start justify-between lg:mb-4 mb-2">
             <img
-                src={mentor.avatar}
-                alt={mentor.name}
+                src={mentor?.profile?.avatar}
+                alt={mentor?.name}
                 className="w-12 h-12 rounded-xl object-cover"
                 style={{ border: '1px solid rgba(205,220,57,.15)' }}
             />
@@ -324,15 +325,21 @@ const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }) => (
                 Follow
             </button>
         </div>
-        <h3 className="text-white font-bold text-base mb-1">{mentor.name}</h3>
-        <p className="text-white/40 text-xs leading-relaxed lg:mb-3 mb-2 line-clamp-2">{mentor.bio}</p>
-        <span
-            className="inline-block w-fit px-2.5 py-1 rounded-md text-xs font-semibold text-white"
-            style={{ background: 'rgba(166,255,0,0.08)' }}
-        >
-            {mentor.tag}
-        </span>
-    </div>
+        <h3 className="text-white font-bold text-base">{mentor.name}</h3>
+        <p className="text-white/30 text-xs leading-relaxed lg:mb-3 mb-2">@{mentor.nick_name}</p>
+        <p className="text-white/60 text-xs leading-relaxed lg:mb-3 mb-2 line-clamp-2">{mentor.bio}</p>
+        <div className="flex flex-wrap gap-1">
+            {mentor.categories?.slice(0, 1)?.map((category: any) => (
+                <span
+                    key={category}
+                    className="w-fit px-2.5 py-1 rounded-md text-xs font-semibold text-white capitalize"
+                    style={{ background: 'rgba(166,255,0,0.08)' }}
+                >
+                    {category}
+                </span>
+            ))}
+        </div>
+    </Link>
 );
 
 
@@ -504,7 +511,7 @@ const Overview: React.FC = () => {
     const drawerCheckboxRef = useRef<HTMLInputElement>(null);
 
     const { mentors, isLoading } = useGetMentors()
-    const allMentors = mentors?.data
+    const allMentors = mentors?.data?.results
     console.log('This is all mentors', allMentors)
 
     const filtered = EVENTS.filter((e) => e.status === tab);
@@ -530,8 +537,6 @@ const Overview: React.FC = () => {
     };
 
     const closeDrawer = () => {
-        // Uncheck first (synchronously) so the CSS-driven overlay is
-        // guaranteed to hide, then clear the event data.
         if (drawerCheckboxRef.current) {
             drawerCheckboxRef.current.checked = false;
         }
@@ -648,7 +653,7 @@ const Overview: React.FC = () => {
                                 </Link>
                             </div>
                             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                {MENTORS.slice(0, 6).map((mentor) => (
+                                {allMentors?.slice(0, 6).map((mentor: any) => (
                                     <MentorCardCompact key={mentor.id} mentor={mentor} />
                                 ))}
                             </div>
