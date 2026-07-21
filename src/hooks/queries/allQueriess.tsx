@@ -84,3 +84,65 @@ export const useGetMentorProfile = (id: any) => {
     };
 };
 
+
+
+
+// ================ EVENTS ======================
+export const useGetEvents = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["events"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests("events/", token);
+        },
+    });
+
+    return {
+        events: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};
+
+
+
+// ================ EVENTS ======================
+export const useGetMineEvents = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["events"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests("events/mine/", token);
+        },
+    });
+
+    return {
+        mineEvents: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};
+
+
+export const useGetEvent = (id: any) => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["event", id],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`events/${id}/`, token);
+        },
+        enabled: !!id,
+    });
+
+    return {
+        eventDetail: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};

@@ -156,10 +156,6 @@ const TopicCard: React.FC<{ topic: Topic }> = ({ topic }) => (
     </button>
 );
 
-// ─── Mentor card (real API mentor shape — matches MentorCardCompact in Overview.tsx) ──
-// Fields used: id, name, nick_name, occupation, bio, categories (string[]),
-// profile.avatar, is_approved. `mentor` is typed loosely since it comes
-// straight off the API response, same convention used in Overview.tsx.
 const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
     const categories: string[] = mentor?.categories ?? [];
 

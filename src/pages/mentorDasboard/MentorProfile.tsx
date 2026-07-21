@@ -446,10 +446,10 @@ const MentorProfile = () => {
     const bank = mentorProfile?.bank_account;
 
     return (
-        <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
+        <div className="min-h-screen w-full text-white" >
             <LoadingOverlay visible={isSaving} />
             {/* max-w-4xl matches the Explore page container width */}
-            <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+            <div className="mx-auto max-w-4xl ">
                 <div className="mb-10 flex items-center gap-6" style={{ borderBottom: cardBorder }}>
                     {(["professional", "social", "account"] as Step[]).map((s) => (
                         <button

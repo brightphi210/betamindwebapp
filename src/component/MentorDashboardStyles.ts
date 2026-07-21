@@ -6,6 +6,7 @@ export const cardBg = "rgba(255,255,255,0.02)";
 export const cardBorder = "1px solid rgba(205,220,57,.08)";
 export const prefixBg = "rgba(255,255,255,0.03)";
 
+
 export const pageBackground =
     "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)";
 

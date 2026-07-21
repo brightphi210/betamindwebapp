@@ -7,13 +7,15 @@ import {
     FiExternalLink,
     FiMapPin,
     FiPlus,
+    FiTag,
+    FiUserCheck,
     FiUsers,
     FiX,
 } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import LoadingOverlay from '../../component/LoadingOverlay';
 import Button from '../../component/ui/Button';
-import { useGetMentors } from '../../hooks/queries/allQueriess';
+import { useGetMentors, useGetMineEvents } from '../../hooks/queries/allQueriess';
 import { type Mentor } from './Explore';
 
 export interface Attendee {
@@ -38,7 +40,85 @@ export interface RegisteredEvent {
     description?: string;
     attendees: Attendee[];
     publicUrl: string;
+    ticketPrice: string;
+    requireApproval: boolean;
+    capacity: number | null;
 }
+
+export interface ApiEvent {
+    id: string;
+    user: string;
+    user_name: string;
+    title: string;
+    description: string;
+    image: string;
+    start_date: string;
+    end_date: string;
+    location: string;
+    ticket_price: string;
+    require_approval: boolean;
+    capacity: number | null;
+    created_at: string;
+}
+
+const formatTime = (iso: string) => {
+    if (!iso) return '';
+    try {
+        return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    } catch {
+        return '';
+    }
+};
+
+const formatDateLabel = (iso: string) => {
+    if (!iso) return '';
+    const date = new Date(iso);
+    const now = new Date();
+
+    if (date.toDateString() === now.toDateString()) return 'Today';
+
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+
+    const diffDays = Math.round((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays > 0 && diffDays < 7) {
+        return date.toLocaleDateString([], { weekday: 'long' });
+    }
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
+
+const formatTicketPrice = (price: string) => {
+    const numeric = parseFloat(price);
+    if (!numeric || numeric <= 0) return 'Free';
+    const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
+    return `$${trimmed}`;
+};
+
+const mapApiEventToRegistered = (event: ApiEvent): RegisteredEvent => {
+    const isPast = new Date(event.end_date).getTime() < Date.now();
+    const status: 'upcoming' | 'past' = isPast ? 'past' : 'upcoming';
+
+    return {
+        id: event.id,
+        title: event.title,
+        time: formatTime(event.start_date),
+        date: event.start_date,
+        dateLabel: formatDateLabel(event.start_date),
+        location: event.location,
+        registered: 0,
+        thumbnail: event.image,
+        status,
+        actionText: status === 'upcoming' ? 'View Event' : 'View Details',
+        host: event.user_name,
+        description: event.description,
+        attendees: [],
+        publicUrl: `/events/${event.id}`,
+        ticketPrice: event.ticket_price,
+        requireApproval: event.require_approval,
+        capacity: event.capacity,
+    };
+};
 
 export const EVENTS: RegisteredEvent[] = [
     {
@@ -64,6 +144,9 @@ export const EVENTS: RegisteredEvent[] = [
             { name: 'John Nash', avatar: 'https://i.pravatar.cc/64?img=33' },
         ],
         publicUrl: '/events/1',
+        ticketPrice: '0.00',
+        requireApproval: false,
+        capacity: null,
     },
     {
         id: '2',
@@ -86,6 +169,9 @@ export const EVENTS: RegisteredEvent[] = [
             { name: 'Tim Berners-Lee', avatar: 'https://i.pravatar.cc/64?img=41' },
         ],
         publicUrl: '/events/2',
+        ticketPrice: '25.00',
+        requireApproval: true,
+        capacity: 150,
     },
     {
         id: '3',
@@ -109,8 +195,77 @@ export const EVENTS: RegisteredEvent[] = [
             { name: 'Esther Duflo', avatar: 'https://i.pravatar.cc/64?img=29' },
         ],
         publicUrl: '/events/3',
+        ticketPrice: '0.00',
+        requireApproval: false,
+        capacity: 300,
     },
 ];
+
+// ─── Skeleton primitives ────────────────────────────────────────────────────
+const SkeletonBlock: React.FC<{ className?: string; style?: React.CSSProperties }> = ({
+    className = '',
+    style,
+}) => (
+    <div
+        className={`animate-pulse rounded-md ${className}`}
+        style={{ background: 'rgba(255,255,255,0.06)', ...style }}
+    />
+);
+
+const EventHeroSkeleton: React.FC = () => (
+    <div
+        className="relative rounded-xl overflow-hidden mb-10"
+        style={{ border: '1px solid rgba(205,220,57,.15)' }}
+    >
+        <SkeletonBlock className="w-full h-56 sm:h-72" style={{ borderRadius: 0 }} />
+        <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.85) 100%)' }}
+        />
+        <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 space-y-3">
+            <SkeletonBlock className="h-3.5 w-40" />
+            <SkeletonBlock className="h-7 sm:h-9 w-2/3" />
+            <SkeletonBlock className="h-5 w-48" />
+            <SkeletonBlock className="h-9 w-28" />
+        </div>
+    </div>
+);
+
+const EventRowSkeleton: React.FC = () => (
+    <div
+        className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-xl p-4 sm:p-5"
+        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
+    >
+        <SkeletonBlock className="w-full h-full aspect-video sm:w-24 sm:h-24 shrink-0" />
+        <div className="flex-1 min-w-0 space-y-2.5">
+            <SkeletonBlock className="h-3 w-16" />
+            <SkeletonBlock className="h-5 w-3/4" />
+            <SkeletonBlock className="h-3 w-40" />
+            <SkeletonBlock className="h-5 w-56" />
+        </div>
+        <SkeletonBlock className="h-9 w-full sm:w-24 shrink-0" />
+    </div>
+);
+
+const EventsTimelineSkeleton: React.FC<{ groups?: number; rowsPerGroup?: number }> = ({
+    groups = 2,
+    rowsPerGroup = 2,
+}) => (
+    <div className="flex flex-col gap-10">
+        {Array.from({ length: groups }).map((_, g) => (
+            <div key={g} className="flex flex-col sm:flex-row gap-4 sm:gap-8">
+                <div className="sm:w-28 shrink-0 pt-1">
+                    <SkeletonBlock className="h-4 w-16" />
+                </div>
+                <div className="flex-1 flex flex-col gap-3">
+                    {Array.from({ length: rowsPerGroup }).map((_, r) => (
+                        <EventRowSkeleton key={r} />
+                    ))}
+                </div>
+            </div>
+        ))}
+    </div>
+);
 
 const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
     <div className="flex flex-col items-center justify-center py-24 sm:py-32">
@@ -187,6 +342,44 @@ const AvatarStack: React.FC<{ attendees: Attendee[]; total: number; size?: numbe
     );
 };
 
+const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | 'md' }> = ({ event, size = 'sm' }) => {
+    const textSize = size === 'sm' ? 'text-[11px]' : 'text-xs';
+    const padding = size === 'sm' ? 'px-2 py-1' : 'px-2.5 py-1.5';
+
+    return (
+        <div className="flex flex-wrap items-center gap-1.5">
+            <span
+                className={`inline-flex items-center gap-1 rounded-md font-semibold ${textSize} ${padding}`}
+                style={{
+                    background: formatTicketPrice(event.ticketPrice) === 'Free' ? 'rgba(255,255,255,0.06)' : 'rgba(166,255,0,0.1)',
+                    color: formatTicketPrice(event.ticketPrice) === 'Free' ? 'rgba(255,255,255,0.6)' : '#a6ff00',
+                }}
+            >
+                <FiTag size={size === 'sm' ? 11 : 13} />
+                {formatTicketPrice(event.ticketPrice)}
+            </span>
+
+            {event.requireApproval && (
+                <span
+                    className={`inline-flex items-center gap-1 rounded-md font-semibold ${textSize} ${padding}`}
+                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
+                >
+                    <FiUserCheck size={size === 'sm' ? 11 : 13} />
+                    Approval Required
+                </span>
+            )}
+
+            <span
+                className={`inline-flex items-center gap-1 rounded-md font-semibold ${textSize} ${padding}`}
+                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
+            >
+                <FiUsers size={size === 'sm' ? 11 : 13} />
+                {event.capacity === null || event.capacity === undefined ? 'Unlimited' : `Cap ${event.capacity}`}
+            </span>
+        </div>
+    );
+};
+
 
 const LatestEventHero: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEvent) => void }> = ({
     event,
@@ -226,9 +419,12 @@ const LatestEventHero: React.FC<{ event: RegisteredEvent; onView: (event: Regist
                     </>
                 )}
             </div>
-            <h2 className="text-white text-xl sm:text-3xl font-black mb-4 max-w-xl break-words">
+            <h2 className="text-white text-xl sm:text-3xl font-black mb-3 max-w-xl break-words">
                 {event.title}
             </h2>
+            <div className="mb-4">
+                <EventMetaBadges event={event} size="md" />
+            </div>
             <div className="flex flex-wrap items-center gap-4">
                 <Button
                     onClick={(e) => {
@@ -240,10 +436,12 @@ const LatestEventHero: React.FC<{ event: RegisteredEvent; onView: (event: Regist
                 >
                     {event.actionText}
                 </Button>
-                <span className="flex items-center gap-1.5 text-white/60 text-xs sm:text-sm">
-                    <FiUsers size={13} />
-                    {event.registered} registered
-                </span>
+                {event.registered > 0 && (
+                    <span className="flex items-center gap-1.5 text-white/60 text-xs sm:text-sm">
+                        <FiUsers size={13} />
+                        {event.registered} registered
+                    </span>
+                )}
             </div>
         </div>
     </div>
@@ -258,14 +456,12 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
         className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-xl p-4 sm:p-5 transition-colors hover:bg-white/[0.03] cursor-pointer"
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
     >
-        {/* Thumbnail */}
         <img
             src={event.thumbnail}
             alt={event.title}
             className="w-full h-full aspect-video sm:w-24 sm:h-24 rounded-lg shrink-0 object-cover"
         />
 
-        {/* Info */}
         <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 text-white/40 text-xs sm:text-sm mb-1.5">
                 <FiClock size={13} />
@@ -281,15 +477,21 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
                         {event.location}
                     </span>
                 )}
-                <span className="flex items-center gap-1.5">
-                    <FiUsers size={13} />
-                    {event.registered} registered
-                </span>
+                {event.registered > 0 && (
+                    <span className="flex items-center gap-1.5">
+                        <FiUsers size={13} />
+                        {event.registered} registered
+                    </span>
+                )}
             </div>
-            <AvatarStack attendees={event.attendees} total={event.registered} size={24} />
+            <div className="mb-2">
+                <EventMetaBadges event={event} size="sm" />
+            </div>
+            {event.attendees.length > 0 && (
+                <AvatarStack attendees={event.attendees} total={event.registered} size={24} />
+            )}
         </div>
 
-        {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
             <Button
                 onClick={(e) => {
@@ -364,7 +566,6 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
 
     return (
         <div className="bg-[#0a0f08] min-h-full w-full sm:w-[480px] flex flex-col shadow-xl border-l border-[rgba(205,220,57,.1)]">
-            {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-[rgba(205,220,57,.08)] shrink-0 gap-2">
                 <div className="flex items-center gap-2">
                     <Button
@@ -387,9 +588,6 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                     </a>
                 </div>
 
-                {/* Fixed: plain button instead of <label htmlFor> — avoids the race
-                    between the native checkbox toggle and React unmounting this
-                    component (which was leaving the drawer-overlay stuck visible). */}
                 <button
                     type="button"
                     aria-label="close sidebar"
@@ -401,7 +599,6 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 sm:p-8">
-                {/* Status pill */}
                 <span
                     className="inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize mb-6"
                     style={{
@@ -412,7 +609,6 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                     {event.status}
                 </span>
 
-                {/* Thumbnail */}
                 <img
                     src={event.thumbnail}
                     alt={event.title}
@@ -435,7 +631,7 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                     </div>
                 )}
 
-                <div className="flex flex-col gap-4 mb-8">
+                <div className="flex flex-col gap-4 mb-6">
                     <div className="flex items-center gap-3 text-white/70 text-sm">
                         <FiCalendar className="text-[#a6ff00] shrink-0" size={18} />
                         <span>{event.dateLabel} · {event.time}</span>
@@ -448,18 +644,64 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                     )}
                 </div>
 
-                {/* Attendees */}
                 <div className="mb-8">
-                    <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
-                        Attendees · {event.registered}
-                    </h3>
+                    <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">Event Details</h3>
                     <div
-                        className="flex items-center justify-between rounded-xl p-4"
+                        className="rounded-xl overflow-hidden"
                         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(205,220,57,.08)' }}
                     >
-                        <AvatarStack attendees={event.attendees} total={event.registered} size={32} />
+                        <div
+                            className="flex items-center justify-between gap-3 px-4 py-3"
+                            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                        >
+                            <div className="flex items-center gap-2.5 text-white/70 text-sm">
+                                <FiTag size={15} className="text-white/40" />
+                                Ticket Price
+                            </div>
+                            <span
+                                className="text-sm font-semibold"
+                                style={{ color: formatTicketPrice(event.ticketPrice) === 'Free' ? 'rgba(255,255,255,0.7)' : '#a6ff00' }}
+                            >
+                                {formatTicketPrice(event.ticketPrice)}
+                            </span>
+                        </div>
+                        <div
+                            className="flex items-center justify-between gap-3 px-4 py-3"
+                            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                        >
+                            <div className="flex items-center gap-2.5 text-white/70 text-sm">
+                                <FiUserCheck size={15} className="text-white/40" />
+                                Requires Approval
+                            </div>
+                            <span className="text-sm font-semibold text-white/70">
+                                {event.requireApproval ? 'Yes' : 'No'}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 px-4 py-3">
+                            <div className="flex items-center gap-2.5 text-white/70 text-sm">
+                                <FiUsers size={15} className="text-white/40" />
+                                Capacity
+                            </div>
+                            <span className="text-sm font-semibold text-white/70">
+                                {event.capacity === null || event.capacity === undefined ? 'Unlimited' : event.capacity}
+                            </span>
+                        </div>
                     </div>
                 </div>
+
+                {event.attendees.length > 0 && (
+                    <div className="mb-8">
+                        <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
+                            Attendees · {event.registered}
+                        </h3>
+                        <div
+                            className="flex items-center justify-between rounded-xl p-4"
+                            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(205,220,57,.08)' }}
+                        >
+                            <AvatarStack attendees={event.attendees} total={event.registered} size={32} />
+                        </div>
+                    </div>
+                )}
 
                 {event.description && (
                     <div className="mb-8">
@@ -468,7 +710,6 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                     </div>
                 )}
 
-                {/* Public link box */}
                 <div
                     className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 mb-8"
                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(205,220,57,.08)' }}
@@ -512,10 +753,16 @@ const Overview: React.FC = () => {
 
     const { mentors, isLoading } = useGetMentors()
     const allMentors = mentors?.data?.results
-    console.log('This is all mentors', allMentors)
 
-    const filtered = EVENTS.filter((e) => e.status === tab);
+    const { mineEvents, isLoading: isLoadingEvents } = useGetMineEvents()
 
+    const rawEvents: ApiEvent[] = Array.isArray(mineEvents?.data)
+        ? mineEvents.data
+        : mineEvents?.data?.results ?? [];
+
+    const myEvents = rawEvents.map(mapApiEventToRegistered);
+
+    const filtered = myEvents.filter((e) => e.status === tab);
 
     const grouped = filtered.reduce<Record<string, RegisteredEvent[]>>((acc, event) => {
         acc[event.dateLabel] = acc[event.dateLabel] || [];
@@ -523,10 +770,9 @@ const Overview: React.FC = () => {
         return acc;
     }, {});
 
-    // Soonest upcoming event, used for the spotlight hero
-    const upcomingEvents = EVENTS.filter((e) => e.status === 'upcoming').sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
+    const upcomingEvents = myEvents
+        .filter((e) => e.status === 'upcoming')
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const latestEvent = upcomingEvents[0];
 
     const openDrawer = (event: RegisteredEvent) => {
@@ -552,6 +798,7 @@ const Overview: React.FC = () => {
                 className="drawer-toggle"
             />
 
+            {/* Only block the page for the mentors fetch; events get inline skeletons */}
             <LoadingOverlay visible={isLoading} />
 
             <div className="drawer-content">
@@ -564,14 +811,17 @@ const Overview: React.FC = () => {
                 >
                     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                         {/* Latest upcoming event spotlight */}
-                        {latestEvent && <LatestEventHero event={latestEvent} onView={openDrawer} />}
+                        {isLoadingEvents ? (
+                            <EventHeroSkeleton />
+                        ) : (
+                            latestEvent && <LatestEventHero event={latestEvent} onView={openDrawer} />
+                        )}
 
                         {/* Header */}
                         <div className="flex items-center justify-between mb-10 gap-3">
                             <h1 className="text-2xl sm:text-3xl font-black text-white">Events</h1>
 
                             <div className="flex items-center gap-3">
-                                {/* Tabs */}
                                 <div
                                     className="flex items-center rounded-lg p-1"
                                     style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(205,220,57,.1)' }}
@@ -603,18 +853,18 @@ const Overview: React.FC = () => {
                         </div>
 
                         {/* Content */}
-                        {filtered.length === 0 ? (
+                        {isLoadingEvents ? (
+                            <EventsTimelineSkeleton groups={2} rowsPerGroup={2} />
+                        ) : filtered.length === 0 ? (
                             <EmptyState tab={tab} />
                         ) : (
                             <div className="flex flex-col gap-10">
                                 {Object.entries(grouped).map(([label, events]) => (
                                     <div key={label} className="flex flex-col sm:flex-row gap-4 sm:gap-8">
-                                        {/* Timeline label */}
                                         <div className="sm:w-28 shrink-0 pt-1">
                                             <p className="text-white font-bold text-sm">{label}</p>
                                         </div>
 
-                                        {/* Timeline line + events */}
                                         <div className="flex-1 flex flex-col gap-3 relative">
                                             <div
                                                 className="absolute left-[-1.25rem] sm:left-[-2rem] top-2 bottom-2 w-px hidden sm:block"
@@ -629,7 +879,6 @@ const Overview: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Link visible on mobile since the header one is hidden below sm */}
                         <div className="flex sm:hidden justify-center mt-6">
                             <Link
                                 to="/dashboard/events"
@@ -662,7 +911,6 @@ const Overview: React.FC = () => {
                 </div>
             </div>
 
-            {/* Event Detail Drawer */}
             <div className="drawer-side z-50">
                 <div
                     aria-label="close sidebar"

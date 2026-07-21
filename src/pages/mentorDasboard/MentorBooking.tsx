@@ -127,7 +127,7 @@ const MentorBookings = () => {
             <h2 className="mb-1 text-xl font-bold text-white sm:text-2xl">Bookings</h2>
             <p className="mb-6 text-sm text-white/40">Manage your incoming, upcoming, and past sessions.</p>
 
-            <div className="mb-6 flex gap-2">
+            <div className="mb-6 flex flex-wrap gap-2">
                 {TABS.map((t) => {
                     const count = bookings.filter((b) => b.status === t.key).length;
                     const active = tab === t.key;
@@ -136,7 +136,7 @@ const MentorBookings = () => {
                             key={t.key}
                             type="button"
                             onClick={() => setTab(t.key)}
-                            className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition-colors sm:text-sm ${active ? "bg-[#a6ff00] text-black" : "text-white/60 hover:text-white"
+                            className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${active ? "bg-[#a6ff00] text-black" : "text-white/60 hover:text-white"
                                 }`}
                             style={active ? undefined : { background: cardBg, border: cardBorder }}
                         >

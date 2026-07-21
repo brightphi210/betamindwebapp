@@ -1,9 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
     FiAlignLeft,
     FiCalendar,
     FiCamera,
-    FiCheck,
     FiChevronDown,
     FiClock,
     FiCopy,
@@ -14,8 +13,116 @@ import {
     FiMapPin,
     FiTag,
     FiUserCheck,
-    FiUsers,
+    FiUsers
 } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import LoadingOverlay from '../../component/LoadingOverlay';
+import { useCreateEvents } from '../../hooks/mutations/allMutation';
+import { useGlobalContext } from '../../providers/GlobalContext';
+
+const cardBg = 'rgba(255,255,255,0.02)';
+const cardBorder = '1px solid rgba(255,255,255,0.08)';
+
+// ─── Bubble splash background (matches MentorOnboardingSuccess) ───────────
+const BUBBLE_COLORS = ['#a6ff00', '#7ee6c0', '#ff8fb0', '#8f8fff'];
+
+type Bubble = {
+    id: number;
+    left: number; // vw
+    size: number; // px
+    color: string;
+    duration: number; // s
+    delay: number; // s
+    drift: number; // px, horizontal sway
+    opacity: number;
+};
+
+const BUBBLE_COUNT = 26;
+
+const makeBubbles = (): Bubble[] =>
+    Array.from({ length: BUBBLE_COUNT }, (_, id) => ({
+        id,
+        left: Math.random() * 100,
+        size: 6 + Math.random() * 16,
+        color: BUBBLE_COLORS[id % BUBBLE_COLORS.length],
+        duration: 9 + Math.random() * 10,
+        delay: Math.random() * -14,
+        drift: Math.random() * 60 - 30,
+        opacity: 0.25 + Math.random() * 0.5,
+    }));
+
+const BubbleSplash: React.FC<{ bubbles: Bubble[] }> = ({ bubbles }) => (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {bubbles.map((b) => (
+            <span
+                key={b.id}
+                className="absolute rounded-full bubble-float"
+                style={{
+                    left: `${b.left}vw`,
+                    bottom: '-10%',
+                    width: b.size,
+                    height: b.size,
+                    background: b.color,
+                    opacity: b.opacity,
+                    boxShadow: `0 0 ${b.size}px ${b.color}55`,
+                    ['--drift' as string]: `${b.drift}px`,
+                    animationDuration: `${b.duration}s`,
+                    animationDelay: `${b.delay}s`,
+                }}
+            />
+        ))}
+        <style>{`
+            @keyframes bubbleFloat {
+                0% {
+                    transform: translate(0, 0) scale(0.6);
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 1;
+                }
+                100% {
+                    transform: translate(var(--drift), -120vh) scale(1);
+                    opacity: 0;
+                }
+            }
+            .bubble-float {
+                animation-name: bubbleFloat;
+                animation-timing-function: ease-in;
+                animation-iteration-count: infinite;
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .bubble-float {
+                    animation: none;
+                    opacity: 0.15 !important;
+                }
+            }
+        `}</style>
+    </div>
+);
+
+const PartyIcon = () => (
+    <svg width="88" height="88" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path
+            d="M14 50L26 22L42 38L14 50Z"
+            fill="#a6ff00"
+            stroke="#a6ff00"
+            strokeWidth="2"
+            strokeLinejoin="round"
+        />
+        <path d="M30 18L34 10" stroke="#a6ff00" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M40 14L42 6" stroke="#7ee6c0" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M46 24L54 22" stroke="#ff8fb0" strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="22" cy="10" r="2" fill="#7ee6c0" />
+        <circle cx="52" cy="34" r="2" fill="#8f8fff" />
+        <path
+            d="M32 30 L38 28 M35 36 L42 35 M38 42 L44"
+            stroke="#a6ff00"
+            strokeWidth="2"
+            strokeLinecap="round"
+        />
+        <circle cx="46" cy="12" r="1.6" fill="#ff8fb0" />
+    </svg>
+);
 
 // ─── Small building blocks matched to app styling ──────────────────────────
 const IconInputRow: React.FC<{
@@ -27,7 +134,7 @@ const IconInputRow: React.FC<{
 }> = ({ icon, value, onChange, placeholder, subtext }) => (
     <div
         className="w-full rounded-xl px-4 py-3.5"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: cardBg, border: cardBorder }}
     >
         <div className="flex items-center gap-3">
             <span className="text-white/40 shrink-0">{icon}</span>
@@ -50,7 +157,7 @@ const IconTextAreaRow: React.FC<{
 }> = ({ icon, value, onChange, placeholder }) => (
     <div
         className="w-full rounded-xl px-4 py-3.5"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: cardBg, border: cardBorder }}
     >
         <div className="flex items-start gap-3">
             <span className="text-white/40 shrink-0 mt-0.5">{icon}</span>
@@ -83,10 +190,16 @@ type Step = 'form' | 'success';
 type TicketMode = 'free' | 'paid';
 
 const EventCreate: React.FC = () => {
+    const navigate = useNavigate();
+    const { addToast } = useGlobalContext();
+    const { mutate, isPending } = useCreateEvents();
+
     const [step, setStep] = useState<Step>('form');
+    const bubbles = useMemo(makeBubbles, []);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [coverImage, setCoverImage] = useState<string | null>(null);
+    const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
 
     const [eventName, setEventName] = useState('');
     const [startDate, setStartDate] = useState('');
@@ -112,12 +225,57 @@ const EventCreate: React.FC = () => {
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) setCoverImage(URL.createObjectURL(file));
+        if (file) {
+            setCoverImage(URL.createObjectURL(file));
+            setCoverImageFile(file);
+        }
     };
 
+    // Combine a date input ("2026-07-21") and a time input ("18:30") into a
+    // real Date so we can send a proper ISO string, matching the
+    // "2026-07-21T00:38:46.614Z" shape the backend expects.
+    const toIso = (date: string, time: string) => {
+        if (!date) return '';
+        const combined = new Date(`${date}T${time || '00:00'}:00`);
+        return combined.toISOString();
+    };
+
+    const isValid = !!(eventName.trim() && startDate && endDate && location.trim());
+
     const handleCreate = () => {
-        // TODO: wire up to create-event mutation (send coverImage file, not just the blob URL)
-        setStep('success');
+        if (!isValid) return;
+
+        const formData = new FormData();
+        formData.append('title', eventName);
+        formData.append('description', description);
+        formData.append('location', location);
+        formData.append('start_date', toIso(startDate, startTime));
+        formData.append('end_date', toIso(endDate, endTime));
+        formData.append('ticket_price', ticketMode === 'paid' ? (price || '0') : '0');
+        formData.append('require_approval', String(requireApproval));
+
+        // Capacity: only send a number when the host explicitly set a limit.
+        // Leaving it unset for "unlimited" so the backend applies its own default.
+        if (capacityMode === 'limited' && capacity) {
+            formData.append('capacity', capacity);
+        }
+
+        if (coverImageFile) formData.append('image', coverImageFile);
+
+        mutate(formData, {
+            onSuccess: (response) => {
+                console.log('Event created successfully:', response);
+                setStep('success');
+            },
+            onError: (error: any) => {
+                console.error('Error creating event:', error);
+                const message =
+                    error?.response?.data?.message ||
+                    error?.response?.data?.detail ||
+                    'Something went wrong. Please try again.';
+                addToast(message, 'error');
+            },
+        });
     };
 
     const handleCopyLink = () => {
@@ -130,28 +288,27 @@ const EventCreate: React.FC = () => {
     if (step === 'success') {
         return (
             <div
-                className="w-full min-h-screen"
+                className="relative min-h-screen w-full overflow-hidden text-white"
                 style={{
                     background:
-                        'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
+                        'radial-gradient(ellipse 500px 500px at 50% -100px, rgba(166, 255, 0, 0.10), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.9) 0%, #000000 60%)',
                 }}
             >
-                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 flex flex-col items-center text-center">
-                    <div
-                        className="w-16 h-16 rounded-full flex items-center justify-center mb-6"
-                        style={{ background: 'rgba(166,255,0,0.12)', border: '1px solid rgba(166,255,0,0.3)' }}
-                    >
-                        <FiCheck size={28} style={{ color: '#a6ff00' }} />
+                <BubbleSplash bubbles={bubbles} />
+
+                <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 flex flex-col items-center text-center">
+                    <div className="mx-auto mb-4 flex items-center justify-center rounded-2xl">
+                        <PartyIcon />
                     </div>
 
                     <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">You're live! 🎉</h1>
-                    <p className="text-white/40 text-base max-w-md mb-10">
-                        {eventName || 'Your event'} has been created and is ready to share with the world.
+                    <p className="text-white/50 text-base max-w-md mb-10">
+                        <span className="font-semibold text-white">{eventName || 'Your event'}</span> has been created and is ready to share with the world.
                     </p>
 
                     <div
-                        className="w-full max-w-lg rounded-xl overflow-hidden mb-8"
-                        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                        className="w-full max-w-lg rounded-2xl overflow-hidden mb-8"
+                        style={{ background: cardBg, border: cardBorder }}
                     >
                         <div className="aspect-[2/1] w-full">
                             {coverImage ? (
@@ -194,6 +351,7 @@ const EventCreate: React.FC = () => {
                             View Event Page
                         </button>
                         <button
+                            onClick={() => navigate('/dashboard/overview')}
                             className="flex-1 px-6 py-3 rounded-lg text-sm font-semibold w-full transition-colors hover:bg-white/[0.04] cursor-pointer"
                             style={{ color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.12)' }}
                         >
@@ -208,19 +366,20 @@ const EventCreate: React.FC = () => {
     // ─── Form ────────────────────────────────────────────────────────────
     return (
         <div
-            className="w-full min-h-screen"
+            className="w-full min-h-screen relative"
             style={{
                 background:
                     'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
             }}
         >
+            <LoadingOverlay visible={isPending} />
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                 <div className="flex flex-col lg:flex-row gap-10">
                     {/* Left: cover image upload */}
                     <div className="w-full lg:w-[300px] shrink-0">
                         <div
                             className="relative w-full aspect-square rounded-2xl overflow-hidden cursor-pointer group"
-                            style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                            style={{ border: cardBorder }}
                             onClick={() => fileInputRef.current?.click()}
                         >
                             {coverImage ? (
@@ -228,7 +387,7 @@ const EventCreate: React.FC = () => {
                             ) : (
                                 <div
                                     className="w-full h-full flex flex-col items-center justify-center gap-2"
-                                    style={{ background: 'rgba(255,255,255,0.02)' }}
+                                    style={{ background: cardBg }}
                                 >
                                     <FiImage size={28} className="text-white/20" />
                                     <p className="text-white/30 text-xs">Add cover image</p>
@@ -254,7 +413,10 @@ const EventCreate: React.FC = () => {
                         </div>
                         {coverImage && (
                             <button
-                                onClick={() => setCoverImage(null)}
+                                onClick={() => {
+                                    setCoverImage(null);
+                                    setCoverImageFile(null);
+                                }}
                                 className="mt-3 w-full text-xs text-white/40 hover:text-white/70 cursor-pointer transition-colors"
                             >
                                 Remove image
@@ -295,7 +457,7 @@ const EventCreate: React.FC = () => {
                         <div className="flex gap-3 mb-4">
                             <div
                                 className="flex-1 rounded-xl overflow-hidden"
-                                style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                style={{ background: cardBg, border: cardBorder }}
                             >
                                 <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                                     <span className="w-2 h-2 rounded-full bg-white/40 shrink-0" />
@@ -340,7 +502,7 @@ const EventCreate: React.FC = () => {
 
                             <div
                                 className="hidden sm:flex flex-col justify-center gap-1 rounded-xl px-4 py-3 w-40 shrink-0"
-                                style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                style={{ background: cardBg, border: cardBorder }}
                             >
                                 <FiClock className="text-white/40" size={16} />
                                 <p className="text-white text-sm font-semibold mt-1">GMT+01:00</p>
@@ -373,7 +535,7 @@ const EventCreate: React.FC = () => {
                         <h3 className="text-white/40 text-xs font-semibold uppercase tracking-wide mb-3">Event Options</h3>
                         <div
                             className="rounded-xl overflow-hidden mb-8"
-                            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                            style={{ background: cardBg, border: cardBorder }}
                         >
                             {/* Ticket price */}
                             <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -499,11 +661,11 @@ const EventCreate: React.FC = () => {
 
                         <button
                             onClick={handleCreate}
-                            disabled={!eventName.trim()}
+                            disabled={!isValid || isPending}
                             className="w-full px-6 py-3.5 rounded-xl text-sm font-bold text-black transition-transform hover:scale-[1.005] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                             style={{ background: '#a6ff00' }}
                         >
-                            Create Event
+                            {isPending ? 'Creating...' : 'Create Event'}
                         </button>
                     </div>
                 </div>

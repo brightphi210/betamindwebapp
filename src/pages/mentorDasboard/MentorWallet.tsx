@@ -3,6 +3,8 @@ import {
     FiArrowDownLeft,
     FiArrowUpRight,
     FiCreditCard,
+    FiEye,
+    FiEyeOff,
     FiInfo,
     FiLoader,
     FiX,
@@ -49,10 +51,10 @@ const TransactionRow: React.FC<{ tx: Transaction }> = ({ tx }) => {
         <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: cardBg, border: cardBorder }}>
             <div
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                style={{ background: isPayout ? "rgba(248,113,113,0.1)" : "rgba(166,255,0,0.1)" }}
+                style={{ background: isPayout ? "rgba(248,113,113,0.05)" : "rgba(166,255,0,0.05)" }}
             >
                 {isPayout ? (
-                    <FiArrowUpRight size={15} className="text-red-400" />
+                    <FiArrowUpRight size={15} className="text-red-600" />
                 ) : (
                     <FiArrowDownLeft size={15} className="text-[#a6ff00]" />
                 )}
@@ -62,12 +64,11 @@ const TransactionRow: React.FC<{ tx: Transaction }> = ({ tx }) => {
                 <p className="text-xs text-white/40">{tx.date}</p>
             </div>
             <div className="shrink-0 text-right">
-                <p className={`text-sm font-bold ${isPayout ? "text-red-400" : "text-[#a6ff00]"}`}>
+                <p className="text-sm font-bold">
                     {isPayout ? "-" : "+"}₦{Math.abs(tx.amount).toLocaleString()}
                 </p>
                 <span
-                    className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                    style={{ background: statusStyle.bg, color: statusStyle.color }}
+                    className="mt-1 inline-block rounded-full text-white/40 px-2 py-0.5 text-[10px] font-semibold"
                 >
                     {statusStyle.label}
                 </span>
@@ -107,12 +108,17 @@ const WithdrawModal: React.FC<{
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
             onClick={onClose}
         >
             <div
-                className="w-full max-w-md rounded-2xl p-6"
-                style={{ background: "#0a0d09", border: cardBorder }}
+                className="w-full max-w-md rounded-2xl p-6 shadow-2xl"
+                style={{
+                    background: "rgba(10,13,9,0.55)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    backdropFilter: "blur(24px)",
+                    WebkitBackdropFilter: "blur(24px)",
+                }}
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="mb-5 flex items-center justify-between">
@@ -121,7 +127,7 @@ const WithdrawModal: React.FC<{
                         type="button"
                         onClick={onClose}
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-white/50 hover:text-white"
-                        style={{ background: cardBg }}
+                        style={{ background: "rgba(255,255,255,0.06)" }}
                     >
                         <FiX size={16} />
                     </button>
@@ -140,7 +146,10 @@ const WithdrawModal: React.FC<{
                         Add your bank details on the Profile page before you can withdraw.
                     </div>
                 ) : (
-                    <div className="mb-4 rounded-xl p-3" style={{ background: cardBg, border: cardBorder }}>
+                    <div
+                        className="mb-4 rounded-xl p-3"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
                         <p className="text-xs font-semibold uppercase tracking-wide text-white/40">Payout to</p>
                         <p className="mt-1 text-sm text-white">
                             {bankAccount.bank_name} •••• {String(bankAccount.account_number).slice(-4)}
@@ -157,7 +166,7 @@ const WithdrawModal: React.FC<{
                     onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
                     placeholder="0.00"
                     className={fieldClass}
-                    style={{ background: cardBg, border: cardBorder }}
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                 />
                 {numericAmount > availableBalance && (
                     <p className="mt-2 text-xs text-red-400">Amount exceeds your available balance.</p>
@@ -184,6 +193,7 @@ const WithdrawModal: React.FC<{
 const MentorWallet = () => {
     const { mentorProfile } = useOutletContext<MentorDashboardContext>();
     const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+    const [balanceVisible, setBalanceVisible] = useState(true);
     const wallet = MOCK_WALLET;
 
     return (
@@ -191,36 +201,43 @@ const MentorWallet = () => {
             <h2 className="mb-1 text-xl font-bold text-white sm:text-2xl">Wallet</h2>
             <p className="mb-6 text-sm text-white/40">Track your earnings and manage payouts.</p>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div
-                    className="rounded-2xl p-6"
-                    style={{ background: "rgba(166,255,0,0.06)", border: "1px solid rgba(166,255,0,.25)" }}
-                >
-                    <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/50">
-                        <FiCreditCard size={14} className="text-[#a6ff00]" />
-                        Available Balance
+            {/* Full-width balance card, dark background, with a hide/show toggle */}
+            <div className="rounded-2xl p-6 sm:p-8" style={{ background: cardBg, border: cardBorder }}>
+
+                <div className="flex justify-between lg:items-center items-start">
+                    <div>
+
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-white/50">
+                                <FiCreditCard size={14} className="text-[#a6ff00]" />
+                                Available Balance
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setBalanceVisible((v) => !v)}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/50 transition-colors hover:text-white"
+                                style={{ background: "rgba(255,255,255,0.05)" }}
+                                aria-label={balanceVisible ? "Hide balance" : "Show balance"}
+                            >
+                                {balanceVisible ? <FiEye size={15} /> : <FiEyeOff size={15} />}
+                            </button>
+                        </div>
+
+                        <p className=" mt-2 text-3xl font-black text-white sm:text-5xl">
+                            {balanceVisible ? `₦${wallet.availableBalance.toLocaleString()}` : "₦••••••"}
+                        </p>
                     </div>
-                    <p className="mb-5 text-3xl font-black text-white sm:text-4xl">
-                        ₦{wallet.availableBalance.toLocaleString()}
-                    </p>
                     <Button variant="green" onClick={() => setShowWithdrawModal(true)}>
                         <span className="flex items-center justify-center gap-2">
                             <FiArrowUpRight size={15} />
-                            Withdraw
+                            <span className="lg:block hidden"> Withdraw</span>
                         </span>
                     </Button>
                 </div>
 
-                <div className="rounded-2xl p-6" style={{ background: cardBg, border: cardBorder }}>
-                    <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/40">
-                        <FiLoader size={14} className="text-amber-400" />
-                        Pending Balance
-                    </div>
-                    <p className="mb-5 text-3xl font-black text-white sm:text-4xl">
-                        ₦{wallet.pendingBalance.toLocaleString()}
-                    </p>
-                    <p className="text-xs text-white/40">Clears once in-progress payouts and sales settle.</p>
-                </div>
+
+
+
             </div>
 
             <h3 className="mb-4 mt-8 text-sm font-bold text-white">Transaction History</h3>

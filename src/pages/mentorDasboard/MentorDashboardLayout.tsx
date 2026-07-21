@@ -1,13 +1,13 @@
 import { useEffect } from "react";
-import { FiArrowLeft, FiBarChart2, FiCalendar, FiClock, FiCreditCard, FiShield, FiUser, FiUserPlus } from "react-icons/fi";
+import { FiArrowLeft, FiBarChart2, FiCalendar, FiClock, FiCreditCard, FiShield, FiShoppingBag, FiUser, FiUserPlus } from "react-icons/fi";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import { cardBg, cardBorder, pageBackground } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
 import { useGetMyMentorProfile, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
 
-// Everything a child page (Overview, Wallet, Bookings, Profile) needs is passed
-// down through this context, via useOutletContext<MentorDashboardContext>().
+// Everything a child page (Overview, Wallet, Bookings, Products, Profile) needs
+// is passed down through this context, via useOutletContext<MentorDashboardContext>().
 export type MentorDashboardContext = {
     mentorProfile: any;
     userProfile: any;
@@ -15,6 +15,7 @@ export type MentorDashboardContext = {
 
 const NAV_ITEMS = [
     { to: "overview", label: "Overview", icon: <FiBarChart2 size={15} /> },
+    { to: "products", label: "Products", icon: <FiShoppingBag size={15} /> },
     { to: "wallet", label: "Wallet", icon: <FiCreditCard size={15} /> },
     { to: "bookings", label: "Bookings", icon: <FiCalendar size={15} /> },
     { to: "profile", label: "Profile", icon: <FiUser size={15} /> },
@@ -132,7 +133,7 @@ const MentorDashboardLayout = () => {
     return (
         <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
             {/* max-w-4xl to match the Explore page container width */}
-            <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+            <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
                 <button
                     type="button"
                     onClick={() => navigate("/dashboard/overview")}

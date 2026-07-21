@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import MentorBookings from '../pages/mentorDasboard/MentorBooking'
 import MentorDashboardLayout from '../pages/mentorDasboard/MentorDashboardLayout'
 import MentorOverview from '../pages/mentorDasboard/MentorOverview'
+import MentorProducts from '../pages/mentorDasboard/MentorProducts'
 import MentorProfile from '../pages/mentorDasboard/MentorProfile'
 import MentorWallet from '../pages/mentorDasboard/MentorWallet'
 import NotFound from '../pages/NotFound'
@@ -35,6 +36,7 @@ const Content = () => {
                 <Route path="/dashboard/mentor" element={<MentorDashboardLayout />}>
                     <Route path="overview" element={<MentorOverview />} />
                     <Route path="wallet" element={<MentorWallet />} />
+                    <Route path="products" element={<MentorProducts />} />
                     <Route path="bookings" element={<MentorBookings />} />
                     <Route path="profile" element={<MentorProfile />} />
                 </Route>
