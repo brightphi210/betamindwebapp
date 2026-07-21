@@ -404,7 +404,7 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                 <img
                     src={event.thumbnail}
                     alt={event.title}
-                    className="w-full h-48 sm:h-56 rounded-2xl mb-6 object-cover"
+                    className="w-full aspect-square rounded-xl mb-6 object-cover"
                 />
 
                 <h2 className="text-white text-2xl font-black mb-3 break-words">{event.title}</h2>
