@@ -14,10 +14,14 @@ import {
 import { Link } from 'react-router-dom';
 import Button from '../../component/ui/Button';
 import { useGetMineEvents } from '../../hooks/queries/allQueriess';
+import { HostInitials } from './Overview';
 
 export interface Attendee {
+    id: string;
     name: string;
-    avatar: string;
+    avatar?: string;
+    email?: string;
+    phone_number?: string;
 }
 
 export interface RegisteredEvent {
@@ -42,9 +46,22 @@ export interface RegisteredEvent {
     capacity: number | null;
 }
 
+export interface ApiAttendee {
+    id: string;
+    name: string;
+    email: string;
+    phone_number: string;
+    event?: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface ApiEvent {
     id: string;
-    user: string;
+    user: {
+        given_name: string;
+        email: string
+    };
     user_name: string;
     title: string;
     description: string;
@@ -56,6 +73,8 @@ export interface ApiEvent {
     require_approval: boolean;
     capacity: number | null;
     created_at: string;
+    attendess_count?: number;
+    attendees?: ApiAttendee[];
 }
 
 const formatTime = (iso: string) => {
@@ -96,6 +115,14 @@ const mapApiEventToRegistered = (event: ApiEvent): RegisteredEvent => {
     const isPast = new Date(event.end_date).getTime() < Date.now();
     const status: 'upcoming' | 'past' = isPast ? 'past' : 'upcoming';
 
+    const attendees: Attendee[] = (event.attendees ?? []).map((a) => ({
+        id: a.id,
+        name: a.name,
+        email: a.email,
+        phone_number: a.phone_number,
+    }));
+    const registered = event.attendess_count ?? attendees.length;
+
     return {
         id: event.id,
         title: event.title,
@@ -103,13 +130,13 @@ const mapApiEventToRegistered = (event: ApiEvent): RegisteredEvent => {
         date: event.start_date,
         dateLabel: formatDateLabel(event.start_date),
         location: event.location,
-        registered: 0,
+        registered,
         thumbnail: event.image,
         status,
         actionText: status === 'upcoming' ? 'View Event' : 'View Details',
-        host: event.user_name,
+        host: event.user.given_name,
         description: event.description,
-        attendees: [],
+        attendees,
         publicUrl: `/events/${event.id}`,
         ticketPrice: event.ticket_price,
         requireApproval: event.require_approval,
@@ -199,43 +226,104 @@ const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
     </div>
 );
 
+// ─── Attendee avatars ───────────────────────────────────────────────────────
+const AVATAR_STYLES = [
+    { bg: 'linear-gradient(135deg,#7b7fd6,#a58fe0)', text: '#1a1a2e' },
+    { bg: 'linear-gradient(135deg,#f4a6c1,#f7c8a0)', text: '#3a1a1a' },
+    { bg: 'linear-gradient(135deg,#6f9bd1,#8f7fe0)', text: '#1a1a2e' },
+    { bg: 'linear-gradient(135deg,#f6d98f,#f2c14e)', text: '#3a2a10' },
+    { bg: 'linear-gradient(135deg,#f2707a,#f4a0a8)', text: '#3a1010' },
+    { bg: 'linear-gradient(135deg,#8fd6c1,#6fb8a0)', text: '#0f2a20' },
+];
 
-const AvatarStack: React.FC<{ attendees: Attendee[]; total: number; size?: number }> = ({
-    attendees,
-    total,
+const getAvatarStyle = (seed: string) => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+    return AVATAR_STYLES[Math.abs(hash) % AVATAR_STYLES.length];
+};
+
+const AttendeeAvatar: React.FC<{ name: string; avatar?: string; size?: number }> = ({
+    name,
+    avatar,
     size = 24,
 }) => {
+    if (avatar) {
+        return (
+            <img
+                src={avatar}
+                alt={name}
+                title={name}
+                className="rounded-full object-cover shrink-0"
+                style={{
+                    width: size,
+                    height: size,
+                    border: '2px solid #05080340',
+                    boxShadow: '0 0 0 1.5px rgba(0,0,0,0.6)',
+                }}
+            />
+        );
+    }
+    const style = getAvatarStyle(name || '?');
+    return (
+        <div
+            title={name}
+            className="rounded-full flex items-center justify-center font-semibold shrink-0"
+            style={{
+                width: size,
+                height: size,
+                background: style.bg,
+                color: style.text,
+                fontSize: size * 0.42,
+                border: '2px solid #05080340',
+                boxShadow: '0 0 0 1.5px rgba(0,0,0,0.6)',
+            }}
+        >
+            {(name || '?').trim().charAt(0).toUpperCase()}
+        </div>
+    );
+};
+
+const AvatarStack: React.FC<{
+    attendees: Attendee[];
+    total: number;
+    size?: number;
+    onOpenGuests?: () => void;
+}> = ({ attendees, total, size = 24, onOpenGuests }) => {
+    if (attendees.length === 0) return null;
+
     const visible = attendees.slice(0, 4);
     const extra = total - visible.length;
 
+    const label =
+        visible.length === 1
+            ? visible[0].name
+            : extra > 0
+                ? `${visible[0].name}, ${visible[1]?.name ?? ''} and ${extra} other${extra === 1 ? '' : 's'}`
+                : visible.length === 2
+                    ? `${visible[0].name} and ${visible[1].name}`
+                    : `${visible.slice(0, -1).map((a) => a.name).join(', ')} and ${visible[visible.length - 1].name}`;
+
     return (
-        <div className="flex items-center">
+        <button
+            type="button"
+            onClick={(e) => {
+                e.stopPropagation();
+                onOpenGuests?.();
+            }}
+            className="flex items-center gap-2 group cursor-pointer"
+        >
             <div className="flex -space-x-2">
-                {visible.map((a, i) => (
-                    <img
-                        key={i}
-                        src={a.avatar}
-                        alt={a.name}
-                        title={a.name}
-                        className="rounded-full object-cover shrink-0"
-                        style={{
-                            width: size,
-                            height: size,
-                            border: '2px solid #05080340',
-                            boxShadow: '0 0 0 1.5px rgba(0,0,0,0.6)',
-                        }}
-                    />
+                {visible.map((a) => (
+                    <AttendeeAvatar key={a.id} name={a.name} avatar={a.avatar} size={size} />
                 ))}
             </div>
-            {extra > 0 && (
-                <span
-                    className="text-white/40 ml-2"
-                    style={{ fontSize: size <= 24 ? '0.7rem' : '0.8rem' }}
-                >
-                    +{extra} more
-                </span>
-            )}
-        </div>
+            <span
+                className="text-white/50 group-hover:text-white/80 transition-colors text-left"
+                style={{ fontSize: size <= 24 ? '0.7rem' : '0.8rem' }}
+            >
+                {label}
+            </span>
+        </button>
     );
 };
 
@@ -277,10 +365,11 @@ const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | 'md' }> 
     );
 };
 
-const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEvent) => void }> = ({
-    event,
-    onView,
-}) => (
+const EventRow: React.FC<{
+    event: RegisteredEvent;
+    onView: (event: RegisteredEvent) => void;
+    onOpenGuests: (event: RegisteredEvent) => void;
+}> = ({ event, onView, onOpenGuests }) => (
     <div
         onClick={() => onView(event)}
         className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-xl p-4 sm:p-5 transition-colors hover:bg-white/[0.03] cursor-pointer"
@@ -289,7 +378,7 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
         <img
             src={event.thumbnail}
             alt={event.title}
-            className="w-full h-28 sm:w-24 sm:h-24 rounded-lg shrink-0 object-cover"
+            className="w-full h-full aspect-square sm:w-24 sm:h-24 rounded-lg shrink-0 object-cover"
         />
 
         <div className="flex-1 min-w-0">
@@ -307,7 +396,7 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
                         {event.location}
                     </span>
                 )}
-                {event.registered > 0 && (
+                {event.attendees.length === 0 && event.registered > 0 && (
                     <span className="flex items-center gap-1.5">
                         <FiUsers size={13} />
                         {event.registered} registered
@@ -318,7 +407,12 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
                 <EventMetaBadges event={event} size="sm" />
             </div>
             {event.attendees.length > 0 && (
-                <AvatarStack attendees={event.attendees} total={event.registered} size={24} />
+                <AvatarStack
+                    attendees={event.attendees}
+                    total={event.registered}
+                    size={24}
+                    onOpenGuests={() => onOpenGuests(event)}
+                />
             )}
         </div>
 
@@ -337,10 +431,61 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
     </div>
 );
 
-const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () => void }> = ({
-    event,
-    onClose,
-}) => {
+// ─── Guest list modal ───────────────────────────────────────────────────────
+const GuestsModal: React.FC<{ attendees: Attendee[]; onClose: () => void }> = ({ attendees, onClose }) => (
+    <div
+        className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
+        onClick={onClose}
+    >
+        <div
+            className="w-full max-w-sm rounded-2xl p-6 shadow-2xl max-h-[80vh] flex flex-col"
+            style={{
+                background: 'rgba(10,13,9,0.55)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                backdropFilter: 'blur(24px)',
+                WebkitBackdropFilter: 'blur(24px)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div className="flex items-start justify-between mb-3">
+                <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center"
+                    style={{ background: 'rgba(255,255,255,0.06)' }}
+                >
+                    <FiUsers className="text-white/70" size={20} />
+                </div>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="p-2 rounded-lg hover:bg-white/5 text-white/50 hover:text-white shrink-0"
+                >
+                    <FiX size={18} />
+                </button>
+            </div>
+            <h3 className="text-white text-xl font-black mb-1">
+                {attendees.length} Guest{attendees.length === 1 ? '' : 's'}
+            </h3>
+            <p className="text-white/40 text-xs mb-4">Everyone who has registered for this event.</p>
+            <div className="overflow-y-auto flex-1 -mx-2 px-2 space-y-1">
+                {attendees.map((a) => (
+                    <div key={a.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-white/[0.03]">
+                        <AttendeeAvatar name={a.name} avatar={a.avatar} size={36} />
+                        <div className="min-w-0">
+                            <p className="text-white text-sm font-semibold truncate">{a.name}</p>
+                            {a.email && <p className="text-white/35 text-xs truncate">{a.email}</p>}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+);
+
+const EventDrawerContent: React.FC<{
+    event: RegisteredEvent | null;
+    onClose: () => void;
+    onOpenGuests: (event: RegisteredEvent) => void;
+}> = ({ event, onClose, onOpenGuests }) => {
     const [copied, setCopied] = useState(false);
 
     if (!event) return null;
@@ -410,16 +555,14 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                 <h2 className="text-white text-2xl font-black mb-3 break-words">{event.title}</h2>
 
                 {event.host && (
-                    <div className="flex items-center gap-2.5 mb-6">
-                        {event.hostAvatar && (
-                            <img
-                                src={event.hostAvatar}
-                                alt={event.host}
-                                className="w-7 h-7 rounded-full object-cover"
-                                style={{ border: '1px solid rgba(205,220,57,.2)' }}
-                            />
-                        )}
-                        <p className="text-white/50 text-sm">Hosted by {event.host}</p>
+                    <div className="mb-6 border-y border-neutral-200/10 py-2 pb-4 w-full">
+                        <p className="text-white/50 text-sm pb-2">Hosted by </p>
+                        <div className='flex items-center gap-2'>
+                            <HostInitials name={event.host} />
+                            <div className='flex flex-col gap-1 '>
+                                <span className="text-white font-bold text-sm">@{event.host}</span>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -490,7 +633,12 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                             className="flex items-center justify-between rounded-xl p-4"
                             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(205,220,57,.08)' }}
                         >
-                            <AvatarStack attendees={event.attendees} total={event.registered} size={32} />
+                            <AvatarStack
+                                attendees={event.attendees}
+                                total={event.registered}
+                                size={32}
+                                onOpenGuests={() => onOpenGuests(event)}
+                            />
                         </div>
                     </div>
                 )}
@@ -541,6 +689,7 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
 const Events: React.FC = () => {
     const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
     const [selectedEvent, setSelectedEvent] = useState<RegisteredEvent | null>(null);
+    const [guestsEvent, setGuestsEvent] = useState<RegisteredEvent | null>(null);
     const drawerCheckboxRef = useRef<HTMLInputElement>(null);
 
     const { mineEvents, isLoading } = useGetMineEvents();
@@ -590,7 +739,7 @@ const Events: React.FC = () => {
                             'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
                     }}
                 >
-                    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                         {/* Header */}
                         <div className="flex flex-wrap items-center justify-between gap-4 mb-10">
                             <h1 className="text-2xl sm:text-3xl font-black text-white">Events</h1>
@@ -604,7 +753,7 @@ const Events: React.FC = () => {
                                         <button
                                             key={t}
                                             onClick={() => setTab(t)}
-                                            className="px-4 py-1.5 rounded-md text-sm font-semibold capitalize transition-colors cursor-pointer"
+                                            className="px-4 py-1.5 rounded-md text-xs font-semibold capitalize transition-colors cursor-pointer"
                                             style={{
                                                 background: tab === t ? 'rgba(166,255,0,0.12)' : 'transparent',
                                                 color: tab === t ? '#a6ff00' : 'rgba(255,255,255,0.5)',
@@ -617,9 +766,10 @@ const Events: React.FC = () => {
 
                                 <Link
                                     to="/dashboard/events/create"
-                                    className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 bg-[#a6ff00] text-black border border-[#a6ff00] hover:opacity-90"
+                                    className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                                    style={{ background: '#a6ff00' }}
                                 >
-                                    <FiPlus size={16} />
+                                    <FiPlus size={14} />
                                     Create Event
                                 </Link>
                             </div>
@@ -644,7 +794,12 @@ const Events: React.FC = () => {
                                                 style={{ background: 'rgba(205,220,57,.1)' }}
                                             />
                                             {events.map((event) => (
-                                                <EventRow key={event.id} event={event} onView={openDrawer} />
+                                                <EventRow
+                                                    key={event.id}
+                                                    event={event}
+                                                    onView={openDrawer}
+                                                    onOpenGuests={setGuestsEvent}
+                                                />
                                             ))}
                                         </div>
                                     </div>
@@ -661,8 +816,16 @@ const Events: React.FC = () => {
                     className="drawer-overlay"
                     onClick={closeDrawer}
                 />
-                <EventDrawerContent event={selectedEvent} onClose={closeDrawer} />
+                <EventDrawerContent
+                    event={selectedEvent}
+                    onClose={closeDrawer}
+                    onOpenGuests={setGuestsEvent}
+                />
             </div>
+
+            {guestsEvent && (
+                <GuestsModal attendees={guestsEvent.attendees} onClose={() => setGuestsEvent(null)} />
+            )}
         </div>
     );
 };

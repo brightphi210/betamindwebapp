@@ -128,6 +128,28 @@ export const useGetMineEvents = () => {
 };
 
 
+
+// ================== ALL EVENTS =================
+
+export const useGetAllEvents = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["allEvents"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests("events/", token);
+        },
+    });
+
+    return {
+        allEvents: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};
+
+
 export const useGetEvent = (id: any) => {
     const { data, isLoading, isError, isFetched, refetch } = useQuery({
         queryKey: ["event", id],

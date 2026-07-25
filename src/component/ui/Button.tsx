@@ -38,7 +38,7 @@ const MyButton: React.FC<ButtonProps> = ({
     <button
       type={type}
       disabled={disabled || isLoading}
-      className={`inline-flex items-center justify-center gap-2 rounded-md px-5 py-2.5 text-sm font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${fullWidth ? "w-full" : ""} ${variantClasses[resolvedVariant]} ${className}`}
+      className={`inline-flex items-center cursor-pointer justify-center gap-2 rounded-md px-5 py-2.5 text-xs font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${fullWidth ? "w-full" : ""} ${variantClasses[resolvedVariant]} ${className}`}
       {...props}
     >
       {isLoading ? (

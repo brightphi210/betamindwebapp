@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import MentorBookings from '../pages/mentorDasboard/MentorBooking'
+import MentorCreateProduct from '../pages/mentorDasboard/MentorCreateProduct'
 import MentorDashboardLayout from '../pages/mentorDasboard/MentorDashboardLayout'
 import MentorOverview from '../pages/mentorDasboard/MentorOverview'
 import MentorProducts from '../pages/mentorDasboard/MentorProducts'
@@ -15,6 +16,7 @@ import MentorOnboardingSuccess from '../pages/userDashboard/Mentoronboardingsucc
 import Notifications from '../pages/userDashboard/Notifications'
 import Overview from '../pages/userDashboard/Overview'
 import Product from '../pages/userDashboard/Product'
+import SearchPage from '../pages/userDashboard/Search'
 import SettingsPage from '../pages/userDashboard/Settings'
 
 const Content = () => {
@@ -25,6 +27,7 @@ const Content = () => {
                 <Route path='/dashboard/overview' element={<Overview />} />
                 <Route path='/dashboard/events' element={<Events />} />
                 <Route path='/dashboard/explore' element={<Explore />} />
+                <Route path="/dashboard/search" element={<SearchPage />} />
                 <Route path='/dashboard/setting' element={<SettingsPage />} />
                 <Route path='/dashboard/notifications' element={<Notifications />} />
                 <Route path='/dashboard/events/create' element={<EventCreate />} />
@@ -33,6 +36,7 @@ const Content = () => {
                 {/* MentorDashboardLayout renders the tab nav + <Outlet />, and each
                     tab below is a nested child route so useOutletContext() works
                     and the layout's default-to-overview redirect can kick in. */}
+                <Route path="dashboard/mentor/product/create" element={<MentorCreateProduct />} />
                 <Route path="/dashboard/mentor" element={<MentorDashboardLayout />}>
                     <Route path="overview" element={<MentorOverview />} />
                     <Route path="wallet" element={<MentorWallet />} />

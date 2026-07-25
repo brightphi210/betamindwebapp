@@ -19,8 +19,11 @@ import { useGetMentors, useGetMineEvents } from '../../hooks/queries/allQueriess
 import { type Mentor } from './Explore';
 
 export interface Attendee {
+    id: string;
     name: string;
-    avatar: string;
+    avatar?: string;
+    email?: string;
+    phone_number?: string;
 }
 
 export interface RegisteredEvent {
@@ -45,9 +48,22 @@ export interface RegisteredEvent {
     capacity: number | null;
 }
 
+export interface ApiAttendee {
+    id: string;
+    name: string;
+    email: string;
+    phone_number: string;
+    event?: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface ApiEvent {
     id: string;
-    user: string;
+    user: {
+        given_name: string;
+        email: string
+    };
     user_name: string;
     title: string;
     description: string;
@@ -59,6 +75,8 @@ export interface ApiEvent {
     require_approval: boolean;
     capacity: number | null;
     created_at: string;
+    attendess_count?: number;
+    attendees?: ApiAttendee[];
 }
 
 const formatTime = (iso: string) => {
@@ -88,16 +106,24 @@ const formatDateLabel = (iso: string) => {
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
 
-const formatTicketPrice = (price: string) => {
+export const formatTicketPrice = (price: string) => {
     const numeric = parseFloat(price);
     if (!numeric || numeric <= 0) return 'Free';
     const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
     return `$${trimmed}`;
 };
 
-const mapApiEventToRegistered = (event: ApiEvent): RegisteredEvent => {
+export const mapApiEventToRegistered = (event: ApiEvent): RegisteredEvent => {
     const isPast = new Date(event.end_date).getTime() < Date.now();
     const status: 'upcoming' | 'past' = isPast ? 'past' : 'upcoming';
+
+    const attendees: Attendee[] = (event.attendees ?? []).map((a) => ({
+        id: a.id,
+        name: a.name,
+        email: a.email,
+        phone_number: a.phone_number,
+    }));
+    const registered = event.attendess_count ?? attendees.length;
 
     return {
         id: event.id,
@@ -106,13 +132,14 @@ const mapApiEventToRegistered = (event: ApiEvent): RegisteredEvent => {
         date: event.start_date,
         dateLabel: formatDateLabel(event.start_date),
         location: event.location,
-        registered: 0,
+        registered,
         thumbnail: event.image,
         status,
         actionText: status === 'upcoming' ? 'View Event' : 'View Details',
-        host: event.user_name,
+        host: event.user.given_name,
+        hostEmail: event.user.email,
         description: event.description,
-        attendees: [],
+        attendees,
         publicUrl: `/events/${event.id}`,
         ticketPrice: event.ticket_price,
         requireApproval: event.require_approval,
@@ -120,86 +147,6 @@ const mapApiEventToRegistered = (event: ApiEvent): RegisteredEvent => {
     };
 };
 
-export const EVENTS: RegisteredEvent[] = [
-    {
-        id: '1',
-        title: 'The Future of Quant Finance with AI',
-        time: '2:00 PM',
-        date: '2026-07-02',
-        dateLabel: 'Today',
-        location: 'Zoom',
-        registered: 342,
-        thumbnail: 'https://picsum.photos/seed/quantfinance/900/900',
-        status: 'upcoming',
-        actionText: 'Join Event',
-        host: 'Quant Society',
-        hostAvatar: 'https://i.pravatar.cc/64?img=12',
-        hostEmail: 'hello@quantsociety.io',
-        description: 'A deep dive into how AI is reshaping quantitative finance, from signal discovery to execution.',
-        attendees: [
-            { name: 'Ada Lovelace', avatar: 'https://i.pravatar.cc/64?img=5' },
-            { name: 'Grace Hopper', avatar: 'https://i.pravatar.cc/64?img=9' },
-            { name: 'Alan Turing', avatar: 'https://i.pravatar.cc/64?img=15' },
-            { name: 'Katherine Johnson', avatar: 'https://i.pravatar.cc/64?img=25' },
-            { name: 'John Nash', avatar: 'https://i.pravatar.cc/64?img=33' },
-        ],
-        publicUrl: '/events/1',
-        ticketPrice: '0.00',
-        requireApproval: false,
-        capacity: null,
-    },
-    {
-        id: '2',
-        title: 'CyberSecurity Fundamentals for Developers',
-        time: '10:00 AM',
-        date: '2026-07-10',
-        dateLabel: 'Friday',
-        location: 'Main Auditorium',
-        registered: 128,
-        thumbnail: 'https://picsum.photos/seed/cybersecurity/900/900',
-        status: 'upcoming',
-        actionText: 'Join Event',
-        host: 'DevSec Club',
-        hostAvatar: 'https://i.pravatar.cc/64?img=18',
-        hostEmail: 'contact@devsecclub.io',
-        description: 'Hands-on session covering the security fundamentals every developer should know.',
-        attendees: [
-            { name: 'Linus Torvalds', avatar: 'https://i.pravatar.cc/64?img=22' },
-            { name: 'Margaret Hamilton', avatar: 'https://i.pravatar.cc/64?img=28' },
-            { name: 'Tim Berners-Lee', avatar: 'https://i.pravatar.cc/64?img=41' },
-        ],
-        publicUrl: '/events/2',
-        ticketPrice: '25.00',
-        requireApproval: true,
-        capacity: 150,
-    },
-    {
-        id: '3',
-        title: 'Global Economics Trends in the AI Era',
-        time: '2:00 PM',
-        date: '2026-06-18',
-        dateLabel: 'Jun 18',
-        location: 'Zoom',
-        registered: 215,
-        thumbnail: 'https://picsum.photos/seed/globaleconomics/900/900',
-        status: 'past',
-        actionText: 'View Recording',
-        host: 'Econ Circle',
-        hostAvatar: 'https://i.pravatar.cc/64?img=36',
-        hostEmail: 'team@econcircle.io',
-        description: 'A recap of the macro trends shaping global economics as AI adoption accelerates.',
-        attendees: [
-            { name: 'Adam Smith', avatar: 'https://i.pravatar.cc/64?img=47' },
-            { name: 'Janet Yellen', avatar: 'https://i.pravatar.cc/64?img=44' },
-            { name: 'Amartya Sen', avatar: 'https://i.pravatar.cc/64?img=51' },
-            { name: 'Esther Duflo', avatar: 'https://i.pravatar.cc/64?img=29' },
-        ],
-        publicUrl: '/events/3',
-        ticketPrice: '0.00',
-        requireApproval: false,
-        capacity: 300,
-    },
-];
 
 // ─── Skeleton primitives ────────────────────────────────────────────────────
 const SkeletonBlock: React.FC<{ className?: string; style?: React.CSSProperties }> = ({
@@ -302,47 +249,108 @@ const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
     </div>
 );
 
+// ─── Attendee avatars ───────────────────────────────────────────────────────
+const AVATAR_STYLES = [
+    { bg: 'linear-gradient(135deg,#7b7fd6,#a58fe0)', text: '#1a1a2e' },
+    { bg: 'linear-gradient(135deg,#f4a6c1,#f7c8a0)', text: '#3a1a1a' },
+    { bg: 'linear-gradient(135deg,#6f9bd1,#8f7fe0)', text: '#1a1a2e' },
+    { bg: 'linear-gradient(135deg,#f6d98f,#f2c14e)', text: '#3a2a10' },
+    { bg: 'linear-gradient(135deg,#f2707a,#f4a0a8)', text: '#3a1010' },
+    { bg: 'linear-gradient(135deg,#8fd6c1,#6fb8a0)', text: '#0f2a20' },
+];
 
-const AvatarStack: React.FC<{ attendees: Attendee[]; total: number; size?: number }> = ({
-    attendees,
-    total,
+const getAvatarStyle = (seed: string) => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+    return AVATAR_STYLES[Math.abs(hash) % AVATAR_STYLES.length];
+};
+
+const AttendeeAvatar: React.FC<{ name: string; avatar?: string; size?: number }> = ({
+    name,
+    avatar,
     size = 24,
 }) => {
-    const visible = attendees.slice(0, 4);
-    const extra = total - visible.length;
-
+    if (avatar) {
+        return (
+            <img
+                src={avatar}
+                alt={name}
+                title={name}
+                className="rounded-full object-cover shrink-0"
+                style={{
+                    width: size,
+                    height: size,
+                    border: '2px solid #05080340',
+                    boxShadow: '0 0 0 1.5px rgba(0,0,0,0.6)',
+                }}
+            />
+        );
+    }
+    const style = getAvatarStyle(name || '?');
     return (
-        <div className="flex items-center">
-            <div className="flex -space-x-2">
-                {visible.map((a, i) => (
-                    <img
-                        key={i}
-                        src={a.avatar}
-                        alt={a.name}
-                        title={a.name}
-                        className="rounded-full object-cover shrink-0"
-                        style={{
-                            width: size,
-                            height: size,
-                            border: '2px solid #05080340',
-                            boxShadow: '0 0 0 1.5px rgba(0,0,0,0.6)',
-                        }}
-                    />
-                ))}
-            </div>
-            {extra > 0 && (
-                <span
-                    className="text-white/40 ml-2"
-                    style={{ fontSize: size <= 24 ? '0.7rem' : '0.8rem' }}
-                >
-                    +{extra} more
-                </span>
-            )}
+        <div
+            title={name}
+            className="rounded-full flex items-center justify-center font-semibold shrink-0"
+            style={{
+                width: size,
+                height: size,
+                background: style.bg,
+                color: style.text,
+                fontSize: size * 0.42,
+                border: '2px solid #05080340',
+                boxShadow: '0 0 0 1.5px rgba(0,0,0,0.6)',
+            }}
+        >
+            {(name || '?').trim().charAt(0).toUpperCase()}
         </div>
     );
 };
 
-const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | 'md' }> = ({ event, size = 'sm' }) => {
+export const AvatarStack: React.FC<{
+    attendees: Attendee[];
+    total: number;
+    size?: number;
+    onOpenGuests?: () => void;
+}> = ({ attendees, total, size = 24, onOpenGuests }) => {
+    if (attendees.length === 0) return null;
+
+    const visible = attendees.slice(0, 4);
+    const extra = total - visible.length;
+
+    const label =
+        visible.length === 1
+            ? visible[0].name
+            : extra > 0
+                ? `${visible[0].name}, ${visible[1]?.name ?? ''} and ${extra} other${extra === 1 ? '' : 's'}`
+                : visible.length === 2
+                    ? `${visible[0].name} and ${visible[1].name}`
+                    : `${visible.slice(0, -1).map((a) => a.name).join(', ')} and ${visible[visible.length - 1].name}`;
+
+    return (
+        <button
+            type="button"
+            onClick={(e) => {
+                e.stopPropagation();
+                onOpenGuests?.();
+            }}
+            className="flex items-center gap-2 group cursor-pointer"
+        >
+            <div className="flex -space-x-2">
+                {visible.map((a) => (
+                    <AttendeeAvatar key={a.id} name={a.name} avatar={a.avatar} size={size} />
+                ))}
+            </div>
+            <span
+                className="text-white/50 group-hover:text-white/80 transition-colors text-left"
+                style={{ fontSize: size <= 24 ? '0.7rem' : '0.8rem' }}
+            >
+                {label}
+            </span>
+        </button>
+    );
+};
+
+export const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | 'md' }> = ({ event, size = 'sm' }) => {
     const textSize = size === 'sm' ? 'text-[11px]' : 'text-xs';
     const padding = size === 'sm' ? 'px-2 py-1' : 'px-2.5 py-1.5';
 
@@ -380,11 +388,11 @@ const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | 'md' }> 
     );
 };
 
-
-const LatestEventHero: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEvent) => void }> = ({
-    event,
-    onView,
-}) => (
+const LatestEventHero: React.FC<{
+    event: RegisteredEvent;
+    onView: (event: RegisteredEvent) => void;
+    onOpenGuests: (event: RegisteredEvent) => void;
+}> = ({ event, onView, onOpenGuests }) => (
     <div
         onClick={() => onView(event)}
         className="relative rounded-xl overflow-hidden mb-10 cursor-pointer group"
@@ -393,13 +401,13 @@ const LatestEventHero: React.FC<{ event: RegisteredEvent; onView: (event: Regist
         <img
             src={event.thumbnail}
             alt={event.title}
-            className="w-full h-56 sm:h-72 object-cover transition-transform duration-300 group-hover:scale-105"
+            className="w-full h-full aspect-square lg:h-72 object-cover transition-transform duration-300 group-hover:scale-105"
         />
         <div
             className="absolute inset-0"
-            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.95) 100%)' }}
+            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.99) 100%)' }}
         />
-        <div className="absolute top-4 left-4">
+        <div className="absolute lg:top-4 lg:left-4 right-4 top-4">
             <span
                 className="px-3 py-1 rounded-full text-xs font-semibold"
                 style={{ background: 'white', color: 'black', border: '1px solid rgba(166,255,0,.3)' }}
@@ -407,22 +415,24 @@ const LatestEventHero: React.FC<{ event: RegisteredEvent; onView: (event: Regist
                 Next Up
             </span>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
-            <div className="flex items-center gap-2 text-white/70 text-xs sm:text-sm mb-2">
-                <FiClock size={13} />
-                <span>{event.dateLabel} · {event.time}</span>
+        <div className="absolute bottom-0 left-0 right-0 lg:p-5 p-7 lg:pb-5 pb-10">
+            <div className="flex items-center gap-2 text-white/70 text-xs sm:text-sm mb-2 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-1.5 shrink-0">
+                    <FiClock size={13} />
+                    <span>{event.dateLabel} · {event.time}</span>
+                </div>
                 {event.location && (
-                    <>
-                        <span className="text-white/30">·</span>
-                        <FiMapPin size={13} />
-                        <span>{event.location}</span>
-                    </>
+                    <div className="flex items-center gap-1.5 min-w-0 max-w-[65%] sm:max-w-[50%]">
+                        <span className="text-white/30 shrink-0">·</span>
+                        <FiMapPin size={13} className="shrink-0" />
+                        <span className="truncate">{event.location}</span>
+                    </div>
                 )}
             </div>
-            <h2 className="text-white text-xl sm:text-3xl font-black mb-3 max-w-xl break-words">
+            <h2 className="text-white text-xl sm:text-3xl font-black lg:mb-4 mb-2 max-w-xl break-words">
                 {event.title}
             </h2>
-            <div className="mb-4">
+            <div className="lg:mb-4 mb-2">
                 <EventMetaBadges event={event} size="md" />
             </div>
             <div className="flex flex-wrap items-center gap-4">
@@ -432,25 +442,36 @@ const LatestEventHero: React.FC<{ event: RegisteredEvent; onView: (event: Regist
                         onView(event);
                     }}
                     variant="green"
-                    className="text-xs sm:text-sm"
                 >
                     {event.actionText}
                 </Button>
-                {event.registered > 0 && (
-                    <span className="flex items-center gap-1.5 text-white/60 text-xs sm:text-sm">
-                        <FiUsers size={13} />
-                        {event.registered} registered
-                    </span>
+                {event.attendees.length > 0 ? (
+                    <AvatarStack
+                        attendees={event.attendees}
+                        total={event.registered}
+                        size={24}
+                        onOpenGuests={() => onOpenGuests(event)}
+                    />
+                ) : (
+                    event.registered > 0 && (
+                        <span className="flex items-center gap-1.5 text-white/60 text-xs sm:text-sm">
+                            <FiUsers size={13} />
+                            {event.registered} registered
+                        </span>
+                    )
                 )}
             </div>
         </div>
     </div>
 );
 
-const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEvent) => void }> = ({
-    event,
-    onView,
-}) => (
+export const EventRow: React.FC<{
+    event: RegisteredEvent;
+    onView: (event: RegisteredEvent) => void;
+    onOpenGuests: (event: RegisteredEvent) => void;
+}> = ({ event, onView, onOpenGuests }) => (
+
+
     <div
         onClick={() => onView(event)}
         className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-xl p-4 sm:p-5 transition-colors hover:bg-white/[0.03] cursor-pointer"
@@ -459,7 +480,7 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
         <img
             src={event.thumbnail}
             alt={event.title}
-            className="w-full h-full aspect-video sm:w-24 sm:h-24 rounded-lg shrink-0 object-cover"
+            className="w-full h-full aspect-square sm:w-24 sm:h-24 rounded-lg shrink-0 object-cover"
         />
 
         <div className="flex-1 min-w-0">
@@ -477,7 +498,7 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
                         {event.location}
                     </span>
                 )}
-                {event.registered > 0 && (
+                {event.attendees.length === 0 && (
                     <span className="flex items-center gap-1.5">
                         <FiUsers size={13} />
                         {event.registered} registered
@@ -488,7 +509,12 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
                 <EventMetaBadges event={event} size="sm" />
             </div>
             {event.attendees.length > 0 && (
-                <AvatarStack attendees={event.attendees} total={event.registered} size={24} />
+                <AvatarStack
+                    attendees={event.attendees}
+                    total={event.registered}
+                    size={24}
+                    onOpenGuests={() => onOpenGuests(event)}
+                />
             )}
         </div>
 
@@ -506,6 +532,24 @@ const EventRow: React.FC<{ event: RegisteredEvent; onView: (event: RegisteredEve
         </div>
     </div>
 );
+
+export const HostInitials: React.FC<{ name?: string }> = ({ name }) => {
+    const initials = (name || '?')
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((n) => n[0]?.toUpperCase())
+        .join('');
+
+    return (
+        <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 bg-neutral-800"
+            style={{ color: '#a6ff00' }}
+        >
+            {initials}
+        </div>
+    );
+};
 
 const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }: any) => (
     <Link
@@ -544,11 +588,61 @@ const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }: any) => (
     </Link>
 );
 
+// ─── Guest list modal ───────────────────────────────────────────────────────
+export const GuestsModal: React.FC<{ attendees: Attendee[]; onClose: () => void }> = ({ attendees, onClose }) => (
+    <div
+        className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
+        onClick={onClose}
+    >
+        <div
+            className="w-full max-w-sm rounded-2xl p-6 shadow-2xl max-h-[80vh] flex flex-col"
+            style={{
+                background: 'rgba(10,13,9,0.55)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                backdropFilter: 'blur(24px)',
+                WebkitBackdropFilter: 'blur(24px)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div className="flex items-start justify-between mb-3">
+                <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center"
+                    style={{ background: 'rgba(255,255,255,0.06)' }}
+                >
+                    <FiUsers className="text-white/70" size={20} />
+                </div>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="p-2 rounded-lg hover:bg-white/5 text-white/50 hover:text-white shrink-0"
+                >
+                    <FiX size={18} />
+                </button>
+            </div>
+            <h3 className="text-white text-xl font-black mb-1">
+                {attendees.length} Guest{attendees.length === 1 ? '' : 's'}
+            </h3>
+            <p className="text-white/40 text-xs mb-4">Everyone who has registered for this event.</p>
+            <div className="overflow-y-auto flex-1 -mx-2 px-2 space-y-1">
+                {attendees.map((a) => (
+                    <div key={a.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-white/[0.03]">
+                        <AttendeeAvatar name={a.name} avatar={a.avatar} size={36} />
+                        <div className="min-w-0">
+                            <p className="text-white text-sm font-semibold truncate">{a.name}</p>
+                            {a.email && <p className="text-white/35 text-xs truncate">{a.email}</p>}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    </div>
+);
 
-const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () => void }> = ({
-    event,
-    onClose,
-}) => {
+const EventDrawerContent: React.FC<{
+    event: RegisteredEvent | null;
+    onClose: () => void;
+    onOpenGuests: (event: RegisteredEvent) => void;
+}> = ({ event, onClose, onOpenGuests }) => {
     const [copied, setCopied] = useState(false);
 
     if (!event) return null;
@@ -618,16 +712,14 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                 <h2 className="text-white text-2xl font-black mb-3 break-words">{event.title}</h2>
 
                 {event.host && (
-                    <div className="flex items-center gap-2.5 mb-6">
-                        {event.hostAvatar && (
-                            <img
-                                src={event.hostAvatar}
-                                alt={event.host}
-                                className="w-7 h-7 rounded-full object-cover"
-                                style={{ border: '1px solid rgba(205,220,57,.2)' }}
-                            />
-                        )}
-                        <p className="text-white/50 text-sm">Hosted by {event.host}</p>
+                    <div className="mb-6 border-y border-neutral-200/10 py-2 pb-4 w-full">
+                        <p className="text-white/50 text-sm pb-2">Hosted by </p>
+                        <div className='flex items-center gap-2'>
+                            <HostInitials name={event.host} />
+                            <div className='flex flex-col gap-1 '>
+                                <span className="text-white font-bold text-sm">@{event.host}</span>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -698,7 +790,12 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
                             className="flex items-center justify-between rounded-xl p-4"
                             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(205,220,57,.08)' }}
                         >
-                            <AvatarStack attendees={event.attendees} total={event.registered} size={32} />
+                            <AvatarStack
+                                attendees={event.attendees}
+                                total={event.registered}
+                                size={32}
+                                onOpenGuests={() => onOpenGuests(event)}
+                            />
                         </div>
                     </div>
                 )}
@@ -749,6 +846,7 @@ const EventDrawerContent: React.FC<{ event: RegisteredEvent | null; onClose: () 
 const Overview: React.FC = () => {
     const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
     const [selectedEvent, setSelectedEvent] = useState<RegisteredEvent | null>(null);
+    const [guestsEvent, setGuestsEvent] = useState<RegisteredEvent | null>(null);
     const drawerCheckboxRef = useRef<HTMLInputElement>(null);
 
     const { mentors, isLoading } = useGetMentors()
@@ -761,6 +859,7 @@ const Overview: React.FC = () => {
         : mineEvents?.data?.results ?? [];
 
     const myEvents = rawEvents.map(mapApiEventToRegistered);
+    console.log('Seleceted Event', myEvents)
 
     const filtered = myEvents.filter((e) => e.status === tab);
 
@@ -809,12 +908,18 @@ const Overview: React.FC = () => {
                             'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
                     }}
                 >
-                    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                         {/* Latest upcoming event spotlight */}
                         {isLoadingEvents ? (
                             <EventHeroSkeleton />
                         ) : (
-                            latestEvent && <LatestEventHero event={latestEvent} onView={openDrawer} />
+                            latestEvent && (
+                                <LatestEventHero
+                                    event={latestEvent}
+                                    onView={openDrawer}
+                                    onOpenGuests={setGuestsEvent}
+                                />
+                            )
                         )}
 
                         {/* Header */}
@@ -871,7 +976,12 @@ const Overview: React.FC = () => {
                                                 style={{ background: 'rgba(205,220,57,.1)' }}
                                             />
                                             {events.map((event) => (
-                                                <EventRow key={event.id} event={event} onView={openDrawer} />
+                                                <EventRow
+                                                    key={event.id}
+                                                    event={event}
+                                                    onView={openDrawer}
+                                                    onOpenGuests={setGuestsEvent}
+                                                />
                                             ))}
                                         </div>
                                     </div>
@@ -917,8 +1027,16 @@ const Overview: React.FC = () => {
                     className="drawer-overlay"
                     onClick={closeDrawer}
                 />
-                <EventDrawerContent event={selectedEvent} onClose={closeDrawer} />
+                <EventDrawerContent
+                    event={selectedEvent}
+                    onClose={closeDrawer}
+                    onOpenGuests={setGuestsEvent}
+                />
             </div>
+
+            {guestsEvent && (
+                <GuestsModal attendees={guestsEvent.attendees} onClose={() => setGuestsEvent(null)} />
+            )}
         </div>
     );
 };

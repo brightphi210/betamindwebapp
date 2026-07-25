@@ -13,7 +13,7 @@ import {
     FiShoppingBag,
     FiX,
 } from "react-icons/fi";
-import { useOutletContext } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import { cardBg, cardBorder, fieldClass } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
 import { useGlobalContext } from "../../providers/GlobalContext";
@@ -399,12 +399,14 @@ const MentorProducts = () => {
                     <p className="text-sm text-white/40">Manage the courses and books you sell to mentees.</p>
                 </div>
                 {products.length > 0 && (
-                    <Button variant="green" onClick={() => setShowCreateModal(true)}>
-                        <span className="flex items-center gap-2">
-                            <FiPlus size={15} />
-                            Create Product
-                        </span>
-                    </Button>
+                    <Link to={'/dashboard/mentor/product/create'}>
+                        <Button variant="green" >
+                            <span className="flex items-center gap-2">
+                                <FiPlus size={15} />
+                                Create Product
+                            </span>
+                        </Button>
+                    </Link>
                 )}
             </div>
 

@@ -4,10 +4,13 @@ import {
     FiBarChart2,
     FiBookOpen,
     FiBriefcase,
+    FiCalendar,
     FiCamera,
+    FiClock,
     FiCode,
     FiDollarSign,
     FiEdit3,
+    FiMapPin,
     FiPenTool,
     FiPlayCircle,
     FiTrendingUp,
@@ -15,7 +18,15 @@ import {
 } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import LoadingOverlay from '../../component/LoadingOverlay';
-import { useGetMentors } from '../../hooks/queries/allQueriess';
+import { useGetAllEvents, useGetMentors } from '../../hooks/queries/allQueriess';
+import {
+    AvatarStack,
+    EventMetaBadges,
+    formatTicketPrice,
+    mapApiEventToRegistered,
+    type ApiEvent,
+    type RegisteredEvent,
+} from './Overview';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export interface Topic {
@@ -23,14 +34,9 @@ export interface Topic {
     name: string;
     count: string;
     icon: React.ReactNode;
-    color: string; // icon + border tint
+    color: string;
 }
 
-// NOTE: kept for backward compatibility (referenced elsewhere as a loose type),
-// but the real API mentor payload looks nothing like this — see the inline
-// `any`-typed usage in MentorCard below for the actual shape:
-// { id, name, nick_name, occupation, bio, categories: string[],
-//   profile: { avatar }, social_link: { linkedin, twitter, website }, ... }
 export interface MentorSocial {
     platform: 'instagram' | 'x' | 'linkedin' | 'youtube';
     url: string;
@@ -73,60 +79,12 @@ export const TOPICS: Topic[] = [
 ];
 
 export const PRODUCTS: DigitalProduct[] = [
-    {
-        id: 'p1',
-        type: 'Course',
-        title: 'System Design From Scratch',
-        author: 'Diego Ramirez',
-        thumbnail: 'https://picsum.photos/seed/sysdesign/600/600',
-        price: '$129',
-        rating: 4.9,
-    },
-    {
-        id: 'p2',
-        type: 'Book',
-        title: 'The Clarity Habit',
-        author: 'Marcus Lee',
-        thumbnail: 'https://picsum.photos/seed/claritybook/600/600',
-        price: '$24',
-        rating: 4.8,
-    },
-    {
-        id: 'p3',
-        type: 'Course',
-        title: 'Brand Identity Foundations',
-        author: 'Priya Nair',
-        thumbnail: 'https://picsum.photos/seed/brandcourse/600/600',
-        price: '$89',
-        rating: 4.7,
-    },
-    {
-        id: 'p4',
-        type: 'Book',
-        title: 'Raising Without Losing Control',
-        author: 'Sofia Bianchi',
-        thumbnail: 'https://picsum.photos/seed/raisingbook/600/600',
-        price: '$19',
-        rating: 4.6,
-    },
-    {
-        id: 'p5',
-        type: 'Course',
-        title: 'Zero-to-One Growth Playbook',
-        author: 'Jonah Field',
-        thumbnail: 'https://picsum.photos/seed/growthcourse/600/600',
-        price: '$99',
-        rating: 4.9,
-    },
-    {
-        id: 'p6',
-        type: 'Book',
-        title: 'Products People Love',
-        author: 'Amara Chen',
-        thumbnail: 'https://picsum.photos/seed/productsbook/600/600',
-        price: '$22',
-        rating: 4.8,
-    },
+    { id: 'p1', type: 'Course', title: 'System Design From Scratch', author: 'Diego Ramirez', thumbnail: 'https://picsum.photos/seed/sysdesign/600/600', price: '$129', rating: 4.9 },
+    { id: 'p2', type: 'Book', title: 'The Clarity Habit', author: 'Marcus Lee', thumbnail: 'https://picsum.photos/seed/claritybook/600/600', price: '$24', rating: 4.8 },
+    { id: 'p3', type: 'Course', title: 'Brand Identity Foundations', author: 'Priya Nair', thumbnail: 'https://picsum.photos/seed/brandcourse/600/600', price: '$89', rating: 4.7 },
+    { id: 'p4', type: 'Book', title: 'Raising Without Losing Control', author: 'Sofia Bianchi', thumbnail: 'https://picsum.photos/seed/raisingbook/600/600', price: '$19', rating: 4.6 },
+    { id: 'p5', type: 'Course', title: 'Zero-to-One Growth Playbook', author: 'Jonah Field', thumbnail: 'https://picsum.photos/seed/growthcourse/600/600', price: '$99', rating: 4.9 },
+    { id: 'p6', type: 'Book', title: 'Products People Love', author: 'Amara Chen', thumbnail: 'https://picsum.photos/seed/productsbook/600/600', price: '$22', rating: 4.8 },
 ];
 
 // ─── Section header ─────────────────────────────────────────────────────────
@@ -139,30 +97,26 @@ const SectionHeader: React.FC<{ title: string; subtitle?: string }> = ({ title, 
 
 // ─── Topic card ─────────────────────────────────────────────────────────────
 const TopicCard: React.FC<{ topic: Topic }> = ({ topic }) => (
-    <button
+    <Link
+        to={`/dashboard/search?category=${encodeURIComponent(topic.name)}`}
         className="flex items-center gap-4 rounded-xl p-3 sm:p-5 text-left transition-colors hover:bg-white/[0.04] cursor-pointer lg:w-full w-fit"
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
     >
-        <div
-            className=""
-            style={{ color: topic.color }}
-        >
-            {topic.icon}
-        </div>
+        <div style={{ color: topic.color }}>{topic.icon}</div>
         <div className="min-w-0">
             <p className="text-white font-bold text-base truncate">{topic.name}</p>
             <p className="text-white/40 text-sm">{topic.count}</p>
         </div>
-    </button>
+    </Link>
 );
 
-const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
+export const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
     const categories: string[] = mentor?.categories ?? [];
 
     return (
         <Link
             to={`/dashboard/mentors/${mentor.id}`}
-            className="rounded-2xl lg:p-5 p-3 flex flex-col"
+            className="rounded-xl lg:p-5 p-3 flex flex-col"
             style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
         >
             <div className="flex items-start justify-between mb-4">
@@ -231,11 +185,106 @@ const NoMentorsState: React.FC = () => (
     </div>
 );
 
+// ─── Event card ─────────────────────────────────────────────────────────────
+// Card-grid variant (matches ProductCard/MentorCard layout) — reuses
+// formatTicketPrice / EventMetaBadges / AvatarStack from Overview.tsx so
+// pricing, badges, and attendees stay in sync with the rest of the app.
+export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
+    <Link
+        to={event.publicUrl}
+        className="rounded-md overflow-hidden flex flex-col transition-colors hover:bg-white/3 cursor-pointer"
+        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+    >
+        <div className="relative">
+            <img
+                src={event.thumbnail}
+                alt={event.title}
+                className="w-full h-40 sm:h-48 object-cover"
+            />
+            <span
+                className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
+                style={{ background: 'rgba(0,0,0,0.55)', color: '#fff', backdropFilter: 'blur(4px)' }}
+            >
+                <FiCalendar size={13} />
+                {event.dateLabel}
+            </span>
+            <span
+                className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-semibold"
+                style={{
+                    background: formatTicketPrice(event.ticketPrice) === 'Free' ? 'rgba(0,0,0,0.55)' : 'rgba(166,255,0,0.9)',
+                    color: formatTicketPrice(event.ticketPrice) === 'Free' ? '#fff' : '#000',
+                    backdropFilter: 'blur(4px)',
+                }}
+            >
+                {formatTicketPrice(event.ticketPrice)}
+            </span>
+        </div>
+        <div className="p-4 sm:p-5 flex flex-col flex-1">
+            <div className="flex items-center gap-1.5 text-white/40 text-xs mb-2 min-w-0">
+                <span className="flex items-center gap-1 shrink-0">
+                    <FiClock size={12} />
+                    {event.time}
+                </span>
+                {event.location && (
+                    <span className="flex items-center gap-1 min-w-0">
+                        <span className="text-white/20 shrink-0">·</span>
+                        <FiMapPin size={12} className="shrink-0" />
+                        <span className="truncate">{event.location}</span>
+                    </span>
+                )}
+            </div>
+
+            <h3 className="text-white font-bold text-base mb-2 break-words line-clamp-2">{event.title}</h3>
+
+            <div className="mb-3">
+                <EventMetaBadges event={event} size="sm" />
+            </div>
+
+            <div className="flex items-center mt-auto">
+                {event.attendees.length > 0 ? (
+                    <AvatarStack attendees={event.attendees} total={event.registered} size={20} />
+                ) : event.registered > 0 ? (
+                    <span className="flex items-center gap-1.5 text-white/40 text-xs">
+                        <FiUsers size={12} />
+                        {event.registered} registered
+                    </span>
+                ) : (
+                    <span className="text-white/30 text-xs">Be the first to join</span>
+                )}
+            </div>
+        </div>
+    </Link>
+);
+
+const EventCardSkeleton: React.FC = () => (
+    <div
+        className="rounded-xl overflow-hidden flex flex-col animate-pulse"
+        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+    >
+        <div className="w-full h-40 sm:h-48 bg-white/5" />
+        <div className="p-4 sm:p-5 flex flex-col gap-2.5">
+            <div className="h-3 w-1/2 rounded bg-white/5" />
+            <div className="h-4 w-3/4 rounded bg-white/5" />
+            <div className="h-3 w-2/3 rounded bg-white/5" />
+        </div>
+    </div>
+);
+
+const NoEventsState: React.FC = () => (
+    <div
+        className="flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl col-span-full"
+        style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}
+    >
+        <FiCalendar size={22} className="text-white/20 mb-3" />
+        <p className="text-white/40 text-sm">No upcoming events right now</p>
+    </div>
+);
+
 // ─── Digital product card ───────────────────────────────────────────────────
-const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) => (
+export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) => (
     <Link
         to={`/dashboard/products/${product.id}`}
-        className="rounded-xl overflow-hidden flex flex-col transition-colors hover:bg-white/3 cursor-pointer"
+        className="rounded-md overflow-hidden flex flex-col transition-colors hover:bg-white/3 cursor-pointer"
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
     >
         <div className="relative">
@@ -271,6 +320,17 @@ const Explore: React.FC = () => {
     const { mentors, isLoading: mentorsLoading } = useGetMentors();
     const allMentors: any[] = mentors?.data?.results ?? [];
 
+    const { allEvents, isLoading: eventsLoading } = useGetAllEvents();
+
+    const rawEvents: ApiEvent[] = Array.isArray(allEvents?.data)
+        ? allEvents.data
+        : allEvents?.data?.results ?? [];
+
+    const upcomingEvents = rawEvents
+        .map(mapApiEventToRegistered)
+        .filter((e) => e.status === 'upcoming')
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
     return (
         <div
             className="w-full min-h-screen"
@@ -281,7 +341,7 @@ const Explore: React.FC = () => {
         >
             <LoadingOverlay visible={mentorsLoading} />
 
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                 {/* Header */}
                 <div className="mb-14">
                     <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Explore</h1>
@@ -294,7 +354,6 @@ const Explore: React.FC = () => {
                 {/* Browse by Topics */}
                 <section className="mb-16">
                     <SectionHeader title="Browse by Topics" />
-                    {/* Horizontally scrollable on mobile, grid from sm breakpoint up */}
                     <div className="flex sm:grid gap-2 overflow-x-auto sm:overflow-visible sm:grid-cols-2 lg:grid-cols-3 -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 topics-scroll">
                         {TOPICS.map((topic) => (
                             <div key={topic.id} className="shrink-0 w-fit sm:w-auto sm:contents">
@@ -307,7 +366,7 @@ const Explore: React.FC = () => {
                 {/* Mentors — wired to real data via useGetMentors, same source Overview.tsx uses */}
                 <section className="mb-16">
                     <SectionHeader title="Featured Mentors" subtitle="Learn 1:1 from people who've done it" />
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {mentorsLoading ? (
                             Array.from({ length: 6 }).map((_, i) => <MentorCardSkeleton key={i} />)
                         ) : allMentors.length > 0 ? (
@@ -318,10 +377,26 @@ const Explore: React.FC = () => {
                     </div>
                 </section>
 
+                {/* Events — card grid, below Mentors. Wired to real data via
+                    useGetAllEvents; shares the ApiEvent/RegisteredEvent shape
+                    and mapping used across the app. */}
+                <section className="mb-16">
+                    <SectionHeader title="Events You Can Explore" subtitle="Join a session hosted by the community" />
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                        {eventsLoading ? (
+                            Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
+                        ) : upcomingEvents.length > 0 ? (
+                            upcomingEvents.slice(0, 6).map((event) => <EventCard key={event.id} event={event} />)
+                        ) : (
+                            <NoEventsState />
+                        )}
+                    </div>
+                </section>
+
                 {/* Digital Products */}
                 <section>
                     <SectionHeader title="Courses & Books" subtitle="Self-paced learning from top mentors" />
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {PRODUCTS.map((product) => (
                             <ProductCard key={product.id} product={product} />
                         ))}

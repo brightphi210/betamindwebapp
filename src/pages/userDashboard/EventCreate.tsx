@@ -296,23 +296,19 @@ const EventCreate: React.FC = () => {
             >
                 <BubbleSplash bubbles={bubbles} />
 
-                <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 flex flex-col items-center text-center">
-                    <div className="mx-auto mb-4 flex items-center justify-center rounded-2xl">
-                        <PartyIcon />
-                    </div>
-
+                <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-14 lg:pt-24 flex flex-col items-center text-center">
                     <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">You're live! 🎉</h1>
                     <p className="text-white/50 text-base max-w-md mb-10">
                         <span className="font-semibold text-white">{eventName || 'Your event'}</span> has been created and is ready to share with the world.
                     </p>
 
                     <div
-                        className="w-full max-w-lg rounded-2xl overflow-hidden mb-8"
+                        className="w-full max-w-lg rounded-md overflow-hidden mb-8"
                         style={{ background: cardBg, border: cardBorder }}
                     >
-                        <div className="aspect-[2/1] w-full">
+                        <div className=" w-full p-4 pb-0">
                             {coverImage ? (
-                                <img src={coverImage} alt={eventName || 'Event cover'} className="w-full h-full object-cover" />
+                                <img src={coverImage} alt={eventName || 'Event cover'} className="w-full rounded-md h-full aspect-video object-cover" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.03)' }}>
                                     <FiImage size={28} className="text-white/20" />
@@ -342,9 +338,9 @@ const EventCreate: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-lg">
+                    <div className="flex flex-row items-center gap-3 w-full max-w-lg">
                         <button
-                            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold text-black w-full transition-transform hover:scale-[1.01] cursor-pointer"
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-md text-xs font-semibold text-black w-full transition-transform hover:scale-[1.01] cursor-pointer"
                             style={{ background: '#a6ff00' }}
                         >
                             <FiExternalLink size={15} />
@@ -352,7 +348,7 @@ const EventCreate: React.FC = () => {
                         </button>
                         <button
                             onClick={() => navigate('/dashboard/overview')}
-                            className="flex-1 px-6 py-3 rounded-lg text-sm font-semibold w-full transition-colors hover:bg-white/[0.04] cursor-pointer"
+                            className="flex-1 px-4 py-3 rounded-md text-xs font-semibold w-full transition-colors hover:bg-white/[0.04] cursor-pointer"
                             style={{ color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.12)' }}
                         >
                             Back to Dashboard
