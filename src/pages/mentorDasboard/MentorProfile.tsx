@@ -7,10 +7,9 @@ import {
     FiClock,
     FiEdit2,
     FiImage,
-    FiShield,
     FiUser,
     FiUserPlus,
-    FiX,
+    FiX
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import LoadingOverlay from "../../component/LoadingOverlay";
@@ -156,27 +155,7 @@ const ViewSocialRow: React.FC<{ badge: string; label: string; url: string; handl
     </div>
 );
 
-const VerificationBadge: React.FC<{ isApproved: boolean }> = ({ isApproved }) =>
-    isApproved ? (
-        <div
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"
-            style={{ background: "rgba(166,255,0,0.1)", border: "1px solid rgba(166,255,0,.35)", color: "#a6ff00" }}
-        >
-            <FiShield size={13} />
-            Verified Mentor
-        </div>
-    ) : (
-        <div
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-amber-400"
-            style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,.3)" }}
-        >
-            <FiClock size={13} />
-            Verification Pending
-        </div>
-    );
 
-// Extracts a bare handle ("yourname") from a stored full URL
-// ("https://linkedin.com/in/yourname") for display in the prefix inputs.
 const extractHandle = (url?: string) => {
     if (!url) return "";
     const clean = url.replace(/\/$/, "");

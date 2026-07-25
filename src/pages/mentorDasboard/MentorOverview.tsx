@@ -36,41 +36,6 @@ const CHART_DATA = [
     { date: "Jul 21", earnings: 5400, payouts: 2600 },
 ];
 
-const RECENT_ACTIVITY = [
-    {
-        id: 1,
-        icon: <FiCheckCircle size={25} />,
-        label: "Session completed with Ada O.",
-        time: "2 hours ago",
-        status: "Completed",
-        statusColor: "#a6ff00",
-    },
-    {
-        id: 2,
-        icon: <FiPlayCircle size={25} />,
-        label: '"System Design Basics" course purchased',
-        time: "Yesterday",
-        status: "Purchased",
-        statusColor: "#7dd3fc",
-    },
-    {
-        id: 3,
-        icon: <FiCheckCircle size={25} />,
-        label: "Session completed with Chidi E.",
-        time: "2 days ago",
-        status: "Completed",
-        statusColor: "#a6ff00",
-    },
-    {
-        id: 4,
-        icon: <FiBookOpen size={25} />,
-        label: '"Product Thinking" ebook purchased',
-        time: "4 days ago",
-        status: "Purchased",
-        statusColor: "#7dd3fc",
-    },
-];
-
 // ---------- Stat card ----------
 
 const StatCard: React.FC<{

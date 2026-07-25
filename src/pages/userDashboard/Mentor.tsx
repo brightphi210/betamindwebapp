@@ -2,22 +2,17 @@ import React from 'react';
 import {
     FiArrowLeft,
     FiAward,
-    FiBookOpen,
     FiCheckCircle,
     FiGlobe,
     FiLinkedin,
-    FiPlayCircle,
-    FiStar,
     FiTag,
     FiTwitter
 } from 'react-icons/fi';
 import { Link, useParams } from 'react-router-dom';
 import Button from '../../component/ui/Button';
 import { useGetMentorProfile } from '../../hooks/queries/allQueriess';
-import { type DigitalProduct } from './Explore';
 
-// Backend returns social_link as a flat object: { linkedin, twitter, website }
-// — not an array of {platform, url} like the old MentorSocial type assumed.
+
 type SocialLink = {
     linkedin?: string;
     twitter?: string;
@@ -45,77 +40,77 @@ const Bone: React.FC<{ className?: string; style?: React.CSSProperties }> = ({ c
 );
 
 // ─── Product / course card (sidebar list item) ──────────────────────────────
-const MentorProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) => (
-    <div
-        className="rounded-xl overflow-hidden flex flex-col gap-3 p-3 transition-colors hover:bg-white/[0.03]"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
-    >
-        <div className="flex gap-4">
-            <div className="relative shrink-0">
-                <img
-                    src={product.thumbnail}
-                    alt={product.title}
-                    className="w-20 h-20 rounded-lg object-cover"
-                />
-                <span
-                    className="absolute -bottom-1.5 -left-1.5 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
-                    style={{ background: 'rgba(0,0,0,0.65)', color: '#fff', backdropFilter: 'blur(4px)' }}
-                >
-                    {product.type === 'Course' ? <FiPlayCircle size={10} /> : <FiBookOpen size={10} />}
-                    {product.type}
-                </span>
-            </div>
-            <div className="flex flex-col flex-1 min-w-0 justify-center">
-                <h4 className="text-white font-bold text-sm mb-1 line-clamp-2 break-words">{product.title}</h4>
-                <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1 text-white/50 text-xs">
-                        <FiStar size={12} className="text-amber-400 fill-amber-400" />
-                        {product.rating}
-                    </span>
-                    <span className="text-[#a6ff00] font-bold text-xs">{product.price}</span>
-                </div>
-            </div>
-        </div>
-        <Link to={`/dashboard/products/${product.id}`}>
-            <Button variant="white" className="w-full text-xs py-2">
-                {product.type === 'Course' ? 'View Course' : 'View Book'}
-            </Button>
-        </Link>
-    </div>
-);
+// const MentorProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) => (
+//     <div
+//         className="rounded-xl overflow-hidden flex flex-col gap-3 p-3 transition-colors hover:bg-white/[0.03]"
+//         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+//     >
+//         <div className="flex gap-4">
+//             <div className="relative shrink-0">
+//                 <img
+//                     src={product.thumbnail}
+//                     alt={product.title}
+//                     className="w-20 h-20 rounded-lg object-cover"
+//                 />
+//                 <span
+//                     className="absolute -bottom-1.5 -left-1.5 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+//                     style={{ background: 'rgba(0,0,0,0.65)', color: '#fff', backdropFilter: 'blur(4px)' }}
+//                 >
+//                     {product.type === 'Course' ? <FiPlayCircle size={10} /> : <FiBookOpen size={10} />}
+//                     {product.type}
+//                 </span>
+//             </div>
+//             <div className="flex flex-col flex-1 min-w-0 justify-center">
+//                 <h4 className="text-white font-bold text-sm mb-1 line-clamp-2 break-words">{product.title}</h4>
+//                 <div className="flex items-center gap-3">
+//                     <span className="flex items-center gap-1 text-white/50 text-xs">
+//                         <FiStar size={12} className="text-amber-400 fill-amber-400" />
+//                         {product.rating}
+//                     </span>
+//                     <span className="text-[#a6ff00] font-bold text-xs">{product.price}</span>
+//                 </div>
+//             </div>
+//         </div>
+//         <Link to={`/dashboard/products/${product.id}`}>
+//             <Button variant="white" className="w-full text-xs py-2">
+//                 {product.type === 'Course' ? 'View Course' : 'View Book'}
+//             </Button>
+//         </Link>
+//     </div>
+// );
 
-const NoProductsState: React.FC = () => (
-    <div
-        className="flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}
-    >
-        <p className="text-white/40 text-sm">No courses or books yet</p>
-    </div>
-);
+// const NoProductsState: React.FC = () => (
+//     <div
+//         className="flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl"
+//         style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}
+//     >
+//         <p className="text-white/40 text-sm">No courses or books yet</p>
+//     </div>
+// );
 
 // ─── Not found state ─────────────────────────────────────────────────────────
-const MentorNotFound: React.FC = () => (
-    <div
-        className="w-full min-h-screen flex flex-col items-center justify-center px-6 text-center"
-        style={{
-            background:
-                'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
-        }}
-    >
-        <h1 className="text-white text-2xl font-black mb-2">Mentor Not Found</h1>
-        <p className="text-white/40 text-sm mb-8">
-            We couldn't find the mentor you're looking for.
-        </p>
-        <Link
-            to="/dashboard/explore"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm text-black transition-transform hover:scale-[1.02]"
-            style={{ background: '#a6ff00' }}
-        >
-            <FiArrowLeft size={16} />
-            Back to Explore
-        </Link>
-    </div>
-);
+// const MentorNotFound: React.FC = () => (
+//     <div
+//         className="w-full min-h-screen flex flex-col items-center justify-center px-6 text-center"
+//         style={{
+//             background:
+//                 'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
+//         }}
+//     >
+//         <h1 className="text-white text-2xl font-black mb-2">Mentor Not Found</h1>
+//         <p className="text-white/40 text-sm mb-8">
+//             We couldn't find the mentor you're looking for.
+//         </p>
+//         <Link
+//             to="/dashboard/explore"
+//             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm text-black transition-transform hover:scale-[1.02]"
+//             style={{ background: '#a6ff00' }}
+//         >
+//             <FiArrowLeft size={16} />
+//             Back to Explore
+//         </Link>
+//     </div>
+// );
 
 // ─── Skeleton state ──────────────────────────────────────────────────────────
 // Mirrors the real layout below (banner, avatar, name, bio, socials, tags,

@@ -100,30 +100,6 @@ const BubbleSplash: React.FC<{ bubbles: Bubble[] }> = ({ bubbles }) => (
     </div>
 );
 
-const PartyIcon = () => (
-    <svg width="88" height="88" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path
-            d="M14 50L26 22L42 38L14 50Z"
-            fill="#a6ff00"
-            stroke="#a6ff00"
-            strokeWidth="2"
-            strokeLinejoin="round"
-        />
-        <path d="M30 18L34 10" stroke="#a6ff00" strokeWidth="2.5" strokeLinecap="round" />
-        <path d="M40 14L42 6" stroke="#7ee6c0" strokeWidth="2.5" strokeLinecap="round" />
-        <path d="M46 24L54 22" stroke="#ff8fb0" strokeWidth="2.5" strokeLinecap="round" />
-        <circle cx="22" cy="10" r="2" fill="#7ee6c0" />
-        <circle cx="52" cy="34" r="2" fill="#8f8fff" />
-        <path
-            d="M32 30 L38 28 M35 36 L42 35 M38 42 L44"
-            stroke="#a6ff00"
-            strokeWidth="2"
-            strokeLinecap="round"
-        />
-        <circle cx="46" cy="12" r="1.6" fill="#ff8fb0" />
-    </svg>
-);
-
 // ─── Small building blocks matched to app styling ──────────────────────────
 const IconInputRow: React.FC<{
     icon: React.ReactNode;
