@@ -168,3 +168,67 @@ export const useGetEvent = (id: any) => {
         refetch,
     };
 };
+
+
+
+// ============= DIGITAL PRODUCT ============
+export const useGetDigitalProduct = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["products"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`digital-products/`, token);
+        },
+    });
+
+    return {
+        digitalProduct: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};
+
+
+
+export const useGetSingleDigitalProduct = (id: any) => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["event", id],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`digital-products/${id}/`, token);
+        },
+        enabled: !!id,
+    });
+
+    return {
+        product: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};
+
+
+
+
+// ============== MINE PRODUCT ===============
+export const useGetMentorDigitalProduct = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["products"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`digital-products/mine/`, token);
+        },
+    });
+
+    return {
+        digitalProduct: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};

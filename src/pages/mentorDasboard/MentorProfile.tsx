@@ -40,6 +40,65 @@ const CATEGORY_OPTIONS = [
     "science",
 ];
 
+// Fixed expertise/skill options for the pill picker — same pattern as
+// categories, since there's no expertise endpoint either. Edit freely.
+const EXPERTISE_OPTIONS = [
+    "career coaching",
+    "resume review",
+    "interview prep",
+    "public speaking",
+    "leadership coaching",
+    "technical mentoring",
+    "startup advice",
+    "product strategy",
+    "ux design",
+    "data analysis",
+    "marketing strategy",
+    "financial planning",
+    "personal branding",
+    "networking",
+    "time management",
+    "fundraising",
+];
+
+// Major world languages for the language dropdown.
+const LANGUAGE_OPTIONS = [
+    "English",
+    "Spanish",
+    "French",
+    "Portuguese",
+    "German",
+    "Italian",
+    "Mandarin Chinese",
+    "Arabic",
+    "Hindi",
+    "Russian",
+    "Japanese",
+    "Korean",
+    "Swahili",
+    "Yoruba",
+    "Igbo",
+    "Hausa",
+    "Dutch",
+    "Turkish",
+    "Vietnamese",
+    "Indonesian",
+];
+
+const AVAILABILITY_OPTIONS: { value: string; label: string }[] = [
+    { value: "weekdays", label: "Weekdays" },
+    { value: "weekends", label: "Weekends" },
+];
+
+// Hours-per-day dropdown — value sent to the backend is the bare number.
+const DAILY_AVAILABILITY_OPTIONS: { value: string; label: string }[] = [
+    { value: "1", label: "1 hr" },
+    { value: "2", label: "2 hrs" },
+    { value: "3", label: "3 hrs" },
+    { value: "5", label: "5 hrs" },
+    { value: "8", label: "8 hrs" },
+];
+
 // Page-specific tint for the social-link input prefixes (linkedin.com/in/, x.com/@).
 // Not part of the shared MentorDashboardStyles set since it's only used here.
 const prefixBg = "rgba(255,255,255,0.03)";
@@ -64,6 +123,37 @@ const Field: React.FC<{
             className={fieldClass}
             style={{ background: cardBg, border: cardBorder }}
         />
+        {helper && <p className="mt-2 text-xs text-white/40">{helper}</p>}
+    </div>
+);
+
+// Native <select> dropdown, styled to match the other inputs — used for
+// Language, where a pill picker would be too many options to scan.
+const SelectField: React.FC<{
+    label: string;
+    value: string;
+    options: string[];
+    onChange: (v: string) => void;
+    placeholder?: string;
+    helper?: string;
+}> = ({ label, value, options, onChange, placeholder = "Select...", helper }) => (
+    <div>
+        <label className="mb-2 block text-sm font-semibold text-white">{label}</label>
+        <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className={fieldClass}
+            style={{ background: cardBg, border: cardBorder }}
+        >
+            <option value="" disabled>
+                {placeholder}
+            </option>
+            {options.map((opt) => (
+                <option key={opt} value={opt}>
+                    {opt}
+                </option>
+            ))}
+        </select>
         {helper && <p className="mt-2 text-xs text-white/40">{helper}</p>}
     </div>
 );
@@ -120,6 +210,70 @@ const SocialField: React.FC<{
     </div>
 );
 
+// Single-select pill group (used for availability and daily availability hours).
+const PillSelect: React.FC<{
+    label: string;
+    value: string;
+    options: { value: string; label: string }[];
+    onChange: (v: string) => void;
+}> = ({ label, value, options, onChange }) => (
+    <div>
+        <p className="mb-2 text-sm font-semibold text-white">{label}</p>
+        <div className="flex flex-wrap gap-2">
+            {options.map((opt) => {
+                const active = value === opt.value;
+                return (
+                    <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => onChange(opt.value)}
+                        className={`rounded-full px-3.5 py-2 text-sm font-medium transition-all ${active
+                            ? "bg-[#a6ff00] text-black"
+                            : "text-white hover:border-[#a6ff00] hover:text-[#a6ff00]"
+                            }`}
+                        style={active ? undefined : { background: cardBg, border: cardBorder }}
+                    >
+                        {opt.label}
+                    </button>
+                );
+            })}
+        </div>
+    </div>
+);
+
+// Multi-select pill group (used for expertise — same interaction as Category).
+const MultiPillSelect: React.FC<{
+    label: string;
+    values: string[];
+    options: string[];
+    onChange: (v: string[]) => void;
+}> = ({ label, values, options, onChange }) => (
+    <div>
+        <p className="mb-2 text-sm font-semibold text-white">{label}</p>
+        <div className="flex flex-wrap gap-2">
+            {options.map((opt) => {
+                const active = values.includes(opt);
+                return (
+                    <button
+                        key={opt}
+                        type="button"
+                        onClick={() =>
+                            onChange(active ? values.filter((v) => v !== opt) : [...values, opt])
+                        }
+                        className={`rounded-full px-3.5 py-2 text-sm font-medium capitalize transition-all ${active
+                            ? "bg-[#a6ff00] text-black"
+                            : "text-white hover:border-[#a6ff00] hover:text-[#a6ff00]"
+                            }`}
+                        style={active ? undefined : { background: cardBg, border: cardBorder }}
+                    >
+                        {opt}
+                    </button>
+                );
+            })}
+        </div>
+    </div>
+);
+
 // ---------- Read-only display components ----------
 
 const ViewRow: React.FC<{ label: string; value: string; placeholder?: string }> = ({
@@ -132,6 +286,31 @@ const ViewRow: React.FC<{ label: string; value: string; placeholder?: string }> 
         <p className={`mt-1 text-sm ${value ? "text-white" : "text-white/30"}`}>{value || placeholder}</p>
     </div>
 );
+
+// Defensively guards against the API returning null instead of [] for
+// unset array fields (e.g. brand-new mentor profiles).
+const ViewChipsRow: React.FC<{ label: string; values: string[] | null | undefined }> = ({ label, values }) => {
+    const safeValues = Array.isArray(values) ? values : [];
+    return (
+        <div className="rounded-xl px-4 py-3" style={{ background: cardBg, border: cardBorder }}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/40">{label}</p>
+            {safeValues.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                    {safeValues.map((v) => (
+                        <span
+                            key={v}
+                            className="inline-flex rounded-full bg-[#a6ff00]/10 px-3 py-1 text-xs font-semibold capitalize text-[#a6ff00]"
+                        >
+                            {v}
+                        </span>
+                    ))}
+                </div>
+            ) : (
+                <p className="mt-1 text-sm text-white/30">Not set</p>
+            )}
+        </div>
+    );
+};
 
 const ViewSocialRow: React.FC<{ badge: string; label: string; url: string; handle: string }> = ({
     badge,
@@ -162,7 +341,7 @@ const extractHandle = (url?: string) => {
     return clean.substring(clean.lastIndexOf("/") + 1).replace(/^@/, "");
 };
 
-type Step = "professional" | "social" | "account";
+type Step = "professional" | "social" | "availability" | "account";
 
 type Draft = {
     banner: string | null;
@@ -171,10 +350,15 @@ type Draft = {
     occupation: string;
     bio: string;
     experience: string;
+    hourlyRate: string;
+    language: string;
     categories: string[];
+    expertise: string[];
     linkedin: string;
     xHandle: string;
     website: string;
+    availability: string;
+    dailyAvailability: string;
     bankName: string;
     accountName: string;
     accountNumber: string;
@@ -188,10 +372,15 @@ const emptyDraft: Draft = {
     occupation: "",
     bio: "",
     experience: "",
+    hourlyRate: "",
+    language: "",
     categories: [],
+    expertise: [],
     linkedin: "",
     xHandle: "",
     website: "",
+    availability: "",
+    dailyAvailability: "",
     bankName: "",
     accountName: "",
     accountNumber: "",
@@ -200,9 +389,13 @@ const emptyDraft: Draft = {
 
 // NOTE: backend returns/expects the singular key "social_link" as a flat
 // object: { twitter, linkedin, website } — not an array of {platform, url}.
+// Bank details come back under "bank_details" (was "bank_account").
+// Several fields (hourly_rate, language, availability, expertise,
+// daily_availability) come back as `null` on a fresh profile rather than
+// "" or [] — every read below normalizes that explicitly.
 const draftFromMentorProfile = (mentorProfile: any): Draft => {
     const socialLink = mentorProfile?.social_link ?? {};
-    const bank = mentorProfile?.bank_account ?? {};
+    const bank = mentorProfile?.bank_details ?? {};
 
     return {
         banner: mentorProfile?.cover_images ?? null,
@@ -211,10 +404,15 @@ const draftFromMentorProfile = (mentorProfile: any): Draft => {
         occupation: mentorProfile?.occupation ?? "",
         bio: mentorProfile?.bio ?? "",
         experience: mentorProfile?.years_of_experience != null ? String(mentorProfile.years_of_experience) : "",
-        categories: mentorProfile?.categories ?? [],
+        hourlyRate: mentorProfile?.hourly_rate != null ? String(mentorProfile.hourly_rate) : "",
+        language: mentorProfile?.language ?? "",
+        categories: Array.isArray(mentorProfile?.categories) ? mentorProfile.categories : [],
+        expertise: Array.isArray(mentorProfile?.expertise) ? mentorProfile.expertise : [],
         linkedin: extractHandle(socialLink.linkedin),
         xHandle: extractHandle(socialLink.twitter),
         website: socialLink.website ?? "",
+        availability: mentorProfile?.availability ?? "",
+        dailyAvailability: mentorProfile?.daily_availability != null ? String(mentorProfile.daily_availability) : "",
         bankName: bank.bank_name ?? "",
         accountName: bank.account_name ?? "",
         accountNumber: bank.account_number ?? "",
@@ -255,6 +453,7 @@ const MentorProfile = () => {
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
     const mentorProfile = myMentorProfile?.data;
     const userProfile = myProfile?.data;
+    console.log('Mentor Profile', mentorProfile)
 
     const { mutate: updateMentor, isPending } = useUpdateMentorProfile();
 
@@ -294,15 +493,17 @@ const MentorProfile = () => {
 
     const professionalComplete = !!(draft.nickname && draft.occupation && draft.bio && draft.experience);
     const socialComplete = draft.categories.length > 0;
+    const availabilityComplete = !!(draft.availability && draft.dailyAvailability);
     const accountComplete = !!(draft.bankName && draft.accountName && draft.accountNumber);
 
+    const stepOrder: Step[] = ["professional", "social", "availability", "account"];
     const goNext = () => {
-        if (step === "professional") setStep("social");
-        else if (step === "social") setStep("account");
+        const idx = stepOrder.indexOf(step);
+        if (idx < stepOrder.length - 1) setStep(stepOrder[idx + 1]);
     };
     const goBack = () => {
-        if (step === "account") setStep("social");
-        else if (step === "social") setStep("professional");
+        const idx = stepOrder.indexOf(step);
+        if (idx > 0) setStep(stepOrder[idx - 1]);
     };
 
     const saveProfile = async () => {
@@ -315,6 +516,8 @@ const MentorProfile = () => {
             formData.append("bio", draft.bio);
             formData.append("nick_name", draft.nickname);
             formData.append("years_of_experience", String(parseInt(draft.experience, 10) || 0));
+            formData.append("hourly_rate", draft.hourlyRate ? String(parseFloat(draft.hourlyRate)) : "");
+            formData.append("language", draft.language);
 
             let bannerFile = draft.bannerFile;
             if (!bannerFile && draft.banner) {
@@ -329,6 +532,7 @@ const MentorProfile = () => {
             if (bannerFile) formData.append("cover_images", bannerFile);
 
             formData.append("categories", JSON.stringify(draft.categories));
+            formData.append("expertise", JSON.stringify(draft.expertise));
 
             // Backend expects the singular key "social_link" as a flat object,
             // e.g. { twitter, linkedin, website } — NOT "social_links" as an array.
@@ -339,8 +543,13 @@ const MentorProfile = () => {
             };
             formData.append("social_link", JSON.stringify(socialLink));
 
+            formData.append("availability", draft.availability);
+            // daily_availability is a plain number of hours (e.g. "2"), not "2 hrs".
+            formData.append("daily_availability", draft.dailyAvailability);
+
+            // Backend field is "bank_details" (was "bank_account").
             formData.append(
-                "bank_account",
+                "bank_details",
                 JSON.stringify({
                     bank_name: draft.bankName,
                     account_name: draft.accountName,
@@ -368,10 +577,11 @@ const MentorProfile = () => {
         }
     };
 
-    const stepIndex = { professional: 0, social: 1, account: 2 }[step];
+    const stepIndex = stepOrder.indexOf(step);
     const stepLabels: Record<Step, string> = {
         professional: "Professional Info",
         social: "Category & Socials",
+        availability: "Availability",
         account: "Account Details",
     };
 
@@ -417,20 +627,28 @@ const MentorProfile = () => {
         return <NotVerifiedScreen onBack={() => navigate("/dashboard/overview")} />;
     }
 
-    const categoryLabels: string[] = mentorProfile?.categories ?? [];
+    const categoryLabels: string[] = Array.isArray(mentorProfile?.categories) ? mentorProfile.categories : [];
+    const expertiseLabels: string[] = Array.isArray(mentorProfile?.expertise) ? mentorProfile.expertise : [];
     const savedSocialLink = mentorProfile?.social_link ?? {};
     const savedLinkedin = extractHandle(savedSocialLink.linkedin);
     const savedXHandle = extractHandle(savedSocialLink.twitter);
     const savedWebsite: string = savedSocialLink.website ?? "";
-    const bank = mentorProfile?.bank_account;
+    const savedAvailabilityLabel =
+        AVAILABILITY_OPTIONS.find((o) => o.value === mentorProfile?.availability)?.label ?? "";
+    const savedDailyAvailabilityLabel =
+        mentorProfile?.daily_availability != null
+            ? DAILY_AVAILABILITY_OPTIONS.find((o) => o.value === String(mentorProfile.daily_availability))?.label ??
+            `${mentorProfile.daily_availability} hrs`
+            : "";
+    const bank = mentorProfile?.bank_details;
 
     return (
         <div className="min-h-screen w-full text-white" >
             <LoadingOverlay visible={isSaving} />
             {/* max-w-4xl matches the Explore page container width */}
             <div className="mx-auto max-w-4xl ">
-                <div className="mb-10 flex items-center gap-6" style={{ borderBottom: cardBorder }}>
-                    {(["professional", "social", "account"] as Step[]).map((s) => (
+                <div className="mb-10 flex items-center gap-6 flex-wrap" style={{ borderBottom: cardBorder }}>
+                    {stepOrder.map((s) => (
                         <button
                             key={s}
                             type="button"
@@ -549,14 +767,32 @@ const MentorProfile = () => {
                                         placeholder="Tell people who you are and what you help with"
                                         helper="This appears on your public mentor profile."
                                     />
-                                    <Field
-                                        label="Years of Experience"
-                                        value={draft.experience}
-                                        onChange={(v) =>
-                                            setDraft((d) => ({ ...d, experience: v.replace(/[^0-9]/g, "") }))
-                                        }
-                                        placeholder="e.g. 4"
-                                    />
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                        <Field
+                                            label="Years of Experience"
+                                            value={draft.experience}
+                                            onChange={(v) =>
+                                                setDraft((d) => ({ ...d, experience: v.replace(/[^0-9]/g, "") }))
+                                            }
+                                            placeholder="e.g. 4"
+                                        />
+                                        <Field
+                                            label="Hourly Rate"
+                                            value={draft.hourlyRate}
+                                            onChange={(v) =>
+                                                setDraft((d) => ({ ...d, hourlyRate: v.replace(/[^0-9.]/g, "") }))
+                                            }
+                                            placeholder="e.g. 50"
+                                            helper="In NGN."
+                                        />
+                                        <SelectField
+                                            label="Language"
+                                            value={draft.language}
+                                            options={LANGUAGE_OPTIONS}
+                                            onChange={(v) => setDraft((d) => ({ ...d, language: v }))}
+                                            placeholder="Select a language"
+                                        />
+                                    </div>
                                 </>
                             ) : (
                                 <>
@@ -565,14 +801,21 @@ const MentorProfile = () => {
                                         <ViewRow label="Occupation" value={mentorProfile?.occupation} />
                                     </div>
                                     <ViewRow label="Bio" value={mentorProfile?.bio} />
-                                    <ViewRow
-                                        label="Years of Experience"
-                                        value={
-                                            mentorProfile?.years_of_experience != null
-                                                ? `${mentorProfile.years_of_experience} years`
-                                                : ""
-                                        }
-                                    />
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                        <ViewRow
+                                            label="Years of Experience"
+                                            value={
+                                                mentorProfile?.years_of_experience != null
+                                                    ? `${mentorProfile.years_of_experience} years`
+                                                    : ""
+                                            }
+                                        />
+                                        <ViewRow
+                                            label="Hourly Rate"
+                                            value={mentorProfile?.hourly_rate != null ? `₦${mentorProfile.hourly_rate}` : ""}
+                                        />
+                                        <ViewRow label="Language" value={mentorProfile?.language ?? ""} />
+                                    </div>
                                 </>
                             )}
                         </div>
@@ -622,6 +865,17 @@ const MentorProfile = () => {
                                 )}
                             </div>
 
+                            {isEditing ? (
+                                <MultiPillSelect
+                                    label="Expertise"
+                                    values={draft.expertise}
+                                    options={EXPERTISE_OPTIONS}
+                                    onChange={(v) => setDraft((d) => ({ ...d, expertise: v }))}
+                                />
+                            ) : (
+                                <ViewChipsRow label="Expertise" values={expertiseLabels} />
+                            )}
+
                             <div>
                                 <p className="mb-3 text-sm font-semibold text-white">Social Links</p>
                                 <div className="space-y-3">
@@ -667,6 +921,36 @@ const MentorProfile = () => {
                                     )}
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ---------------- Availability ---------------- */}
+                {step === "availability" && (
+                    <div>
+                        <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Availability</h2>
+                        <div className="space-y-5">
+                            {isEditing ? (
+                                <>
+                                    <PillSelect
+                                        label="General Availability"
+                                        value={draft.availability}
+                                        options={AVAILABILITY_OPTIONS}
+                                        onChange={(v) => setDraft((d) => ({ ...d, availability: v }))}
+                                    />
+                                    <PillSelect
+                                        label="Hours Per Day"
+                                        value={draft.dailyAvailability}
+                                        options={DAILY_AVAILABILITY_OPTIONS}
+                                        onChange={(v) => setDraft((d) => ({ ...d, dailyAvailability: v }))}
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <ViewRow label="General Availability" value={savedAvailabilityLabel} />
+                                    <ViewRow label="Hours Per Day" value={savedDailyAvailabilityLabel} />
+                                </>
+                            )}
                         </div>
                     </div>
                 )}
@@ -748,7 +1032,13 @@ const MentorProfile = () => {
                                 <Button
                                     variant="green"
                                     onClick={goNext}
-                                    disabled={step === "professional" ? !professionalComplete : !socialComplete}
+                                    disabled={
+                                        step === "professional"
+                                            ? !professionalComplete
+                                            : step === "social"
+                                                ? !socialComplete
+                                                : !availabilityComplete
+                                    }
                                 >
                                     <span className="flex items-center justify-center gap-2">
                                         Next
@@ -773,7 +1063,7 @@ const MentorProfile = () => {
                     ) : (
                         <>
                             <span className="text-xs text-white/30">
-                                Step {stepIndex + 1} of 3 — {stepLabels[step]}
+                                Step {stepIndex + 1} of {stepOrder.length} — {stepLabels[step]}
                             </span>
                             <Button variant="green" onClick={startEditing}>
                                 <span className="flex items-center justify-center gap-2">

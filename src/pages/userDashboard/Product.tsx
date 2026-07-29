@@ -1,18 +1,61 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     FiArrowLeft,
     FiBookOpen,
     FiCheckCircle,
     FiDollarSign,
+    FiExternalLink,
     FiLayers,
     FiPlayCircle,
-    FiStar
+    FiX,
 } from 'react-icons/fi';
 import { Link, useParams } from 'react-router-dom';
+import LoadingOverlay from '../../component/LoadingOverlay';
 import Button from '../../component/ui/Button';
-import { PRODUCTS, type DigitalProduct } from './Explore';
+import { useGetSingleDigitalProduct } from '../../hooks/queries/allQueriess';
 
-// ─── Not found state ─────────────────────────────────────────────────────────
+// ─── Types (matches the digital-product API response) ───────────────────────
+type ApiCourseModule = {
+    title: string;
+    description: string; // plain text
+};
+
+type ApiProduct = {
+    id: string;
+    mentor: string;
+    user_name: string;
+    link: string;
+    product_type: 'course' | 'book';
+    title: string;
+    description: string; // plain text
+    course_content: ApiCourseModule[] | null;
+    cover_image: string | null;
+    price: string;
+    is_published: boolean;
+    video: string | null;
+    summary: string | null;
+    created_at: string;
+};
+
+const formatPrice = (price: string) => {
+    const numeric = parseFloat(price);
+    if (!numeric || numeric <= 0) return 'Free';
+    const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
+    return `$${trimmed}`;
+};
+
+// Read-only render of the mentor's plain-text content (description, module
+// descriptions, book summary). Preserves line breaks the mentor typed.
+// break-words/overflow-wrap prevents long unbroken strings (e.g. pasted
+// links) from pushing past the column and overlapping the sticky purchase
+// panel on the right.
+const RichText: React.FC<{ html: string }> = ({ html }) => (
+    <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+        {html}
+    </p>
+);
+
+// ─── Not found / error state ─────────────────────────────────────────────────
 const ProductNotFound: React.FC = () => (
     <div
         className="w-full min-h-screen flex flex-col items-center justify-center px-6 text-center"
@@ -59,21 +102,78 @@ const StatPill: React.FC<{ icon: React.ReactNode; label: string; value: string }
     </div>
 );
 
+// ─── Video modal — opens automatically when the page loads if the product
+// has a preview video, autoplays, and can be reopened from the page. ───────
+const VideoModal: React.FC<{ src: string; onClose: () => void }> = ({ src, onClose }) => (
+    <div
+        className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur-sm"
+        onClick={onClose}
+    >
+        <div
+            className="w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: '#0a0d09', border: '1px solid rgba(255,255,255,0.1)' }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <p className="text-white text-sm font-semibold">Preview</p>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="p-1.5 rounded-lg hover:bg-white/5 text-white/50 hover:text-white transition-colors"
+                >
+                    <FiX size={18} />
+                </button>
+            </div>
+            <video src={src} controls autoPlay playsInline className="w-full aspect-video bg-black" />
+        </div>
+    </div>
+);
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 const Product: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const product: DigitalProduct | undefined = PRODUCTS.find((p) => p.id === id);
+    const { product: response, isLoading, isError } = useGetSingleDigitalProduct(id);
+    const product: ApiProduct | undefined = response?.data;
+    console.log('This is Product', product)
+
+    const [showVideoModal, setShowVideoModal] = useState(false);
+
+    // Auto-open the preview video 3 seconds after this product's data loads.
+    useEffect(() => {
+        if (!product?.video) return;
+
+        const timer = setTimeout(() => setShowVideoModal(true), 3000);
+        return () => clearTimeout(timer);
+    }, [product?.id, product?.video]);
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [hasDiscount, setHasDiscount] = useState(false);
     const [discountCode, setDiscountCode] = useState('');
 
-    if (!product) return <ProductNotFound />;
+    if (isLoading) {
+        return (
+            <div
+                className="w-full min-h-screen relative"
+                style={{
+                    background:
+                        'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
+                }}
+            >
+                <LoadingOverlay visible />
+            </div>
+        );
+    }
+
+    if (isError || !product) return <ProductNotFound />;
+
+    const isCourse = product.product_type === 'course';
+    const price = formatPrice(product.price);
+    const viewLabel = isCourse ? 'View Course' : 'View eBook';
 
     const handleSubmit = () => {
         // Hook this up to your payment flow
-        console.log('Purchasing', product.title, { name, email, discountCode });
+        console.log('Purchasing', product.title, { name, email, discountCode, redirectTo: product.link });
     };
 
     return (
@@ -94,49 +194,135 @@ const Product: React.FC = () => {
                     Explore
                 </Link>
 
+                {/* min-w-0 on both grid children stops long text (description,
+                    course content) from forcing the left column wider than its
+                    track, which is what was pushing it over the sticky purchase
+                    panel on the right. */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 items-start">
                     {/* ── Left: product image + info ── */}
-                    <div>
+                    <div className="min-w-0">
                         <div
                             className="rounded-2xl overflow-hidden mb-6"
                             style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
                         >
-                            <img
-                                src={product.thumbnail}
-                                alt={product.title}
-                                className="w-full aspect-square object-cover"
-                            />
+                            {product.cover_image ? (
+                                <img
+                                    src={product.cover_image}
+                                    alt={product.title}
+                                    className="w-full aspect-square object-cover"
+                                />
+                            ) : (
+                                <div className="w-full aspect-square flex items-center justify-center">
+                                    {isCourse ? (
+                                        <FiPlayCircle size={40} className="text-white/15" />
+                                    ) : (
+                                        <FiBookOpen size={40} className="text-white/15" />
+                                    )}
+                                </div>
+                            )}
                         </div>
 
-                        <span
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-4"
-                            style={{ background: 'rgba(166,255,0,0.1)', color: '#a6ff00' }}
-                        >
-                            {product.type === 'Course' ? <FiPlayCircle size={12} /> : <FiBookOpen size={12} />}
-                            Digital Product
-                        </span>
+                        <div className="flex items-center gap-2 mb-4 flex-wrap">
+                            <span
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+                                style={{ background: 'rgba(166,255,0,0.1)', color: '#a6ff00' }}
+                            >
+                                {isCourse ? <FiPlayCircle size={12} /> : <FiBookOpen size={12} />}
+                                Digital Product
+                            </span>
 
-                        <h1 className="text-white text-2xl sm:text-3xl font-black mb-2">{product.title}</h1>
-                        <p className="text-white/50 text-sm sm:text-base mb-1">by {product.author}</p>
+                            {product.video && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowVideoModal(true)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors hover:bg-white/10"
+                                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)' }}
+                                >
+                                    <FiPlayCircle size={12} />
+                                    Watch preview
+                                </button>
+                            )}
 
-                        <div className="flex items-center gap-1.5 text-white/50 text-sm mb-6">
-                            <FiStar size={14} className="text-amber-400 fill-amber-400" />
-                            {product.rating} rating
+                            {product.link && (
+                                <a
+                                    href={product.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors hover:bg-white/10"
+                                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)' }}
+                                >
+                                    <FiExternalLink size={12} />
+                                    {viewLabel}
+                                </a>
+                            )}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                            <StatPill icon={<FiDollarSign size={16} />} label="Pricing" value={product.price} />
+                        <h1 className="text-white text-2xl sm:text-3xl font-black mb-2 break-words">{product.title}</h1>
+                        <p className="text-white/50 text-sm sm:text-base mb-6">by {product.user_name}</p>
+
+                        <div className="grid grid-cols-2 gap-3 mb-8">
+                            <StatPill icon={<FiDollarSign size={16} />} label="Pricing" value={price} />
                             <StatPill
                                 icon={<FiLayers size={16} />}
                                 label="Content"
-                                value={product.type === 'Course' ? 'Full Course' : '1 eBook'}
+                                value={
+                                    isCourse
+                                        ? `${product.course_content?.length ?? 0} module${product.course_content?.length === 1 ? '' : 's'}`
+                                        : '1 eBook'
+                                }
                             />
                         </div>
+
+                        <div className="mb-8">
+                            <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">Description</h3>
+                            <RichText html={product.description} />
+                        </div>
+
+                        {isCourse ? (
+                            <div>
+                                <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
+                                    Course Content
+                                    {product.course_content?.length ? ` · ${product.course_content.length} module${product.course_content.length === 1 ? '' : 's'}` : ''}
+                                </h3>
+                                <div className="flex flex-col gap-3">
+                                    {(product.course_content ?? []).map((m, i) => (
+                                        <div
+                                            key={`${m.title}-${i}`}
+                                            className="rounded-xl p-4 min-w-0"
+                                            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                        >
+                                            <div className="flex items-center gap-2.5 mb-2 min-w-0">
+                                                <span
+                                                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-black"
+                                                    style={{ background: '#a6ff00' }}
+                                                >
+                                                    {i + 1}
+                                                </span>
+                                                <p className="text-white text-sm font-semibold truncate min-w-0">{m.title || `Module ${i + 1}`}</p>
+                                            </div>
+                                            <RichText html={m.description} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            product.summary && (
+                                <div>
+                                    <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">Overview</h3>
+                                    <div
+                                        className="rounded-xl p-4 min-w-0"
+                                        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                    >
+                                        <RichText html={product.summary} />
+                                    </div>
+                                </div>
+                            )
+                        )}
                     </div>
 
                     {/* ── Right: purchase panel ── */}
                     <div
-                        className="rounded-2xl p-6 sm:p-8"
+                        className="rounded-2xl p-6 sm:p-8 lg:sticky lg:top-8 min-w-0"
                         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}
                     >
                         <h2 className="text-white text-lg sm:text-xl font-bold mb-1">
@@ -191,14 +377,14 @@ const Product: React.FC = () => {
                             style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
                         >
                             <div className="flex items-center justify-between px-4 py-3.5">
-                                <span className="text-white/70 text-sm">{product.title}</span>
-                                <span className="text-white text-sm font-semibold">{product.price}</span>
+                                <span className="text-white/70 text-sm truncate">{product.title}</span>
+                                <span className="text-white text-sm font-semibold shrink-0">{price}</span>
                             </div>
                             <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }} />
                             <div className="flex items-center justify-between px-4 py-3.5">
                                 <span className="text-white font-bold text-sm">Total</span>
                                 <span className="font-bold text-sm" style={{ color: '#a6ff00' }}>
-                                    {product.price}
+                                    {price}
                                 </span>
                             </div>
                         </div>
@@ -214,6 +400,10 @@ const Product: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {showVideoModal && product.video && (
+                <VideoModal src={product.video} onClose={() => setShowVideoModal(false)} />
+            )}
         </div>
     );
 };

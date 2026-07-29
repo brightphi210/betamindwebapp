@@ -1,98 +1,123 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { BsStarFill } from "react-icons/bs";
 import {
     FiBookOpen,
-    FiCamera,
-    FiCheck,
+    FiCheckCircle,
+    FiCopy,
     FiExternalLink,
     FiImage,
     FiLink,
-    FiLoader,
     FiPlayCircle,
     FiPlus,
+    FiShare2,
     FiShoppingBag,
+    FiTag,
     FiX,
 } from "react-icons/fi";
 import { Link, useOutletContext } from "react-router-dom";
-import { cardBg, cardBorder, fieldClass } from "../../component/MentorDashboardStyles";
+import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
+import { useGetMentorDigitalProduct } from "../../hooks/queries/allQueriess";
 import { useGlobalContext } from "../../providers/GlobalContext";
 import { type MentorDashboardContext } from "./MentorDashboardLayout";
 
-// TODO: replace with a real products hook (list + create endpoint) once it
-// exists. Shape mirrors the public DigitalProduct card used on Explore, plus
-// the mentor-only fields (status, sold, link) needed for management here.
+// If Explore.tsx is reachable from here, prefer importing these instead of
+// redeclaring them, so the two pages never drift apart:
+// import { type ApiDigitalProduct } from "../Explore";
+
 type ProductType = "Course" | "Book";
 type ProductStatus = "published" | "draft";
 
+// Shape returned by the digital-products endpoint — mirrors Explore.tsx's
+// ApiDigitalProduct exactly, since it's the same hook/response.
+type ApiDigitalProduct = {
+    id: string;
+    mentor: string;
+    user_name: string;
+    link: string;
+    product_type: "course" | "book";
+    title: string;
+    description: string;
+    course_content: { title: string; description: string }[] | null;
+    cover_image: string | null;
+    price: string;
+    is_published: boolean;
+    video: string | null;
+    summary: string | null;
+    created_at: string;
+};
+
+// Card-friendly shape this page renders — same fields the old MOCK_PRODUCTS
+// had, just sourced from the API now instead of being hardcoded.
 type Product = {
     id: string;
     type: ProductType;
     title: string;
     price: number;
-    thumbnail: string;
+    thumbnail: string | null;
     status: ProductStatus;
     sold: number;
     rating: number;
     link: string;
+    description?: string;
 };
 
-const MOCK_PRODUCTS: Product[] = [
-    {
-        id: "pr1",
-        type: "Course",
-        title: "System Design From Scratch",
-        price: 129,
-        thumbnail: "https://picsum.photos/seed/sysdesign/600/600",
-        status: "published",
-        sold: 24,
-        rating: 4.9,
-        link: "https://courses.example.com/system-design-from-scratch",
-    },
-    {
-        id: "pr2",
-        type: "Book",
-        title: "The Clarity Habit",
-        price: 24,
-        thumbnail: "https://picsum.photos/seed/claritybook/600/600",
-        status: "published",
-        sold: 58,
-        rating: 4.8,
-        link: "https://books.example.com/the-clarity-habit",
-    },
-    {
-        id: "pr3",
-        type: "Course",
-        title: "Brand Identity Foundations",
-        price: 89,
-        thumbnail: "https://picsum.photos/seed/brandcourse/600/600",
-        status: "draft",
-        sold: 0,
-        rating: 0,
-        link: "",
-    },
-];
+const mapApiProductToMentorProduct = (p: ApiDigitalProduct): Product => ({
+    id: p.id,
+    type: p.product_type === "course" ? "Course" : "Book",
+    title: p.title,
+    price: Number(p.price) || 0,
+    thumbnail: p.cover_image,
+    status: p.is_published ? "published" : "draft",
+    // Not returned by this endpoint yet — default to 0 until the API exposes them.
+    sold: 0,
+    rating: 0,
+    link: p.link,
+    description: p.description,
+});
 
 const STATUS_STYLES: Record<ProductStatus, { color: string; bg: string; label: string }> = {
     published: { color: "#a6ff00", bg: "rgba(166,255,0,0.1)", label: "Published" },
     draft: { color: "#fbbf24", bg: "rgba(251,191,36,0.1)", label: "Draft" },
 };
 
-// ---------- Product card — same visual as Explore's public ProductCard ----------
+// ---------- Product card ----------
 
-const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
+const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ product, onClick }) => {
     const statusStyle = STATUS_STYLES[product.status];
     return (
         <div
-            className="flex flex-col overflow-hidden rounded-xl"
+            role="button"
+            tabIndex={0}
+            onClick={onClick}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onClick();
+                }
+            }}
+            className="flex cursor-pointer flex-col overflow-hidden rounded-xl text-left transition-colors hover:bg-white/[0.03]"
             style={{ background: cardBg, border: cardBorder }}
         >
             <div className="relative">
-                <img
-                    src={product.thumbnail}
-                    alt={product.title}
-                    className="h-40 w-full object-cover sm:h-48"
-                />
+                {product.thumbnail ? (
+                    <img
+                        src={product.thumbnail}
+                        alt={product.title}
+                        className="h-40 w-full object-cover sm:h-48"
+                    />
+                ) : (
+                    <div
+                        className="flex h-40 w-full items-center justify-center sm:h-48"
+                        style={{ background: "rgba(255,255,255,0.03)" }}
+                    >
+                        {product.type === "Course" ? (
+                            <FiPlayCircle size={28} className="text-white/15" />
+                        ) : (
+                            <FiBookOpen size={28} className="text-white/15" />
+                        )}
+                    </div>
+                )}
                 <span
                     className="absolute left-3 top-3 flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold"
                     style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
@@ -123,25 +148,23 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
                     </div>
                     <span className="text-sm font-bold text-white">${product.price}</span>
                 </div>
-
-                {product.link ? (
-                    <a
-                        href={product.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-4 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold text-[#a6ff00] transition-colors hover:bg-white/[0.04]"
-                        style={{ border: "1px solid rgba(166,255,0,.25)" }}
-                    >
-                        <FiExternalLink size={13} />
-                        {product.type === "Course" ? "Open Course Link" : "Open Book Link"}
-                    </a>
-                ) : (
-                    <p className="mt-4 text-center text-xs text-white/30">No link added yet</p>
-                )}
             </div>
         </div>
     );
 };
+
+const ProductCardSkeleton: React.FC = () => (
+    <div
+        className="flex flex-col overflow-hidden rounded-xl animate-pulse"
+        style={{ background: cardBg, border: cardBorder }}
+    >
+        <div className="h-40 w-full bg-white/5 sm:h-48" />
+        <div className="flex flex-col gap-2.5 p-4 sm:p-5">
+            <div className="h-4 w-3/4 rounded bg-white/5" />
+            <div className="h-3 w-1/2 rounded bg-white/5" />
+        </div>
+    </div>
+);
 
 const EmptyState: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
     <div
@@ -159,87 +182,50 @@ const EmptyState: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
     </div>
 );
 
-// ---------- Create product modal ----------
+// ---------- Product details drawer ----------
 
-type Draft = {
-    type: ProductType;
-    title: string;
-    price: string;
-    link: string;
-    description: string;
-    thumbnail: string | null;
-    thumbnailFile: File | null;
-};
-
-const emptyDraft: Draft = {
-    type: "Course",
-    title: "",
-    price: "",
-    link: "",
-    description: "",
-    thumbnail: null,
-    thumbnailFile: null,
-};
-
-const CreateProductModal: React.FC<{
+const ProductDrawer: React.FC<{
+    product: Product;
     onClose: () => void;
-    onCreate: (product: Product) => void;
-}> = ({ onClose, onCreate }) => {
+}> = ({ product, onClose }) => {
     const { addToast } = useGlobalContext();
-    const thumbnailInputRef = useRef<HTMLInputElement>(null);
-    const [draft, setDraft] = useState<Draft>(emptyDraft);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const statusStyle = STATUS_STYLES[product.status];
 
-    const isValid = !!(draft.title && draft.price && Number(draft.price) > 0 && draft.link);
-
-    const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) setDraft((d) => ({ ...d, thumbnail: URL.createObjectURL(file), thumbnailFile: file }));
-    };
-
-    const handleCreate = async () => {
-        if (!isValid) return;
-        setIsSubmitting(true);
+    const handleShare = async () => {
+        if (!product.link) return;
         try {
-            await new Promise((resolve) => setTimeout(resolve, 900));
-
-            onCreate({
-                id: `pr_${Date.now()}`,
-                type: draft.type,
-                title: draft.title,
-                price: Number(draft.price) || 0,
-                thumbnail: draft.thumbnail || "https://picsum.photos/seed/newproduct/600/600",
-                status: "draft",
-                sold: 0,
-                rating: 0,
-                link: draft.link,
-            });
-            addToast("Product created", "success");
-            onClose();
-        } catch (error: any) {
-            addToast(error?.response?.data?.message || "Could not create product. Please try again.", "error");
-        } finally {
-            setIsSubmitting(false);
+            if (navigator.share) {
+                await navigator.share({ title: product.title, url: product.link });
+                return;
+            }
+            await navigator.clipboard.writeText(product.link);
+            setCopied(true);
+            addToast("Link copied to clipboard", "success");
+            setTimeout(() => setCopied(false), 2000);
+        } catch (error) {
+            if (!(error instanceof DOMException && error.name === "AbortError")) {
+                addToast("Could not copy link. Please try again.", "error");
+            }
         }
     };
 
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
-            onClick={onClose}
-        >
+        <div className="fixed inset-0 z-50 flex justify-end">
             <div
-                className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl p-6 shadow-2xl"
-                style={{
-                    background: "rgba(10,13,9,0.55)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backdropFilter: "blur(24px)",
-                    WebkitBackdropFilter: "blur(24px)",
-                }}
-                onClick={(e) => e.stopPropagation()}
+                className="absolute inset-0 bg-black/65 backdrop-blur-sm"
+                onClick={onClose}
+                aria-hidden="true"
+            />
+            <div
+                className="relative flex h-full w-full max-w-md flex-col overflow-y-auto shadow-2xl animate-[slideIn_0.25s_ease-out]"
+                style={{ background: "#0a0d09", borderLeft: "1px solid rgba(255,255,255,0.1)" }}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Product details"
             >
-                <div className="mb-5 flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-white">Create Product</h3>
+                <div className="flex items-center justify-between px-5 pt-5">
+                    <h3 className="text-lg font-bold text-white">Product Details</h3>
                     <button
                         type="button"
                         onClick={onClose}
@@ -250,146 +236,148 @@ const CreateProductModal: React.FC<{
                     </button>
                 </div>
 
-                <div className="space-y-5">
-                    <div>
-                        <p className="mb-2 text-sm font-semibold text-white">Type</p>
-                        <div className="flex gap-2">
-                            {(["Course", "Book"] as ProductType[]).map((type) => {
-                                const active = draft.type === type;
-                                return (
-                                    <button
-                                        key={type}
-                                        type="button"
-                                        onClick={() => setDraft((d) => ({ ...d, type }))}
-                                        className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${active ? "bg-[#a6ff00] text-black" : "text-white/60 hover:text-white"
-                                            }`}
-                                        style={active ? undefined : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                                    >
-                                        {type === "Course" ? <FiPlayCircle size={14} /> : <FiBookOpen size={14} />}
-                                        {type}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    <div>
-                        <p className="mb-2 text-sm font-semibold text-white">Thumbnail</p>
-                        <div
-                            className="flex h-32 w-full items-center justify-center overflow-hidden rounded-xl"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                        >
-                            {draft.thumbnail ? (
-                                <img src={draft.thumbnail} alt="Thumbnail preview" className="h-full w-full object-cover" />
-                            ) : (
-                                <FiImage size={24} className="text-white/20" />
-                            )}
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => thumbnailInputRef.current?.click()}
-                            className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-[#a6ff00] hover:underline"
-                        >
-                            <FiCamera size={13} />
-                            {draft.thumbnail ? "Change image" : "Upload image"}
-                        </button>
-                        <input
-                            ref={thumbnailInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleThumbnailChange}
-                        />
-                    </div>
-
-                    <div>
-                        <label className="mb-2 block text-sm font-semibold text-white">Title</label>
-                        <input
-                            value={draft.title}
-                            onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-                            placeholder="e.g. System Design From Scratch"
-                            className={fieldClass}
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                        />
-                    </div>
-
-                    <div>
-                        <label className="mb-2 block text-sm font-semibold text-white">Price (USD)</label>
-                        <input
-                            type="text"
-                            inputMode="numeric"
-                            value={draft.price}
-                            onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value.replace(/[^0-9.]/g, "") }))}
-                            placeholder="e.g. 49"
-                            className={fieldClass}
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                        />
-                    </div>
-
-                    <div>
-                        <label className="mb-2 block text-sm font-semibold text-white">
-                            {draft.type === "Course" ? "Course Link" : "Book Link"}
-                        </label>
-                        <div className="flex items-center gap-3">
+                <div className="px-5 pb-6 pt-4">
+                    <div className="relative overflow-hidden rounded-xl">
+                        {product.thumbnail ? (
+                            <img src={product.thumbnail} alt={product.title} className="h-52 w-full object-cover" />
+                        ) : (
                             <div
-                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white/40"
+                                className="flex h-52 w-full items-center justify-center"
+                                style={{ background: "rgba(255,255,255,0.03)" }}
+                            >
+                                <FiImage size={28} className="text-white/15" />
+                            </div>
+                        )}
+                        <span
+                            className="absolute left-3 top-3 flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold"
+                            style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
+                        >
+                            {product.type === "Course" ? <FiPlayCircle size={13} /> : <FiBookOpen size={13} />}
+                            {product.type}
+                        </span>
+                        <span
+                            className="absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                            style={{ background: statusStyle.bg, color: statusStyle.color, backdropFilter: "blur(4px)" }}
+                        >
+                            {statusStyle.label}
+                        </span>
+                    </div>
+
+                    <h2 className="mb-1 mt-4 break-words text-xl font-bold text-white">{product.title}</h2>
+
+                    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-white/50">
+                        <span className="font-bold text-white">${product.price}</span>
+                        <span>{product.sold} sold</span>
+                        {product.rating > 0 ? (
+                            <span className="flex items-center gap-1">
+                                <BsStarFill size={12} className="fill-amber-400 text-amber-400" />
+                                {product.rating}
+                            </span>
+                        ) : (
+                            <span className="text-white/30">No ratings yet</span>
+                        )}
+                    </div>
+
+                    {product.description && (
+                        <div className="mb-5">
+                            <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-white/30">
+                                <FiTag size={12} />
+                                About this {product.type.toLowerCase()}
+                            </p>
+                            <p className="text-sm leading-relaxed text-white/60">{product.description}</p>
+                        </div>
+                    )}
+
+                    <div className="mb-6">
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/30">
+                            {product.type === "Course" ? "Course Link" : "Book Link"}
+                        </p>
+                        {product.link ? (
+                            <div
+                                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-white/70"
                                 style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                             >
-                                <FiLink size={15} />
+                                <FiLink size={14} className="shrink-0 text-white/30" />
+                                <span className="truncate">{product.link}</span>
                             </div>
-                            <input
-                                value={draft.link}
-                                onChange={(e) => setDraft((d) => ({ ...d, link: e.target.value }))}
-                                placeholder={
-                                    draft.type === "Course"
-                                        ? "https://yourplatform.com/course-name"
-                                        : "https://yourstore.com/book-name"
-                                }
-                                className={`${fieldClass} flex-1`}
-                                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                            />
-                        </div>
-                        <p className="mt-2 text-xs text-white/40">
-                            Where mentees go to {draft.type === "Course" ? "take the course" : "get the book"} after
-                            purchase — e.g. a Teachable/Udemy link, or an Amazon/Gumroad page.
-                        </p>
+                        ) : (
+                            <p
+                                className="rounded-lg px-3 py-2.5 text-sm text-white/30"
+                                style={{ background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.08)" }}
+                            >
+                                No link added yet
+                            </p>
+                        )}
                     </div>
 
-                    <div>
-                        <label className="mb-2 block text-sm font-semibold text-white">Description</label>
-                        <textarea
-                            value={draft.description}
-                            onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-                            placeholder="What will mentees get from this?"
-                            rows={3}
-                            className={`${fieldClass} resize-none`}
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                        />
+                    <div className="flex flex-col gap-2.5 sm:flex-row">
+                        <Button
+                            variant="green"
+                            className="flex-1"
+                            disabled={!product.link}
+                            onClick={() => {
+                                void handleShare();
+                            }}
+                        >
+                            <span className="flex items-center justify-center gap-2">
+                                {copied ? <FiCheckCircle size={15} /> : <FiShare2 size={15} />}
+                                {copied ? "Copied!" : "Share Link"}
+                            </span>
+                        </Button>
+
+                        {product.link && (
+                            <a
+                                href={product.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/[0.04]"
+                                style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                            >
+                                <FiExternalLink size={14} />
+                                Open Link
+                            </a>
+                        )}
                     </div>
+
+                    {product.link && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                void handleShare();
+                            }}
+                            className="mt-2.5 flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-white/40 hover:text-white/70"
+                        >
+                            <FiCopy size={12} />
+                            Copy raw link instead
+                        </button>
+                    )}
                 </div>
-
-                <Button
-                    variant="green"
-                    className="mt-6 w-full"
-                    disabled={!isValid || isSubmitting}
-                    onClick={() => {
-                        void handleCreate();
-                    }}
-                >
-                    <span className="flex items-center justify-center gap-2">
-                        {isSubmitting ? <FiLoader size={15} className="animate-spin" /> : <FiCheck size={15} />}
-                        {isSubmitting ? "Creating..." : "Create Product"}
-                    </span>
-                </Button>
             </div>
+
+            <style>{`
+                @keyframes slideIn {
+                    from { transform: translateX(100%); }
+                    to { transform: translateX(0); }
+                }
+            `}</style>
         </div>
     );
 };
 
+// ---------- Page ----------
+
 const MentorProducts = () => {
     useOutletContext<MentorDashboardContext>();
-    const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
-    const [showCreateModal, setShowCreateModal] = useState(false);
+    const { digitalProduct, isLoading } = useGetMentorDigitalProduct();
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+    const rawProducts: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data)
+        ? digitalProduct.data
+        : digitalProduct?.data?.results ?? [];
+
+    const myRawProducts = rawProducts;
+
+    const products: Product[] = myRawProducts.map(mapApiProductToMentorProduct);
 
     return (
         <div>
@@ -400,7 +388,7 @@ const MentorProducts = () => {
                 </div>
                 {products.length > 0 && (
                     <Link to={'/dashboard/mentor/product/create'}>
-                        <Button variant="green" >
+                        <Button variant="green">
                             <span className="flex items-center gap-2">
                                 <FiPlus size={15} />
                                 Create Product
@@ -411,18 +399,19 @@ const MentorProducts = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {products.length > 0 ? (
-                    products.map((product) => <ProductCard key={product.id} product={product} />)
+                {isLoading ? (
+                    Array.from({ length: 3 }).map((_, i) => <ProductCardSkeleton key={i} />)
+                ) : products.length > 0 ? (
+                    products.map((product) => (
+                        <ProductCard key={product.id} product={product} onClick={() => setSelectedProduct(product)} />
+                    ))
                 ) : (
-                    <EmptyState onCreate={() => setShowCreateModal(true)} />
+                    <EmptyState onCreate={() => { }} />
                 )}
             </div>
 
-            {showCreateModal && (
-                <CreateProductModal
-                    onClose={() => setShowCreateModal(false)}
-                    onCreate={(product) => setProducts((prev) => [product, ...prev])}
-                />
+            {selectedProduct && (
+                <ProductDrawer product={selectedProduct} onClose={() => setSelectedProduct(null)} />
             )}
         </div>
     );

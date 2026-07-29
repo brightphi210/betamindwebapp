@@ -10,8 +10,16 @@ import {
 } from 'react-icons/fi';
 import { Link, useSearchParams } from 'react-router-dom';
 import LoadingOverlay from '../../component/LoadingOverlay';
-import { useGetAllEvents, useGetMentors } from '../../hooks/queries/allQueriess';
-import { EventCard, MentorCard, ProductCard, PRODUCTS, TOPICS } from './Explore';
+import { useGetAllEvents, useGetDigitalProduct, useGetMentors } from '../../hooks/queries/allQueriess';
+import {
+    buildTopicsFromMentors,
+    EventCard,
+    mapApiProductToCard,
+    MentorCard,
+    ProductCard,
+    type ApiDigitalProduct,
+    type Topic,
+} from './Explore';
 import {
     mapApiEventToRegistered,
     type ApiEvent,
@@ -52,10 +60,11 @@ const SectionHeading: React.FC<{ icon: React.ReactNode; label: string; count: nu
 
 // ─── More categories modal ──────────────────────────────────────────────────
 const MoreCategoriesModal: React.FC<{
+    topics: Topic[];
     activeCategory: string;
     onSelect: (name: string) => void;
     onClose: () => void;
-}> = ({ activeCategory, onSelect, onClose }) => (
+}> = ({ topics, activeCategory, onSelect, onClose }) => (
     <div
         className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
         onClick={onClose}
@@ -94,7 +103,10 @@ const MoreCategoriesModal: React.FC<{
                     >
                         All Categories
                     </button>
-                    {TOPICS.map((topic) => {
+                    {topics.length === 0 && (
+                        <p className="text-white/30 text-xs px-1 py-2">No categories yet.</p>
+                    )}
+                    {topics.map((topic) => {
                         const active = activeCategory.toLowerCase() === topic.name.toLowerCase();
                         return (
                             <button
@@ -140,12 +152,23 @@ const SearchPage: React.FC = () => {
 
     const { mentors, isLoading: mentorsLoading } = useGetMentors();
     const { allEvents, isLoading: eventsLoading } = useGetAllEvents();
+    const { digitalProduct, isLoading: productsLoading } = useGetDigitalProduct();
 
     const allMentors: any[] = mentors?.data?.results ?? [];
+    const topics = useMemo(() => buildTopicsFromMentors(allMentors), [allMentors]);
+
     const rawEvents: ApiEvent[] = Array.isArray(allEvents?.data)
         ? allEvents.data
         : allEvents?.data?.results ?? [];
     const allRegisteredEvents = useMemo(() => rawEvents.map(mapApiEventToRegistered), [rawEvents]);
+
+    const rawProducts: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data)
+        ? digitalProduct.data
+        : digitalProduct?.data?.results ?? [];
+    const publishedProducts = useMemo(
+        () => rawProducts.filter((p) => p.is_published).map(mapApiProductToCard),
+        [rawProducts]
+    );
 
     const toggleType = (type: ResultType) => {
         setActiveTypes((prev) => {
@@ -184,15 +207,15 @@ const SearchPage: React.FC = () => {
         (e) => matches(e.title, query) || matches(e.description, query) || matches(e.location, query)
     );
 
-    const filteredCourses = PRODUCTS.filter(
+    const filteredCourses = publishedProducts.filter(
         (p) => p.type === 'Course' && (matches(p.title, query) || matches(p.author, query))
     );
 
-    const filteredEbooks = PRODUCTS.filter(
+    const filteredEbooks = publishedProducts.filter(
         (p) => p.type === 'Book' && (matches(p.title, query) || matches(p.author, query))
     );
 
-    const isLoading = mentorsLoading || eventsLoading;
+    const isLoading = mentorsLoading || eventsLoading || productsLoading;
     const hasAnyFilter = !!query || !!category;
     const totalResults =
         (activeTypes.has('mentors') ? filteredMentors.length : 0) +
@@ -200,11 +223,11 @@ const SearchPage: React.FC = () => {
         (activeTypes.has('courses') ? filteredCourses.length : 0) +
         (activeTypes.has('ebooks') ? filteredEbooks.length : 0);
 
-    const visibleTopics = TOPICS.slice(0, VISIBLE_CATEGORY_COUNT);
+    const visibleTopics = topics.slice(0, VISIBLE_CATEGORY_COUNT);
     // If the active category lives beyond the visible slice (picked from the
     // modal, or landed on via a direct link), still surface it inline so the
     // person can see/clear what's applied without reopening the modal.
-    const activeHiddenTopic = TOPICS.slice(VISIBLE_CATEGORY_COUNT).find(
+    const activeHiddenTopic = topics.slice(VISIBLE_CATEGORY_COUNT).find(
         (t) => t.name.toLowerCase() === category.toLowerCase()
     );
 
@@ -272,8 +295,9 @@ const SearchPage: React.FC = () => {
                     })}
                 </div>
 
-                {/* Category chips — a fixed count shown inline, the rest collapse
-                    behind a "•••" button that opens a modal listing every category */}
+                {/* Category chips — derived from real mentor categories; a fixed
+                    count shown inline, the rest collapse behind a "•••" button
+                    that opens a modal listing every category */}
                 <div className="flex sm:flex-wrap gap-2 overflow-x-auto sm:overflow-visible -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 mb-6 topics-scroll">
                     <button
                         type="button"
@@ -324,15 +348,17 @@ const SearchPage: React.FC = () => {
                         </button>
                     )}
 
-                    <button
-                        type="button"
-                        onClick={() => setShowMoreCategories(true)}
-                        aria-label="More categories"
-                        className="shrink-0 flex items-center justify-center w-9 h-9 rounded-full transition-colors"
-                        style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
-                    >
-                        <FiMoreHorizontal size={16} />
-                    </button>
+                    {topics.length > VISIBLE_CATEGORY_COUNT && (
+                        <button
+                            type="button"
+                            onClick={() => setShowMoreCategories(true)}
+                            aria-label="More categories"
+                            className="shrink-0 flex items-center justify-center w-9 h-9 rounded-full transition-colors"
+                            style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
+                        >
+                            <FiMoreHorizontal size={16} />
+                        </button>
+                    )}
                 </div>
 
                 {/* Active filters + clear all */}
@@ -445,6 +471,7 @@ const SearchPage: React.FC = () => {
 
             {showMoreCategories && (
                 <MoreCategoriesModal
+                    topics={topics}
                     activeCategory={category}
                     onSelect={(name) => {
                         setCategory(name);

@@ -89,3 +89,23 @@ export const useRegisterEvents = () => {
 
   return createEventAttendance
 }
+
+
+
+// ================ CREATE PRODUCT =================
+
+export const useCreateDigitalProduct = () => {
+  const queryClient = useQueryClient()
+
+  const createDigitalProduct = useMutation({
+    mutationFn: async (data: any) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return post_request_with_image('digital-products/', data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] })
+    },
+  })
+
+  return createDigitalProduct
+}

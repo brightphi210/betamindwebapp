@@ -2,31 +2,36 @@ import React, { useRef, useState } from "react";
 import {
     FiBookOpen,
     FiCamera,
-    FiCheck,
+    FiDollarSign,
+    FiEye,
     FiFilm,
     FiImage,
     FiLink,
     FiLoader,
     FiPlayCircle,
     FiPlus,
+    FiTag,
     FiTrash2,
+    FiType,
+    FiX
 } from "react-icons/fi";
-import ReactQuill from "react-quill-new";
-import "react-quill-new/dist/quill.snow.css";
-import { useNavigate, useOutletContext } from "react-router-dom";
-import { cardBg, cardBorder, fieldClass } from "../../component/MentorDashboardStyles";
+import { useOutletContext } from "react-router-dom";
+import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
+import { useCreateDigitalProduct } from "../../hooks/mutations/allMutation";
 import { useGlobalContext } from "../../providers/GlobalContext";
+import type { ProductType } from "../userDashboard/MentorProductSuccess";
+import MentorProductSuccess from "../userDashboard/MentorProductSuccess";
 import { type MentorDashboardContext } from "./MentorDashboardLayout";
 
 // ---------- Types ----------
 
-type ProductType = "Course" | "Book";
+type Step = "form" | "success";
 
 type Module = {
     id: string;
     title: string;
-    description: string; // Quill HTML
+    description: string; // plain text
 };
 
 const MAX_VIDEO_BYTES = 10 * 1024 * 1024; // 10MB
@@ -38,14 +43,16 @@ const makeModule = (): Module => ({
     description: "",
 });
 
-// Quill produces "<p><br></p>" for an empty editor — treat that as blank.
-const isQuillEmpty = (html: string) => !html || html.replace(/<(.|\n)*?>/g, "").trim().length === 0;
+const isTextEmpty = (text: string) => !text || text.trim().length === 0;
 
-const QUILL_MODULES = {
-    toolbar: [["bold", "italic", "underline"], [{ list: "ordered" }, { list: "bullet" }], ["link"], ["clean"]],
+const formatPrice = (price: string) => {
+    const numeric = parseFloat(price);
+    if (!numeric || numeric <= 0) return "Free";
+    const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
+    return `$${trimmed}`;
 };
 
-// ---------- Small building blocks (matched to MentorProducts / EventCreate) ----------
+// ---------- Small building blocks (matched to EventCreate) ----------
 
 const SectionLabel: React.FC<{ children: React.ReactNode; hint?: string }> = ({ children, hint }) => (
     <div className="mb-2">
@@ -54,52 +61,51 @@ const SectionLabel: React.FC<{ children: React.ReactNode; hint?: string }> = ({ 
     </div>
 );
 
-const QuillField: React.FC<{ value: string; onChange: (v: string) => void; placeholder: string }> = ({
-    value,
-    onChange,
-    placeholder,
-}) => (
-    <div className="quill-dark rounded-xl overflow-hidden" style={{ background: cardBg, border: cardBorder }}>
-        <ReactQuill
-            theme="snow"
-            value={value}
-            onChange={onChange}
-            modules={QUILL_MODULES}
-            placeholder={placeholder}
-        />
-        <style>{`
-            .quill-dark .ql-toolbar {
-                border: none;
-                border-bottom: 1px solid rgba(255,255,255,0.08);
-                background: rgba(255,255,255,0.02);
-            }
-            .quill-dark .ql-container {
-                border: none;
-                font-family: inherit;
-                font-size: 0.875rem;
-                min-height: 120px;
-            }
-            .quill-dark .ql-editor {
-                color: #fff;
-                min-height: 120px;
-            }
-            .quill-dark .ql-editor.ql-blank::before {
-                color: rgba(255,255,255,0.3);
-                font-style: normal;
-            }
-            .quill-dark .ql-stroke { stroke: rgba(255,255,255,0.5); }
-            .quill-dark .ql-fill { fill: rgba(255,255,255,0.5); }
-            .quill-dark .ql-picker { color: rgba(255,255,255,0.5); }
-            .quill-dark button:hover .ql-stroke,
-            .quill-dark button.ql-active .ql-stroke { stroke: #a6ff00; }
-            .quill-dark button:hover .ql-fill,
-            .quill-dark button.ql-active .ql-fill { fill: #a6ff00; }
-            .quill-dark .ql-picker-options {
-                background: #0a0d09;
-                border: 1px solid rgba(255,255,255,0.1);
-            }
-        `}</style>
+const IconInputRow: React.FC<{
+    icon: React.ReactNode;
+    value: string;
+    onChange: (v: string) => void;
+    placeholder: string;
+    subtext?: string;
+    inputMode?: "text" | "numeric";
+}> = ({ icon, value, onChange, placeholder, subtext, inputMode }) => (
+    <div className="w-full rounded-lg px-4 py-3.5" style={{ background: cardBg, border: cardBorder }}>
+        <div className="flex items-center gap-3">
+            <span className="text-white/40 shrink-0">{icon}</span>
+            <input
+                value={value}
+                inputMode={inputMode}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder={placeholder}
+                className="flex-1 bg-transparent outline-none text-white text-sm placeholder-white/30"
+            />
+        </div>
+        {subtext && <p className="text-white/30 text-xs mt-1 ml-7">{subtext}</p>}
     </div>
+);
+
+// Plain textarea, replacing the old Quill rich-text field.
+const TextAreaField: React.FC<{
+    value: string;
+    onChange: (v: string) => void;
+    placeholder: string;
+    rows?: number;
+}> = ({ value, onChange, placeholder, rows = 5 }) => (
+    <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 outline-none resize-none"
+        style={{ background: cardBg, border: cardBorder }}
+    />
+);
+
+// Read-only render of plain text (description, module descriptions, book
+// overview), used inside the preview modal. Preserves line breaks the
+// mentor typed since it's no longer HTML.
+const TextDisplay: React.FC<{ text: string }> = ({ text }) => (
+    <p className="whitespace-pre-wrap text-sm text-white/60 leading-relaxed">{text}</p>
 );
 
 // ---------- Module row (Course content) ----------
@@ -123,7 +129,7 @@ const ModuleRow: React.FC<{
                 value={module.title}
                 onChange={(e) => onChange({ title: e.target.value })}
                 placeholder={`Module ${index + 1} title`}
-                className={`${fieldClass} flex-1`}
+                className="flex-1 rounded-lg px-3 py-2 bg-transparent outline-none text-white text-sm placeholder-white/30"
                 style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
             />
             {canRemove && (
@@ -137,7 +143,7 @@ const ModuleRow: React.FC<{
                 </button>
             )}
         </div>
-        <QuillField
+        <TextAreaField
             value={module.description}
             onChange={(v) => onChange({ description: v })}
             placeholder="What will mentees learn in this module?"
@@ -145,12 +151,162 @@ const ModuleRow: React.FC<{
     </div>
 );
 
+// ---------- Preview modal (styled after Events.tsx's GuestsModal) ----------
+
+const ProductPreviewModal: React.FC<{
+    type: ProductType;
+    title: string;
+    price: string;
+    link: string;
+    description: string;
+    thumbnail: string | null;
+    video: string | null;
+    modules: Module[];
+    overview: string;
+    isSubmitting: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+}> = ({ type, title, price, link, description, thumbnail, video, modules, overview, isSubmitting, onClose, onConfirm }) => (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 py-8 backdrop-blur-sm" onClick={onClose}>
+        <div
+            className="w-full max-w-xl rounded-2xl shadow-2xl max-h-[85vh] flex flex-col"
+            style={{
+                background: "rgba(10,13,9,0.55)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                backdropFilter: "blur(24px)",
+                WebkitBackdropFilter: "blur(24px)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            {/* Header */}
+            <div className="flex items-start justify-between p-6 pb-0 shrink-0">
+                <div>
+                    <h3 className="text-white text-xl font-black mb-1">Preview</h3>
+                    <p className="text-white/40 text-xs">This is how mentees will see it before purchase.</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="p-2 rounded-lg hover:bg-white/5 text-white/50 hover:text-white shrink-0"
+                >
+                    <FiX size={18} />
+                </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="overflow-y-auto flex-1 p-6">
+                <span
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-5"
+                    style={{ background: "rgba(166,255,0,0.12)", color: "#a6ff00" }}
+                >
+                    {type === "Course" ? <FiPlayCircle size={12} /> : <FiBookOpen size={12} />}
+                    {type}
+                </span>
+
+                {thumbnail ? (
+                    <img src={thumbnail} alt={title} className="w-full aspect-square rounded-xl mb-5 object-cover" />
+                ) : (
+                    <div
+                        className="w-full aspect-square rounded-xl mb-5 flex items-center justify-center"
+                        style={{ background: "rgba(255,255,255,0.03)" }}
+                    >
+                        <FiImage size={32} className="text-white/20" />
+                    </div>
+                )}
+
+                {video && <video src={video} controls className="w-full aspect-video rounded-xl mb-5 bg-black object-cover" />}
+
+                <h2 className="text-white text-2xl font-black mb-2 break-words">{title || "Untitled"}</h2>
+
+                <div className="flex items-center gap-2 mb-6">
+                    <span
+                        className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold"
+                        style={{
+                            background: formatPrice(price) === "Free" ? "rgba(255,255,255,0.06)" : "rgba(166,255,0,0.1)",
+                            color: formatPrice(price) === "Free" ? "rgba(255,255,255,0.6)" : "#a6ff00",
+                        }}
+                    >
+                        <FiTag size={12} />
+                        {formatPrice(price)}
+                    </span>
+                    {link && (
+                        <span
+                            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold truncate max-w-[220px]"
+                            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
+                        >
+                            <FiLink size={12} />
+                            <span className="truncate">{link.replace(/^https?:\/\//, "")}</span>
+                        </span>
+                    )}
+                </div>
+
+                <div className="mb-6">
+                    <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">Description</h3>
+                    <TextDisplay text={description} />
+                </div>
+
+                {type === "Course" ? (
+                    <div className="mb-2">
+                        <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
+                            Course Content · {modules.length} module{modules.length === 1 ? "" : "s"}
+                        </h3>
+                        <div className="flex flex-col gap-3">
+                            {modules.map((m, i) => (
+                                <div key={m.id} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: cardBorder }}>
+                                    <div className="flex items-center gap-2.5 mb-2">
+                                        <span
+                                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-black"
+                                            style={{ background: "#a6ff00" }}
+                                        >
+                                            {i + 1}
+                                        </span>
+                                        <p className="text-white text-sm font-semibold truncate">{m.title || `Module ${i + 1}`}</p>
+                                    </div>
+                                    <TextDisplay text={m.description} />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="mb-2">
+                        <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">Overview</h3>
+                        <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: cardBorder }}>
+                            <TextDisplay text={overview} />
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Footer actions */}
+            <div className="flex items-center gap-3 p-6 pt-4 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={isSubmitting}
+                    className="px-4 py-3 rounded-xl text-sm font-semibold text-white/70 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
+                    style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+                >
+                    Back to Edit
+                </button>
+                <Button variant="green" className="flex-1" disabled={isSubmitting} onClick={onConfirm}>
+                    <span className="flex items-center justify-center gap-2">
+                        {isSubmitting ? <FiLoader size={15} className="animate-spin" /> : null}
+                        {isSubmitting ? "Creating..." : `Create ${type}`}
+                    </span>
+                </Button>
+            </div>
+        </div>
+    </div>
+);
+
 // ---------- Page ----------
 
 const MentorProductCreate: React.FC = () => {
     useOutletContext<MentorDashboardContext>();
-    const navigate = useNavigate();
     const { addToast } = useGlobalContext();
+    const { mutate, isPending } = useCreateDigitalProduct();
+
+    const [step, setStep] = useState<Step>("form");
 
     const thumbnailInputRef = useRef<HTMLInputElement>(null);
     const videoInputRef = useRef<HTMLInputElement>(null);
@@ -172,7 +328,7 @@ const MentorProductCreate: React.FC = () => {
     const [modules, setModules] = useState<Module[]>([makeModule()]);
     const [overview, setOverview] = useState("");
 
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
 
     const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -201,9 +357,7 @@ const MentorProductCreate: React.FC = () => {
         probe.onloadedmetadata = () => {
             setCheckingVideo(false);
             if (probe.duration > MAX_VIDEO_SECONDS) {
-                setVideoError(
-                    `Video is ${Math.ceil(probe.duration / 60)} min long — must be 2 minutes or less.`
-                );
+                setVideoError(`Video is ${Math.ceil(probe.duration / 60)} min long — must be 2 minutes or less.`);
                 URL.revokeObjectURL(objectUrl);
                 if (videoInputRef.current) videoInputRef.current.value = "";
                 return;
@@ -235,52 +389,62 @@ const MentorProductCreate: React.FC = () => {
 
     const contentValid =
         type === "Course"
-            ? modules.length > 0 && modules.every((m) => m.title.trim() && !isQuillEmpty(m.description))
-            : !isQuillEmpty(overview);
+            ? modules.length > 0 && modules.every((m) => m.title.trim() && !isTextEmpty(m.description))
+            : !isTextEmpty(overview);
 
     const isValid = !!(
         title.trim() &&
         price &&
         Number(price) > 0 &&
         link.trim() &&
-        !isQuillEmpty(description) &&
+        !isTextEmpty(description) &&
         contentValid
     );
 
-    const handleCreate = async () => {
+    // Maps our form state onto the digital-product API shape:
+    // { product_type, link, course_content?, title, description, price, summary?, is_published, cover_image, video }
+    const handleCreate = () => {
         if (!isValid) return;
-        setIsSubmitting(true);
-        try {
-            const formData = new FormData();
-            formData.append("type", type);
-            formData.append("title", title);
-            formData.append("price", price);
-            formData.append("link", link);
-            formData.append("description", description);
 
-            if (type === "Course") {
-                formData.append(
-                    "modules",
-                    JSON.stringify(modules.map(({ title: t, description: d }) => ({ title: t, description: d })))
-                );
-            } else {
-                formData.append("overview", overview);
-            }
+        const formData = new FormData();
+        formData.append("product_type", type === "Course" ? "course" : "book");
+        formData.append("title", title);
+        formData.append("link", link);
+        formData.append("description", description);
+        formData.append("price", price);
+        formData.append("is_published", "false");
 
-            if (thumbnailFile) formData.append("thumbnail", thumbnailFile);
-            if (videoFile) formData.append("preview_video", videoFile);
-
-            // TODO: wire up to the real create-product endpoint once it exists.
-            await new Promise((resolve) => setTimeout(resolve, 900));
-
-            addToast("Product created", "success");
-            navigate("../products");
-        } catch (error: any) {
-            addToast(error?.response?.data?.message || "Could not create product. Please try again.", "error");
-        } finally {
-            setIsSubmitting(false);
+        if (type === "Course") {
+            formData.append(
+                "course_content",
+                JSON.stringify(modules.map(({ title: t, description: d }) => ({ title: t, description: d })))
+            );
+        } else {
+            formData.append("summary", overview);
         }
+
+        if (thumbnailFile) formData.append("cover_image", thumbnailFile);
+        if (videoFile) formData.append("video", videoFile);
+
+        mutate(formData, {
+            onSuccess: () => {
+                setShowPreview(false);
+                setStep("success");
+            },
+            onError: (error: any) => {
+                const message =
+                    error?.response?.data?.message ||
+                    error?.response?.data?.detail ||
+                    "Could not create product. Please try again.";
+                addToast(message, "error");
+            },
+        });
     };
+
+    // ─── Success screen ─────────────────────────────────────────────────
+    if (step === "success") {
+        return <MentorProductSuccess type={type} title={title} />;
+    }
 
     return (
         <div
@@ -323,13 +487,7 @@ const MentorProductCreate: React.FC = () => {
                             >
                                 <FiCamera size={15} />
                             </button>
-                            <input
-                                ref={thumbnailInputRef}
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={handleThumbnailChange}
-                            />
+                            <input ref={thumbnailInputRef} type="file" accept="image/*" className="hidden" onChange={handleThumbnailChange} />
                         </div>
                         {thumbnail && (
                             <button
@@ -348,10 +506,7 @@ const MentorProductCreate: React.FC = () => {
                             {video ? (
                                 <div className="overflow-hidden rounded-2xl" style={{ border: cardBorder }}>
                                     <video src={video} controls className="aspect-video w-full bg-black object-cover" />
-                                    <div
-                                        className="flex items-center justify-between px-3 py-2.5"
-                                        style={{ background: cardBg, borderTop: cardBorder }}
-                                    >
+                                    <div className="flex items-center justify-between px-3 py-2.5" style={{ background: cardBg, borderTop: cardBorder }}>
                                         <span className="truncate text-xs text-white/50">{videoFile?.name}</span>
                                         <button onClick={removeVideo} className="ml-2 shrink-0 text-white/40 hover:text-red-400">
                                             <FiTrash2 size={13} />
@@ -374,13 +529,7 @@ const MentorProductCreate: React.FC = () => {
                                     <p className="text-xs text-white/30">{checkingVideo ? "Checking video..." : "Upload preview video"}</p>
                                 </button>
                             )}
-                            <input
-                                ref={videoInputRef}
-                                type="file"
-                                accept="video/*"
-                                className="hidden"
-                                onChange={handleVideoChange}
-                            />
+                            <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoChange} />
                             {videoError && <p className="mt-2 text-xs text-red-400">{videoError}</p>}
                         </div>
                     </div>
@@ -410,73 +559,43 @@ const MentorProductCreate: React.FC = () => {
                         </div>
 
                         <div>
-                            <label className="mb-2 block text-sm font-semibold text-white">Title</label>
-                            <input
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                placeholder="e.g. System Design From Scratch"
-                                className={fieldClass}
-                                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                            />
+                            <SectionLabel>Title</SectionLabel>
+                            <IconInputRow icon={<FiType size={17} />} value={title} onChange={setTitle} placeholder="e.g. System Design From Scratch" />
                         </div>
 
                         <div>
-                            <label className="mb-2 block text-sm font-semibold text-white">Price (USD)</label>
-                            <input
-                                type="text"
-                                inputMode="numeric"
+                            <SectionLabel>Price (USD)</SectionLabel>
+                            <IconInputRow
+                                icon={<FiDollarSign size={17} />}
                                 value={price}
-                                onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ""))}
+                                onChange={(v) => setPrice(v.replace(/[^0-9.]/g, ""))}
                                 placeholder="e.g. 49"
-                                className={fieldClass}
-                                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                                inputMode="numeric"
                             />
                         </div>
 
                         <div>
-                            <label className="mb-2 block text-sm font-semibold text-white">
-                                {type === "Course" ? "Course Link" : "Book Link"}
-                            </label>
-                            <div className="flex items-center gap-3">
-                                <div
-                                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white/40"
-                                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                                >
-                                    <FiLink size={15} />
-                                </div>
-                                <input
-                                    value={link}
-                                    onChange={(e) => setLink(e.target.value)}
-                                    placeholder={
-                                        type === "Course"
-                                            ? "https://yourplatform.com/course-name"
-                                            : "https://yourstore.com/book-name"
-                                    }
-                                    className={`${fieldClass} flex-1`}
-                                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                                />
-                            </div>
-                            <p className="mt-2 text-xs text-white/40">
-                                Where mentees go to {type === "Course" ? "take the course" : "get the book"} after
-                                purchase — e.g. a Teachable/Udemy link, or an Amazon/Gumroad page.
-                            </p>
+                            <SectionLabel>{type === "Course" ? "Course Link" : "Book Link"}</SectionLabel>
+                            <IconInputRow
+                                icon={<FiLink size={17} />}
+                                value={link}
+                                onChange={setLink}
+                                placeholder={
+                                    type === "Course" ? "https://yourplatform.com/course-name" : "https://yourstore.com/book-name"
+                                }
+                                subtext={`Where mentees go to ${type === "Course" ? "take the course" : "get the book"} after purchase.`}
+                            />
                         </div>
 
                         <div>
                             <SectionLabel>Description</SectionLabel>
-                            <QuillField
-                                value={description}
-                                onChange={setDescription}
-                                placeholder="What will mentees get from this?"
-                            />
+                            <TextAreaField value={description} onChange={setDescription} placeholder="What will mentees get from this?" />
                         </div>
 
                         {type === "Course" ? (
                             <div>
                                 <div className="mb-2 flex items-center justify-between">
-                                    <SectionLabel hint="Break the course into modules mentees will move through.">
-                                        Course Content
-                                    </SectionLabel>
+                                    <SectionLabel hint="Break the course into modules mentees will move through.">Course Content</SectionLabel>
                                 </div>
                                 <div className="space-y-3">
                                     {modules.map((m, i) => (
@@ -501,33 +620,37 @@ const MentorProductCreate: React.FC = () => {
                             </div>
                         ) : (
                             <div>
-                                <SectionLabel hint="Give mentees a sense of what the book covers.">
-                                    Overview / Summary
-                                </SectionLabel>
-                                <QuillField
-                                    value={overview}
-                                    onChange={setOverview}
-                                    placeholder="Summarize what the book is about..."
-                                />
+                                <SectionLabel hint="Give mentees a sense of what the book covers.">Overview / Summary</SectionLabel>
+                                <TextAreaField value={overview} onChange={setOverview} placeholder="Summarize what the book is about..." />
                             </div>
                         )}
 
-                        <Button
-                            variant="green"
-                            className="w-full"
-                            disabled={!isValid || isSubmitting}
-                            onClick={() => {
-                                void handleCreate();
-                            }}
-                        >
+                        <Button variant="green" className="w-full" disabled={!isValid || isPending} onClick={() => setShowPreview(true)}>
                             <span className="flex items-center justify-center gap-2">
-                                {isSubmitting ? <FiLoader size={15} className="animate-spin" /> : <FiCheck size={15} />}
-                                {isSubmitting ? "Creating..." : "Create Product"}
+                                <FiEye size={15} />
+                                Preview {type}
                             </span>
                         </Button>
                     </div>
                 </div>
             </div>
+
+            {showPreview && (
+                <ProductPreviewModal
+                    type={type}
+                    title={title}
+                    price={price}
+                    link={link}
+                    description={description}
+                    thumbnail={thumbnail}
+                    video={video}
+                    modules={modules}
+                    overview={overview}
+                    isSubmitting={isPending}
+                    onClose={() => setShowPreview(false)}
+                    onConfirm={handleCreate}
+                />
+            )}
         </div>
     );
 };

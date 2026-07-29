@@ -33,9 +33,7 @@ const DashNavbar = () => {
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
     const userProfile = myProfile?.data;
 
-    console.log('User Profile', userProfile)
 
-    // Close the profile dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
@@ -45,6 +43,13 @@ const DashNavbar = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Close the mobile menu and profile dropdown whenever the route changes,
+    // regardless of which link was clicked (or back/forward navigation).
+    useEffect(() => {
+        setShowMobileMenu(false);
+        setShowProfileMenu(false);
+    }, [location.pathname]);
 
 
     const navigate = useNavigate()
@@ -360,6 +365,7 @@ const DashNavbar = () => {
                         {userProfile?.is_mentor ?
                             <Link
                                 to="/dashboard/mentor"
+                                onClick={() => setShowMobileMenu(false)}
                                 className="lg:hidden flex w-full justify-center items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
                             >
                                 <FiUser />
@@ -367,6 +373,7 @@ const DashNavbar = () => {
                             </Link> :
                             <Link
                                 to="/mentor-onboarding"
+                                onClick={() => setShowMobileMenu(false)}
                                 className="lg:hidden flex w-full items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
                             >
                                 <FiPlus size={16} />

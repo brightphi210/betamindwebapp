@@ -1,5 +1,4 @@
-import React from 'react';
-import { BsStarFill } from 'react-icons/bs';
+import React, { useMemo } from 'react';
 import {
     FiBarChart2,
     FiBookOpen,
@@ -13,12 +12,13 @@ import {
     FiMapPin,
     FiPenTool,
     FiPlayCircle,
+    FiTag,
     FiTrendingUp,
     FiUsers,
 } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import LoadingOverlay from '../../component/LoadingOverlay';
-import { useGetAllEvents, useGetMentors } from '../../hooks/queries/allQueriess';
+import { useGetAllEvents, useGetDigitalProduct, useGetMentors } from '../../hooks/queries/allQueriess';
 import {
     AvatarStack,
     EventMetaBadges,
@@ -56,36 +56,97 @@ export interface Mentor {
     yearsExperience?: number;
 }
 
+// Shape returned by the digital-products endpoint (course_content is only
+// populated for courses, summary only for books).
+export interface ApiDigitalProduct {
+    id: string;
+    mentor: string;
+    user_name: string;
+    link: string;
+    product_type: 'course' | 'book';
+    title: string;
+    description: string;
+    course_content: { title: string; description: string }[] | null;
+    cover_image: string | null;
+    price: string;
+    is_published: boolean;
+    video: string | null;
+    summary: string | null;
+    created_at: string;
+}
+
+// Card-friendly shape ProductCard renders. Kept separate from
+// ApiDigitalProduct so ProductCard doesn't need to know about the API's
+// field names (cover_image vs thumbnail, product_type vs type, etc).
 export interface DigitalProduct {
     id: string;
     type: 'Course' | 'Book';
     title: string;
     author: string;
-    thumbnail: string;
+    thumbnail: string | null;
     price: string;
-    rating: number;
+    rating?: number;
 }
 
-// ─── Data ───────────────────────────────────────────────────────────────────
-export const TOPICS: Topic[] = [
-    { id: 't1', name: 'Design', count: '2.4K Mentors', icon: <FiPenTool size={25} />, color: '#f472b6' },
-    { id: 't2', name: 'Engineering', count: '3.1K Mentors', icon: <FiCode size={25} />, color: '#facc15' },
-    { id: 't3', name: 'Growth', count: '540 Mentors', icon: <FiTrendingUp size={25} />, color: '#4ade80' },
-    { id: 't4', name: 'Finance', count: '880 Mentors', icon: <FiDollarSign size={25} />, color: '#a78bfa' },
-    { id: 't5', name: 'Writing', count: '1.2K Mentors', icon: <FiEdit3 size={25} />, color: '#60a5fa' },
-    { id: 't6', name: 'Business', count: '2K Mentors', icon: <FiBriefcase size={25} />, color: '#fb923c' },
-    { id: 't7', name: 'Photography', count: '410 Mentors', icon: <FiCamera size={25} />, color: '#5eead4' },
-    { id: 't8', name: 'Product', count: '1.6K Mentors', icon: <FiBarChart2 size={25} />, color: '#f87171' },
-];
+const formatPrice = (price: string) => {
+    const numeric = parseFloat(price);
+    if (!numeric || numeric <= 0) return 'Free';
+    const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
+    return `$${trimmed}`;
+};
 
-export const PRODUCTS: DigitalProduct[] = [
-    { id: 'p1', type: 'Course', title: 'System Design From Scratch', author: 'Diego Ramirez', thumbnail: 'https://picsum.photos/seed/sysdesign/600/600', price: '$129', rating: 4.9 },
-    { id: 'p2', type: 'Book', title: 'The Clarity Habit', author: 'Marcus Lee', thumbnail: 'https://picsum.photos/seed/claritybook/600/600', price: '$24', rating: 4.8 },
-    { id: 'p3', type: 'Course', title: 'Brand Identity Foundations', author: 'Priya Nair', thumbnail: 'https://picsum.photos/seed/brandcourse/600/600', price: '$89', rating: 4.7 },
-    { id: 'p4', type: 'Book', title: 'Raising Without Losing Control', author: 'Sofia Bianchi', thumbnail: 'https://picsum.photos/seed/raisingbook/600/600', price: '$19', rating: 4.6 },
-    { id: 'p5', type: 'Course', title: 'Zero-to-One Growth Playbook', author: 'Jonah Field', thumbnail: 'https://picsum.photos/seed/growthcourse/600/600', price: '$99', rating: 4.9 },
-    { id: 'p6', type: 'Book', title: 'Products People Love', author: 'Amara Chen', thumbnail: 'https://picsum.photos/seed/productsbook/600/600', price: '$22', rating: 4.8 },
-];
+export const mapApiProductToCard = (p: ApiDigitalProduct): DigitalProduct => ({
+    id: p.id,
+    type: p.product_type === 'course' ? 'Course' : 'Book',
+    title: p.title,
+    author: p.user_name,
+    thumbnail: p.cover_image,
+    price: formatPrice(p.price),
+});
+
+// ─── Real topic derivation ──────────────────────────────────────────────────
+// Cosmetic icon/color per known category name — purely presentational, not
+// data. Any category not in this map still renders, just with a neutral
+// default look, so new categories mentors add never break the UI.
+const CATEGORY_STYLES: Record<string, { icon: React.ReactNode; color: string }> = {
+    design: { icon: <FiPenTool size={25} />, color: '#f472b6' },
+    engineering: { icon: <FiCode size={25} />, color: '#facc15' },
+    growth: { icon: <FiTrendingUp size={25} />, color: '#4ade80' },
+    finance: { icon: <FiDollarSign size={25} />, color: '#a78bfa' },
+    writing: { icon: <FiEdit3 size={25} />, color: '#60a5fa' },
+    business: { icon: <FiBriefcase size={25} />, color: '#fb923c' },
+    photography: { icon: <FiCamera size={25} />, color: '#5eead4' },
+    product: { icon: <FiBarChart2 size={25} />, color: '#f87171' },
+};
+const DEFAULT_CATEGORY_STYLE = { icon: <FiTag size={25} />, color: '#94a3b8' };
+
+// Builds the "Browse by Topics" chips straight from real mentor data — counts
+// are however many mentors actually carry each category, no placeholder
+// numbers. Shared by Explore and Search so both pages list the same set.
+export const buildTopicsFromMentors = (mentors: any[]): Topic[] => {
+    const counts = new Map<string, number>();
+    mentors.forEach((m) => {
+        const categories: string[] = m?.categories ?? [];
+        categories.forEach((raw) => {
+            const name = raw?.trim();
+            if (!name) return;
+            counts.set(name, (counts.get(name) ?? 0) + 1);
+        });
+    });
+
+    return Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => {
+            const style = CATEGORY_STYLES[name.toLowerCase()] ?? DEFAULT_CATEGORY_STYLE;
+            return {
+                id: name.toLowerCase().replace(/\s+/g, '-'),
+                name,
+                count: `${count} Mentor${count === 1 ? '' : 's'}`,
+                icon: style.icon,
+                color: style.color,
+            };
+        });
+};
 
 // ─── Section header ─────────────────────────────────────────────────────────
 const SectionHeader: React.FC<{ title: string; subtitle?: string }> = ({ title, subtitle }) => (
@@ -288,11 +349,24 @@ export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) 
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
     >
         <div className="relative">
-            <img
-                src={product.thumbnail}
-                alt={product.title}
-                className="w-full h-40 sm:h-48 object-cover"
-            />
+            {product.thumbnail ? (
+                <img
+                    src={product.thumbnail}
+                    alt={product.title}
+                    className="w-full h-40 sm:h-48 object-cover"
+                />
+            ) : (
+                <div
+                    className="w-full h-40 sm:h-48 flex items-center justify-center"
+                    style={{ background: 'rgba(255,255,255,0.03)' }}
+                >
+                    {product.type === 'Course' ? (
+                        <FiPlayCircle size={28} className="text-white/15" />
+                    ) : (
+                        <FiBookOpen size={28} className="text-white/15" />
+                    )}
+                </div>
+            )}
             <span
                 className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
                 style={{ background: 'rgba(0,0,0,0.55)', color: '#fff', backdropFilter: 'blur(4px)' }}
@@ -303,24 +377,60 @@ export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) 
         </div>
         <div className="p-4 sm:p-5 flex flex-col flex-1">
             <h3 className="text-white font-bold text-base mb-1 break-words">{product.title}</h3>
-            <p className="text-white/40 text-sm mb-3">{product.author}</p>
-            <div className="flex items-center justify-between mt-auto">
-                <div className="flex items-center gap-1 text-white/60 text-xs">
-                    <BsStarFill size={13} className="text-amber-400 fill-amber-400" />
-                    <p>{product.rating}</p>
-                </div>
+            <div className='flex justify-between items-center pt-2'>
+                <p className="text-white/40 text-xs">{product.author}</p>
                 <span className="text-white font-bold text-sm">{product.price}</span>
+            </div>
+            <div className="mt-3">
+                <button
+                    className=" cursor-pointer w-full text-center tems-center bg-white gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                >
+                    View Product
+                </button>
             </div>
         </div>
     </Link>
+);
+
+const ProductCardSkeleton: React.FC = () => (
+    <div
+        className="rounded-md overflow-hidden flex flex-col animate-pulse"
+        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+    >
+        <div className="w-full h-40 sm:h-48 bg-white/5" />
+        <div className="p-4 sm:p-5 flex flex-col gap-2.5">
+            <div className="h-4 w-3/4 rounded bg-white/5" />
+            <div className="h-3 w-1/2 rounded bg-white/5" />
+        </div>
+    </div>
+);
+
+const NoProductsState: React.FC = () => (
+    <div
+        className="flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl col-span-full"
+        style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}
+    >
+        <FiBookOpen size={22} className="text-white/20 mb-3" />
+        <p className="text-white/40 text-sm">No courses or books available right now</p>
+    </div>
 );
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 const Explore: React.FC = () => {
     const { mentors, isLoading: mentorsLoading } = useGetMentors();
     const allMentors: any[] = mentors?.data?.results ?? [];
+    const topics = useMemo(() => buildTopicsFromMentors(allMentors), [allMentors]);
 
     const { allEvents, isLoading: eventsLoading } = useGetAllEvents();
+
+    const { digitalProduct, isLoading: productLoading } = useGetDigitalProduct();
+    const rawProducts: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data)
+        ? digitalProduct.data
+        : digitalProduct?.data?.results ?? [];
+    const allProduct: DigitalProduct[] = rawProducts
+        .filter((p) => p.is_published)
+        .map(mapApiProductToCard);
+
 
     const rawEvents: ApiEvent[] = Array.isArray(allEvents?.data)
         ? allEvents.data
@@ -351,16 +461,36 @@ const Explore: React.FC = () => {
                     </p>
                 </div>
 
-                {/* Browse by Topics */}
+                {/* Browse by Topics — categories and counts computed live from
+                    mentors' actual `categories` field, not placeholder data */}
                 <section className="mb-16">
                     <SectionHeader title="Browse by Topics" />
-                    <div className="flex sm:grid gap-2 overflow-x-auto sm:overflow-visible sm:grid-cols-2 lg:grid-cols-3 -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 topics-scroll">
-                        {TOPICS.map((topic) => (
-                            <div key={topic.id} className="shrink-0 w-fit sm:w-auto sm:contents">
-                                <TopicCard topic={topic} />
-                            </div>
-                        ))}
-                    </div>
+                    {mentorsLoading ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {Array.from({ length: 6 }).map((_, i) => (
+                                <div
+                                    key={i}
+                                    className="h-16 rounded-xl animate-pulse"
+                                    style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                />
+                            ))}
+                        </div>
+                    ) : topics.length > 0 ? (
+                        <div className="flex sm:grid gap-2 overflow-x-auto sm:overflow-visible sm:grid-cols-2 lg:grid-cols-3 -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 topics-scroll">
+                            {topics.map((topic) => (
+                                <div key={topic.id} className="shrink-0 w-fit sm:w-auto sm:contents">
+                                    <TopicCard topic={topic} />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div
+                            className="flex flex-col items-center justify-center text-center py-8 px-4 rounded-xl"
+                            style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}
+                        >
+                            <p className="text-white/40 text-sm">No categories yet</p>
+                        </div>
+                    )}
                 </section>
 
                 {/* Mentors — wired to real data via useGetMentors, same source Overview.tsx uses */}
@@ -393,13 +523,18 @@ const Explore: React.FC = () => {
                     </div>
                 </section>
 
-                {/* Digital Products */}
+                {/* Digital Products — wired to real data via useGetDigitalProduct;
+                    only published products are shown to mentees. */}
                 <section>
                     <SectionHeader title="Courses & Books" subtitle="Self-paced learning from top mentors" />
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                        {PRODUCTS.map((product) => (
-                            <ProductCard key={product.id} product={product} />
-                        ))}
+                        {productLoading ? (
+                            Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)
+                        ) : allProduct.length > 0 ? (
+                            allProduct.map((product) => <ProductCard key={product.id} product={product} />)
+                        ) : (
+                            <NoProductsState />
+                        )}
                     </div>
                 </section>
             </div>
