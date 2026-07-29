@@ -70,7 +70,6 @@ const getYouTubeEmbedUrl = (url: string): string | null => {
     return null;
 };
 
-const DUMMY_TEACHING_STYLE = ['Encouraging', 'Practical', 'Patient'];
 
 const DUMMY_SESSIONS_COMPLETED = 48;
 
@@ -193,7 +192,6 @@ const Panel: React.FC<{ icon?: React.ReactNode; title: string; subtitle?: string
     </div>
 );
 
-// ─── Star rating renderer ─────────────────────────────────────────────────────
 const StarRow: React.FC<{ rating: number; size?: number }> = ({ rating, size = 13 }) => {
     const rounded = Math.round(rating);
     return (
@@ -212,7 +210,6 @@ const StarRow: React.FC<{ rating: number; size?: number }> = ({ rating, size = 1
     );
 };
 
-// ─── Review avatar: photo if present, initials fallback otherwise ───────────
 const ReviewAvatar: React.FC<{ name: string; avatar?: string }> = ({ name, avatar }) => {
     const initials = name
         .split(' ')
@@ -266,11 +263,10 @@ const ReviewCard: React.FC<{ review: MentorReview }> = ({ review }) => {
     );
 };
 
-// ─── Product card — same visual language as the Explore page's ProductCard ──
 const MentorProductCard: React.FC<{ product: MentorProduct }> = ({ product }) => (
     <Link
         to={`/dashboard/products/${product.id}`}
-        className="rounded-md overflow-hidden flex flex-col transition-colors hover:bg-white/[0.03] cursor-pointer"
+        className="rounded-md overflow-hidden flex flex-col transition-colors hover:bg-white/3 cursor-pointer"
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
     >
         <div className="relative">
@@ -541,6 +537,7 @@ const Mentor: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { aMentor, isLoading } = useGetMentorProfile(id)
     const mentor = aMentor?.data
+    console.log('Mentor Data', mentor)
     const socialLink: SocialLink = mentor?.social_link ?? {};
     const activeSocials = (Object.keys(socialLink) as (keyof SocialLink)[]).filter(
         (platform) => !!socialLink[platform]
@@ -562,7 +559,6 @@ const Mentor: React.FC = () => {
     const [showShareModal, setShowShareModal] = useState(false);
 
     const handleBookMentorship = () => {
-        // Hook this up to your booking flow / modal / route
         console.log('Book mentorship with', mentor?.name);
     };
 
