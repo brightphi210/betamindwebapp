@@ -46,17 +46,7 @@ type MentorProduct = {
 };
 
 // ─── Dummy data ───────────────────────────────────────────────────────────
-// These fields (intro video, teaching style, session count, reviews,
-// uploaded products) aren't returned by the mentor-profile API yet. Until
-// the backend adds them, we fall back to this dummy content so the new
-// sections render fully instead of sitting empty. Swap these out (or just
-// delete the `??` fallback) once the real fields land on `mentor`.
 const DUMMY_INTRO_VIDEO = 'https://youtu.be/BD8fDugktAE';
-
-// Normalizes any YouTube URL shape (youtu.be/ID, youtube.com/watch?v=ID,
-// already-embedded youtube.com/embed/ID) into an embeddable URL. Returns
-// null for non-YouTube sources so the caller can fall back to a plain
-// <video> tag for direct mp4/webm links.
 const getYouTubeEmbedUrl = (url: string): string | null => {
     const patterns = [
         /youtu\.be\/([a-zA-Z0-9_-]{6,})/,
@@ -107,30 +97,20 @@ const DUMMY_REVIEWS: MentorReview[] = [
     },
 ];
 
-const DUMMY_PRODUCTS: MentorProduct[] = [
-    {
-        id: 'p1',
-        type: 'Course',
-        title: 'Mastering Technical Communication',
-        thumbnail: 'https://picsum.photos/seed/mentorcourse1/600/400',
-        price: '$49',
-    },
-    {
-        id: 'p2',
-        type: 'Book',
-        title: 'The Confident Communicator',
-        thumbnail: 'https://picsum.photos/seed/mentorbook1/600/400',
-        price: '$19',
-    },
-    {
-        id: 'p3',
-        type: 'Course',
-        title: 'Public Speaking Fundamentals',
-        thumbnail: 'https://picsum.photos/seed/mentorcourse2/600/400',
-        price: 'Free',
-    },
-];
+// ─── Map a raw digital_products entry from the API into the shape this page renders ──
+const mapDigitalProduct = (dp: any): MentorProduct => {
+    const rawType = (dp?.product_type ?? '').toString().toLowerCase();
+    const priceNum = Number(dp?.price);
+    const hasPrice = !Number.isNaN(priceNum) && priceNum > 0;
 
+    return {
+        id: dp?.id,
+        type: rawType === 'book' ? 'Book' : 'Course',
+        title: dp?.title ?? 'Untitled product',
+        thumbnail: dp?.cover_image ?? null,
+        price: hasPrice ? `$${priceNum}` : 'Free',
+    };
+};
 
 type SocialLink = {
     linkedin?: string;
@@ -291,21 +271,31 @@ const MentorProductCard: React.FC<{ product: MentorProduct }> = ({ product }) =>
         </div>
         <div className="p-3.5 flex flex-col flex-1">
             <h4 className="text-white font-semibold text-sm mb-1 break-words line-clamp-2">{product.title}</h4>
-            <span className="text-white font-bold text-sm mt-auto pt-2">{product.price}</span>
+            <span className="text-white font-bold text-sm mt-auto pt-1">{product.price}</span>
+        </div>
+
+        <div className="p-2 pt-0">
+            <button
+                className=" cursor-pointer w-full text-center tems-center bg-white gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+            >
+                View Product
+            </button>
         </div>
     </Link>
 );
 
 // ─── Share profile modal ─────────────────────────────────────────────────────
 const ShareModal: React.FC<{
-    mentor: any;
+    mentorName: string;
+    mentorAvatar?: string;
     rating: number | null;
     reviewCount: number;
+    isApproved?: boolean;
     onClose: () => void;
-}> = ({ mentor, rating, reviewCount, onClose }) => {
+}> = ({ mentorName, mentorAvatar, rating, reviewCount, isApproved, onClose }) => {
     const [copied, setCopied] = useState(false);
     const shareUrl = window.location.href;
-    const shareTitle = mentor?.name ? `${mentor.name} on Betamind` : 'Mentor profile';
+    const shareTitle = mentorName ? `${mentorName} on Betamind` : 'Mentor profile';
 
     const handleCopy = async () => {
         try {
@@ -375,7 +365,7 @@ const ShareModal: React.FC<{
                 <div className="mb-5 flex items-center justify-between">
                     <div>
                         <h3 className="text-lg font-bold text-white">Share this mentor</h3>
-                        <p className="text-xs text-white/40 mt-0.5">{mentor?.name}</p>
+                        <p className="text-xs text-white/40 mt-0.5">{mentorName}</p>
                     </div>
                     <button
                         type="button"
@@ -391,13 +381,13 @@ const ShareModal: React.FC<{
                 {/* Mentor summary */}
                 <div className="flex items-center gap-3 mb-6">
                     <img
-                        src={mentor?.profile?.avatar}
-                        alt={mentor?.name}
+                        src={mentorAvatar}
+                        alt={mentorName}
                         className="w-14 h-14 rounded-xl object-cover shrink-0"
                         style={{ border: '1px solid rgba(255,255,255,0.1)' }}
                     />
                     <div className="min-w-0">
-                        <p className="text-white font-bold text-base truncate">{mentor?.name}</p>
+                        <p className="text-white font-bold text-base truncate">{mentorName}</p>
                         <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1">
                             {rating !== null && (
                                 <span className="flex items-center gap-1 text-white/60 text-xs">
@@ -405,7 +395,7 @@ const ShareModal: React.FC<{
                                     {rating.toFixed(1)} ({reviewCount} review{reviewCount === 1 ? '' : 's'})
                                 </span>
                             )}
-                            {mentor?.is_approved && (
+                            {isApproved && (
                                 <span className="flex items-center gap-1 text-white/60 text-xs">
                                     <FiCheckCircle size={12} className="text-neutral-600" />
                                     Verified
@@ -538,6 +528,13 @@ const Mentor: React.FC = () => {
     const { aMentor, isLoading } = useGetMentorProfile(id)
     const mentor = aMentor?.data
     console.log('Mentor Data', mentor)
+
+    // The API returns the display name/avatar nested under `profile`, not top-level.
+    const mentorName = [mentor?.profile?.first_name, mentor?.profile?.last_name]
+        .filter(Boolean)
+        .join(' ') || mentor?.nick_name || 'Mentor';
+    const mentorAvatar: string | undefined = mentor?.profile?.avatar;
+
     const socialLink: SocialLink = mentor?.social_link ?? {};
     const activeSocials = (Object.keys(socialLink) as (keyof SocialLink)[]).filter(
         (platform) => !!socialLink[platform]
@@ -554,12 +551,18 @@ const Mentor: React.FC = () => {
         typeof mentor?.rating === 'number' ? mentor.rating : reviews.length > 0 ? DUMMY_RATING : null;
     const sessionsCompleted: number | null =
         typeof mentor?.sessions_completed === 'number' ? mentor.sessions_completed : DUMMY_SESSIONS_COMPLETED;
-    const products: MentorProduct[] = mentor?.products ?? DUMMY_PRODUCTS;
+
+    // Real products come back as `digital_products` from the API. Map them into the
+    // shape this page renders, and only fall back to dummy data if there are none.
+    const products: MentorProduct[] =
+        Array.isArray(mentor?.digital_products) && mentor.digital_products.length > 0
+            ? mentor.digital_products.map(mapDigitalProduct)
+            : [];
 
     const [showShareModal, setShowShareModal] = useState(false);
 
     const handleBookMentorship = () => {
-        console.log('Book mentorship with', mentor?.name);
+        console.log('Book mentorship with', mentorName);
     };
 
     const [showFullBio, setShowFullBio] = useState(false);
@@ -599,7 +602,7 @@ const Mentor: React.FC = () => {
                         <div className="rounded-lg overflow-hidden relative" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
                             <img
                                 src={mentor?.cover_images}
-                                alt={mentor?.name}
+                                alt={mentorName}
                                 className="w-full h-32 lg:h-40 object-cover"
                             />
                             <div
@@ -609,8 +612,8 @@ const Mentor: React.FC = () => {
                         </div>
 
                         <img
-                            src={mentor?.profile?.avatar}
-                            alt={mentor?.name}
+                            src={mentorAvatar}
+                            alt={mentorName}
                             className="absolute lg:-bottom-10 -bottom-6 left-4 lg:w-20 lg:h-20 w-16 h-16 rounded-xl object-cover z-10"
                             style={{ border: '4px solid #05080e', boxShadow: '0 0 0 1px rgba(205,220,57,.2)' }}
                         />
@@ -624,7 +627,7 @@ const Mentor: React.FC = () => {
                             <div className="flex items-start justify-between gap-3 mb-1">
                                 <div>
                                     <h1 className="text-white text-2xl sm:text-3xl font-black flex items-center gap-2 flex-wrap">
-                                        {mentor?.name}
+                                        {mentorName}
                                         {mentor?.is_approved && (
                                             <FiCheckCircle size={20} className="text-neutral-600 shrink-0" title="Verified mentor" />
                                         )}
@@ -698,7 +701,7 @@ const Mentor: React.FC = () => {
                                             {introVideoEmbedUrl ? (
                                                 <iframe
                                                     src={introVideoEmbedUrl}
-                                                    title={`${mentor?.name || 'Mentor'} mentorship style intro`}
+                                                    title={`${mentorName} mentorship style intro`}
                                                     className="w-full h-full"
                                                     style={{ border: 0 }}
                                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -707,7 +710,7 @@ const Mentor: React.FC = () => {
                                             ) : (
                                                 <video
                                                     src={introVideo}
-                                                    poster={mentor?.profile?.avatar}
+                                                    poster={mentorAvatar}
                                                     controls
                                                     className="w-full h-full bg-black"
                                                 />
@@ -812,7 +815,7 @@ const Mentor: React.FC = () => {
                             {/* Products uploaded by this mentor */}
                             <Panel
                                 icon={<FiBookOpen size={14} className="text-neutral-600" />}
-                                title={`Products by ${mentor?.name ? mentor.name.split(' ')[0] : 'this mentor'}`}
+                                title={`Products by ${mentorName.split(' ')[0] || 'this mentor'}`}
                             >
                                 {products.length > 0 ? (
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -919,9 +922,11 @@ const Mentor: React.FC = () => {
 
             {showShareModal && (
                 <ShareModal
-                    mentor={mentor}
+                    mentorName={mentorName}
+                    mentorAvatar={mentorAvatar}
                     rating={averageRating}
                     reviewCount={reviewCount}
+                    isApproved={mentor?.is_approved}
                     onClose={() => setShowShareModal(false)}
                 />
             )}

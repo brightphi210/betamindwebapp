@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
     FiArrowLeft,
     FiBookOpen,
@@ -7,7 +7,6 @@ import {
     FiExternalLink,
     FiLayers,
     FiPlayCircle,
-    FiX,
 } from 'react-icons/fi';
 import { Link, useParams } from 'react-router-dom';
 import LoadingOverlay from '../../component/LoadingOverlay';
@@ -102,49 +101,12 @@ const StatPill: React.FC<{ icon: React.ReactNode; label: string; value: string }
     </div>
 );
 
-// ─── Video modal — opens automatically when the page loads if the product
-// has a preview video, autoplays, and can be reopened from the page. ───────
-const VideoModal: React.FC<{ src: string; onClose: () => void }> = ({ src, onClose }) => (
-    <div
-        className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur-sm"
-        onClick={onClose}
-    >
-        <div
-            className="w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl"
-            style={{ background: '#0a0d09', border: '1px solid rgba(255,255,255,0.1)' }}
-            onClick={(e) => e.stopPropagation()}
-        >
-            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                <p className="text-white text-sm font-semibold">Preview</p>
-                <button
-                    type="button"
-                    onClick={onClose}
-                    className="p-1.5 rounded-lg hover:bg-white/5 text-white/50 hover:text-white transition-colors"
-                >
-                    <FiX size={18} />
-                </button>
-            </div>
-            <video src={src} controls autoPlay playsInline className="w-full aspect-video bg-black" />
-        </div>
-    </div>
-);
-
 // ─── Page ────────────────────────────────────────────────────────────────────
 const Product: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { product: response, isLoading, isError } = useGetSingleDigitalProduct(id);
     const product: ApiProduct | undefined = response?.data;
     console.log('This is Product', product)
-
-    const [showVideoModal, setShowVideoModal] = useState(false);
-
-    // Auto-open the preview video 3 seconds after this product's data loads.
-    useEffect(() => {
-        if (!product?.video) return;
-
-        const timer = setTimeout(() => setShowVideoModal(true), 3000);
-        return () => clearTimeout(timer);
-    }, [product?.id, product?.video]);
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -174,6 +136,10 @@ const Product: React.FC = () => {
     const handleSubmit = () => {
         // Hook this up to your payment flow
         console.log('Purchasing', product.title, { name, email, discountCode, redirectTo: product.link });
+    };
+
+    const scrollToPreview = () => {
+        document.getElementById('product-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     return (
@@ -234,7 +200,7 @@ const Product: React.FC = () => {
                             {product.video && (
                                 <button
                                     type="button"
-                                    onClick={() => setShowVideoModal(true)}
+                                    onClick={scrollToPreview}
                                     className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors hover:bg-white/10"
                                     style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)' }}
                                 >
@@ -272,6 +238,25 @@ const Product: React.FC = () => {
                                 }
                             />
                         </div>
+
+                        {/* Preview video — rendered inline on the page (no modal), same
+                            treatment as the mentor profile's intro video block. */}
+                        {product.video && (
+                            <div id="product-preview" className="scroll-mt-24 mb-8 bg-[rgba(255,255,255,0.03)] rounded-md p-2">
+                                <div
+                                    className="rounded-lg overflow-hidden"
+                                    style={{ border: '1px solid rgba(255,255,255,0.08)', aspectRatio: '16 / 9' }}
+                                >
+                                    <video
+                                        src={product.video}
+                                        poster={product.cover_image ?? undefined}
+                                        controls
+                                        playsInline
+                                        className="w-full h-full bg-black"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         <div className="mb-8">
                             <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">Description</h3>
@@ -400,10 +385,6 @@ const Product: React.FC = () => {
                     </div>
                 </div>
             </div>
-
-            {showVideoModal && product.video && (
-                <VideoModal src={product.video} onClose={() => setShowVideoModal(false)} />
-            )}
         </div>
     );
 };
