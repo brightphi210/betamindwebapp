@@ -106,17 +106,18 @@ const EmptyState: React.FC<{ label: string }> = ({ label }) => (
 const MentorBookings = () => {
     const [tab, setTab] = useState<TabKey>("incoming");
 
-    const { mentorSession, isLoading } = useGetMentorSession()
+    const { mentorSession } = useGetMentorSession()
     const mentorSessionData = mentorSession?.data
     console.log('Session data', mentorSessionData)
 
     const filtered = mentorSessionData.filter((b: any) => b.status === tab);
 
     const handleAccept = (id: string) => {
-        // TODO: call the accept-booking mutation, then update from the server response.
+        console.log('id', id)
     };
 
     const handleDecline = (id: string) => {
+        console.log('Id', id)
     };
 
     return (
