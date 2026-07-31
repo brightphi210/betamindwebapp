@@ -232,3 +232,44 @@ export const useGetMentorDigitalProduct = () => {
         refetch,
     };
 };
+
+
+// ============== MINE PRODUCT ===============
+export const useGetMentorStatistics = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["statistics"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`mentors/statistics/`, token);
+        },
+    });
+
+    return {
+        mentorStatistics: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};
+
+
+// ======================= MentorSession ======================
+
+export const useGetMentorSession = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["session"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`sessions/mine/`, token);
+        },
+    });
+
+    return {
+        mentorSession: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};

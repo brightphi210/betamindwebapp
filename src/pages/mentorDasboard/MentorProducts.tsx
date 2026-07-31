@@ -167,7 +167,8 @@ const ProductCardSkeleton: React.FC = () => (
 );
 
 const EmptyState: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
-    <div
+    <Link
+        to={'/dashboard/mentor/product/create'}
         className="col-span-full flex flex-col items-center justify-center rounded-xl px-4 py-14 text-center"
         style={{ background: cardBg, border: "1px dashed rgba(255,255,255,0.1)" }}
     >
@@ -179,7 +180,7 @@ const EmptyState: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
                 Create Your First Product
             </span>
         </Button>
-    </div>
+    </Link>
 );
 
 // ---------- Product details drawer ----------

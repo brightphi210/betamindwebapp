@@ -8,6 +8,7 @@ import "./index.css";
 import LoginPage from "./pages/auth/LoginPage";
 import SignupPage from "./pages/auth/SignupPage";
 import Onboarding from "./pages/Onboarding";
+import EventPublicPage from "./pages/userDashboard/EventPublicPage";
 import MentorDashboard from "./pages/userDashboard/MentorDashboard";
 import MentorOnboarding from "./pages/userDashboard/MentorOnboarding";
 import AuthProvider from "./providers/AuthProvider";
@@ -30,6 +31,7 @@ const App = () => {
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/mentor-onboarding" element={<MentorOnboarding />} />
+                <Route path="/events/:id" element={<EventPublicPage />} />
                 <Route
                   path="/mentor-dashboard"
                   element={

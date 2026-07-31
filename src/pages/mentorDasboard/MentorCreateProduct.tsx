@@ -16,6 +16,7 @@ import {
     FiX
 } from "react-icons/fi";
 import { useOutletContext } from "react-router-dom";
+import LoadingOverlay from "../../component/LoadingOverlay";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
 import { useCreateDigitalProduct } from "../../hooks/mutations/allMutation";
@@ -36,6 +37,7 @@ type Module = {
 
 const MAX_VIDEO_BYTES = 10 * 1024 * 1024; // 10MB
 const MAX_VIDEO_SECONDS = 120; // 2 minutes
+const MAX_OVERVIEW_CHARS = 250; // matches backend `summary` field max_length
 
 const makeModule = (): Module => ({
     id: `mod_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -51,6 +53,46 @@ const formatPrice = (price: string) => {
     const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
     return `$${trimmed}`;
 };
+
+// ---------- API error parsing ----------
+
+// Human-readable labels for backend field names, used when surfacing
+// DRF validation errors (e.g. { summary: ["Ensure this field has no
+// more than 250 characters."] }) to the mentor.
+const FIELD_LABELS: Record<string, string> = {
+    title: "Title",
+    price: "Price",
+    link: "Link",
+    description: "Description",
+    summary: "Overview",
+    course_content: "Course content",
+    cover_image: "Thumbnail",
+    video: "Video",
+    product_type: "Product type",
+};
+
+// Flattens any DRF error response shape into one human-readable message.
+// Handles: { field: ["msg"] }, { field: { nested: ["msg"] } },
+// { detail: "msg" }, { non_field_errors: ["msg"] }, and plain strings.
+function parseProductError(error: any): string {
+    const data = error?.response?.data;
+    if (!data) return "Could not create product. Please try again.";
+    if (typeof data === "string") return data;
+    if (data.detail) return data.detail;
+
+    for (const [field, value] of Object.entries(data)) {
+        const msg: string | null = Array.isArray(value)
+            ? (value[0] as string)
+            : typeof value === "string"
+                ? value
+                : null;
+        if (msg) {
+            const label = field === "non_field_errors" ? "" : `${FIELD_LABELS[field] ?? field}: `;
+            return `${label}${msg}`;
+        }
+    }
+    return "Could not create product. Please try again.";
+}
 
 // ---------- Small building blocks (matched to EventCreate) ----------
 
@@ -90,12 +132,14 @@ const TextAreaField: React.FC<{
     onChange: (v: string) => void;
     placeholder: string;
     rows?: number;
-}> = ({ value, onChange, placeholder, rows = 5 }) => (
+    maxLength?: number;
+}> = ({ value, onChange, placeholder, rows = 5, maxLength }) => (
     <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={rows}
+        maxLength={maxLength}
         className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 outline-none resize-none"
         style={{ background: cardBg, border: cardBorder }}
     />
@@ -432,11 +476,7 @@ const MentorProductCreate: React.FC = () => {
                 setStep("success");
             },
             onError: (error: any) => {
-                const message =
-                    error?.response?.data?.message ||
-                    error?.response?.data?.detail ||
-                    "Could not create product. Please try again.";
-                addToast(message, "error");
+                addToast(parseProductError(error), "error");
             },
         });
     };
@@ -454,6 +494,7 @@ const MentorProductCreate: React.FC = () => {
                     "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
             }}
         >
+            <LoadingOverlay visible={isPending} />
             <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
                 <div className="mb-8">
                     <h2 className="mb-1 text-xl font-bold text-white sm:text-2xl">Create Product</h2>
@@ -621,7 +662,15 @@ const MentorProductCreate: React.FC = () => {
                         ) : (
                             <div>
                                 <SectionLabel hint="Give mentees a sense of what the book covers.">Overview / Summary</SectionLabel>
-                                <TextAreaField value={overview} onChange={setOverview} placeholder="Summarize what the book is about..." />
+                                <TextAreaField
+                                    value={overview}
+                                    onChange={(v) => setOverview(v.slice(0, MAX_OVERVIEW_CHARS))}
+                                    placeholder="Summarize what the book is about..."
+                                    maxLength={MAX_OVERVIEW_CHARS}
+                                />
+                                <p className={`mt-1 text-right text-xs ${overview.length >= MAX_OVERVIEW_CHARS ? "text-red-400" : "text-white/30"}`}>
+                                    {overview.length}/{MAX_OVERVIEW_CHARS}
+                                </p>
                             </div>
                         )}
 

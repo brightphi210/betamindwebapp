@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { BsFillCheckCircleFill } from 'react-icons/bs';
 import { FaFacebookF, FaLinkedinIn, FaRedditAlien, FaWhatsapp } from 'react-icons/fa';
 import {
+    FiAlertCircle,
     FiArrowLeft,
     FiAward,
     FiBookOpen,
@@ -13,20 +15,25 @@ import {
     FiDollarSign,
     FiGlobe,
     FiLinkedin,
+    FiLoader,
     FiMail,
     FiMapPin,
     FiPlayCircle,
+    FiSend,
     FiShare2,
     FiStar,
     FiTag,
+    FiTarget,
     FiTwitter,
     FiUsers,
     FiX
 } from 'react-icons/fi';
 import { Link, useParams } from 'react-router-dom';
+import { toast, ToastContainer } from 'react-toastify';
+import LoadingOverlay from '../../component/LoadingOverlay';
 import Button from '../../component/ui/Button';
+import { useBookMentorship } from '../../hooks/mutations/allMutation';
 import { useGetMentorProfile } from '../../hooks/queries/allQueriess';
-
 
 type MentorReview = {
     id: string | number;
@@ -96,6 +103,16 @@ const DUMMY_REVIEWS: MentorReview[] = [
         comment: 'Solid sessions overall, learned a lot about presenting my work with more confidence.',
     },
 ];
+
+// ─── Book mentorship: goal options shown as selectable chips ────────────────
+const MENTORSHIP_GOALS = [
+    'Career guidance',
+    'Skill development',
+    'Interview preparation',
+    'Resume / portfolio review',
+    'Business or startup advice',
+    'Something else',
+] as const;
 
 // ─── Map a raw digital_products entry from the API into the shape this page renders ──
 const mapDigitalProduct = (dp: any): MentorProduct => {
@@ -454,6 +471,151 @@ const ShareModal: React.FC<{
     );
 };
 
+// ─── Book mentorship modal ────────────────────────────────────────────────
+type BookMentorshipPayload = {
+    goal: string;
+    message: string;
+};
+
+const BookMentorshipModal: React.FC<{
+    mentorName: string;
+    mentorAvatar?: string;
+    isSubmitting?: boolean;
+    errorMessage?: string | null;
+    onClose: () => void;
+    onSubmit: (payload: BookMentorshipPayload) => void;
+}> = ({ mentorName, mentorAvatar, isSubmitting = false, errorMessage, onClose, onSubmit }) => {
+    const [goal, setGoal] = useState<string | null>(null);
+    const [message, setMessage] = useState('');
+
+    const canSubmit = !!goal && message.trim().length > 0 && !isSubmitting;
+
+    const handleSubmit = () => {
+        if (!canSubmit || !goal) return;
+        onSubmit({ goal, message: message.trim() });
+    };
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
+            onClick={isSubmitting ? undefined : onClose}
+        >
+            <div
+                className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl"
+                style={{
+                    background: 'rgba(10,13,9,0.55)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)',
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="mb-5 flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <img
+                            src={mentorAvatar}
+                            alt={mentorName}
+                            className="w-11 h-11 rounded-xl object-cover shrink-0"
+                            style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                        />
+                        <div className="min-w-0">
+                            <h3 className="text-lg font-bold text-white leading-tight truncate">Book mentorship</h3>
+                            <p className="text-xs text-white/40 truncate">with {mentorName}</p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                        aria-label="Close"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:text-white shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                        style={{ background: 'rgba(255,255,255,0.06)' }}
+                    >
+                        <FiX size={16} />
+                    </button>
+                </div>
+
+                {/* Error banner */}
+                {errorMessage && (
+                    <div
+                        className="mb-5 flex items-start gap-2 rounded-lg px-3.5 py-2.5 text-xs font-medium"
+                        style={{ background: 'rgba(255,80,80,0.08)', border: '1px solid rgba(255,80,80,0.25)', color: '#ff9a9a' }}
+                    >
+                        <FiAlertCircle size={14} className="shrink-0 mt-0.5" />
+                        <span>{errorMessage}</span>
+                    </div>
+                )}
+
+                {/* Goal selection */}
+                <div className="mb-6">
+                    <label className="mb-2.5 flex items-center gap-1.5 text-sm font-semibold text-white">
+                        <FiTarget size={14} className="text-neutral-400" />
+                        What best describes the goal of your mentorship?
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                        {MENTORSHIP_GOALS.map((option) => {
+                            const active = goal === option;
+                            return (
+                                <button
+                                    key={option}
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() => setGoal(option)}
+                                    className="cursor-pointer px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                    style={
+                                        active
+                                            ? { background: '#a6ff00', color: '#000' }
+                                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.75)', border: '1px solid rgba(255,255,255,0.1)' }
+                                    }
+                                >
+                                    {option}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Message */}
+                <div className="mb-6">
+                    <label className="mb-2 block text-sm font-semibold text-white">
+                        Write a message to {mentorName}
+                    </label>
+                    <textarea
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        placeholder={`Hi ${mentorName}, I'd love your help with...`}
+                        rows={5}
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none resize-none placeholder:text-white/25 disabled:opacity-60"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                    />
+                </div>
+
+                {/* Submit */}
+                <button
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    className="cursor-pointer w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-lg text-sm font-bold text-black transition-transform enabled:hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-40"
+                    style={{ background: '#fff' }}
+                >
+                    {isSubmitting ? (
+                        <>
+                            <FiLoader size={14} className="animate-spin" />
+                            Sending...
+                        </>
+                    ) : (
+                        <>
+                            <FiSend size={14} />
+                            Send request
+                        </>
+                    )}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 
 const MentorSkeleton: React.FC = () => (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
@@ -522,6 +684,24 @@ const MentorSkeleton: React.FC = () => (
     </div>
 );
 
+// ─── Toast used to confirm a booking request went through ───────────────────
+const BookingToast: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => (
+    <div
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-2xl"
+        style={{ background: 'rgba(10,13,9,0.9)', border: '1px solid rgba(166,255,0,0.3)', backdropFilter: 'blur(12px)' }}
+    >
+        <FiCheckCircle size={16} style={{ color: '#a6ff00' }} className="shrink-0" />
+        <span className="text-white text-sm font-medium">{message}</span>
+        <button
+            onClick={onClose}
+            aria-label="Dismiss"
+            className="ml-2 text-white/40 hover:text-white/70 shrink-0"
+        >
+            <FiX size={14} />
+        </button>
+    </div>
+);
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 const Mentor: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -529,7 +709,8 @@ const Mentor: React.FC = () => {
     const mentor = aMentor?.data
     console.log('Mentor Data', mentor)
 
-    // The API returns the display name/avatar nested under `profile`, not top-level.
+    const { mutate: bookMentorship, isPending: isBooking } = useBookMentorship()
+
     const mentorName = [mentor?.profile?.first_name, mentor?.profile?.last_name]
         .filter(Boolean)
         .join(' ') || mentor?.nick_name || 'Mentor';
@@ -552,17 +733,58 @@ const Mentor: React.FC = () => {
     const sessionsCompleted: number | null =
         typeof mentor?.sessions_completed === 'number' ? mentor.sessions_completed : DUMMY_SESSIONS_COMPLETED;
 
-    // Real products come back as `digital_products` from the API. Map them into the
-    // shape this page renders, and only fall back to dummy data if there are none.
     const products: MentorProduct[] =
         Array.isArray(mentor?.digital_products) && mentor.digital_products.length > 0
             ? mentor.digital_products.map(mapDigitalProduct)
             : [];
 
     const [showShareModal, setShowShareModal] = useState(false);
+    const [showBookModal, setShowBookModal] = useState(false);
+    const [bookingError, setBookingError] = useState<string | null>(null);
+    const [bookingToast, setBookingToast] = useState<string | null>(null);
 
     const handleBookMentorship = () => {
-        console.log('Book mentorship with', mentorName);
+        setBookingError(null);
+        setShowBookModal(true);
+    };
+
+    const handleCloseBookModal = () => {
+        if (isBooking) return; // avoid closing mid-request
+        setShowBookModal(false);
+        setBookingError(null);
+    };
+
+    const handleBookingSubmit = (payload: { goal: string; message: string }) => {
+        if (!id) {
+            setBookingError('Missing mentor reference. Please refresh and try again.');
+            return;
+        }
+
+        setBookingError(null);
+
+        bookMentorship(
+            {
+                mentor_id: id,
+                goal: payload.goal,
+                description: payload.message,
+            },
+            {
+                onSuccess: () => {
+                    setShowBookModal(false);
+                    // setBookingToast(`Your request was sent to ${mentorName}.`);
+                    toast(`Your request was sent to ${mentorName}.`, { type: 'success' })
+                    setTimeout(() => setBookingToast(null), 4000);
+                },
+                onError: (error: any) => {
+                    const message =
+                        error?.response?.data?.message ||
+                        error?.response?.detail ||
+                        error?.response?.data?.detail ||
+                        'Something went wrong while sending your request. Please try again.';
+                    toast(message, { type: 'error' })
+                },
+            }
+        );
     };
 
     const [showFullBio, setShowFullBio] = useState(false);
@@ -584,10 +806,14 @@ const Mentor: React.FC = () => {
                     'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
             }}
         >
+
+            <ToastContainer theme='dark' />
             {isLoading ? (
                 <MentorSkeleton />
             ) : (
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                    <LoadingOverlay visible={isBooking} />
+
                     {/* Back link */}
                     <Link
                         to="/dashboard/explore"
@@ -626,15 +852,15 @@ const Mentor: React.FC = () => {
                         <div>
                             <div className="flex items-start justify-between gap-3 mb-1">
                                 <div>
+                                    {mentor?.nick_name && (
+                                        <p className="text-white/40 text-sm sm:text-sm pt-1.5">@{mentor?.nick_name}</p>
+                                    )}
                                     <h1 className="text-white text-2xl sm:text-3xl font-black flex items-center gap-2 flex-wrap">
                                         {mentorName}
                                         {mentor?.is_approved && (
-                                            <FiCheckCircle size={20} className="text-neutral-600 shrink-0" title="Verified mentor" />
+                                            <BsFillCheckCircleFill size={20} className="text-green-100 shrink-0" title="Verified mentor" />
                                         )}
                                     </h1>
-                                    {mentor?.nick_name && (
-                                        <p className="text-white/80 text-sm sm:text-base pt-1.5">@{mentor?.nick_name}</p>
-                                    )}
                                 </div>
 
                                 {/* Share profile */}
@@ -642,21 +868,40 @@ const Mentor: React.FC = () => {
                                     onClick={() => setShowShareModal(true)}
                                     title="Share mentor profile"
                                     aria-label="Share mentor profile"
-                                    className="cursor-pointer shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors"
-                                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                    className="cursor-pointer shrink-0 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-neutral-100 transition-colors"
                                 >
                                     <FiShare2 size={16} />
                                 </button>
                             </div>
 
-                            {mentor?.occupation && (
-                                <div
-                                    className="inline-block px-4 py-1.5 mt-3 mb-4 rounded-md text-sm font-semibold"
-                                    style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)' }}
-                                >
-                                    {mentor?.occupation}
-                                </div>
-                            )}
+                            {/* Occupation + socials row */}
+                            <div className="flex flex-wrap items-center gap-3 mt-1 mb-8">
+                                {mentor?.occupation && (
+                                    <div
+                                        className="inline-block px-4 py-1.5 rounded-md text-sm font-semibold border border-neutral-700"
+                                        style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)' }}
+                                    >
+                                        {mentor?.occupation}
+                                    </div>
+                                )}
+
+                                {activeSocials.length > 0 ? (
+                                    <div className="flex items-center gap-2">
+                                        {activeSocials?.map((platform) => (
+                                            <a
+                                                key={platform}
+                                                href={socialLink[platform]}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                title={SOCIAL_LABEL_MAP[platform]}
+                                                className="w-9 h-9 rounded-md flex items-center justify-center text-black bg-white transition-colors"
+                                            >
+                                                {SOCIAL_ICON_MAP[platform]}
+                                            </a>
+                                        ))}
+                                    </div>
+                                ) : null}
+                            </div>
 
                             {/* Credibility row */}
                             <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mb-5 pb-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -754,28 +999,6 @@ const Mentor: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* Socials */}
-                            <div className="mb-8">
-                                {activeSocials.length > 0 ? (
-                                    <div className="flex items-center gap-3">
-                                        {activeSocials?.map((platform) => (
-                                            <a
-                                                key={platform}
-                                                href={socialLink[platform]}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                title={SOCIAL_LABEL_MAP[platform]}
-                                                className="w-10 h-10 rounded-md flex items-center justify-center text-black bg-white transition-colors"
-                                            >
-                                                {SOCIAL_ICON_MAP[platform]}
-                                            </a>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <SectionPlaceholder text="No social links added yet" />
-                                )}
-                            </div>
-
                             {/* Focus Areas */}
                             <Panel icon={<FiTag size={14} className="text-neutral-600" />} title="Focus areas">
                                 {categories.length > 0 ? (
@@ -865,20 +1088,23 @@ const Mentor: React.FC = () => {
                                 </div>
 
                                 {/* Primary CTA */}
-                                <button
-                                    onClick={handleBookMentorship}
-                                    className="cursor-pointer w-full text-center bg-white px-4 py-3 rounded-lg text-sm font-bold text-black transition-transform hover:scale-[1.02] mb-3"
-                                >
-                                    Book mentorship
-                                </button>
 
-                                {/* Secondary action */}
-                                <button
-                                    className="cursor-pointer w-full text-center px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors mb-5"
-                                    style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)' }}
-                                >
-                                    Follow
-                                </button>
+                                <div className='flex flex-col'>
+                                    <button
+                                        onClick={handleBookMentorship}
+                                        className="cursor-pointer w-full text-center bg-white px-4 py-3 rounded-lg text-sm font-bold text-black transition-transform hover:scale-[1.02] mb-3"
+                                    >
+                                        Book mentorship
+                                    </button>
+
+                                    {/* Secondary action */}
+                                    <button
+                                        className="cursor-pointer w-full text-center px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors mb-5"
+                                        style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)' }}
+                                    >
+                                        Follow
+                                    </button>
+                                </div>
 
                                 {/* Quick facts */}
                                 <div className="flex flex-col gap-3 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
@@ -929,6 +1155,21 @@ const Mentor: React.FC = () => {
                     isApproved={mentor?.is_approved}
                     onClose={() => setShowShareModal(false)}
                 />
+            )}
+
+            {showBookModal && (
+                <BookMentorshipModal
+                    mentorName={mentorName}
+                    mentorAvatar={mentorAvatar}
+                    isSubmitting={isBooking}
+                    errorMessage={bookingError}
+                    onClose={handleCloseBookModal}
+                    onSubmit={handleBookingSubmit}
+                />
+            )}
+
+            {bookingToast && (
+                <BookingToast message={bookingToast} onClose={() => setBookingToast(null)} />
             )}
         </div>
     );

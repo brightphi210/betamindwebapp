@@ -217,33 +217,26 @@ const EventsTimelineSkeleton: React.FC<{ groups?: number; rowsPerGroup?: number 
 const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
     <div className="flex flex-col items-center justify-center py-24 sm:py-32">
         <div
-            className="relative w-28 h-28 rounded-2xl mb-8 flex items-center justify-center"
-            style={{ background: 'rgba(166,255,0,0.06)', border: '1px solid rgba(205,220,57,.12)' }}
+            className="relative w-28 h-28 rounded-2xl mb-8 flex items-center justify-center bg-white/5"
         >
             <FiCalendar size={44} className="text-white/20" />
-            <div
-                className="absolute -top-3 -right-3 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(205,220,57,.15)' }}
-            >
-                0
-            </div>
         </div>
         <h2 className="text-white text-xl font-bold mb-2">
             No {tab === 'upcoming' ? 'Upcoming' : 'Past'} Events
         </h2>
         <p className="text-white/40 text-sm mb-8">
             {tab === 'upcoming'
-                ? "You haven't registered for any upcoming events yet."
+                ? "You dont have any upcoming event"
                 : "You don't have any past events."}
         </p>
         {tab === 'upcoming' && (
             <a
-                href="/dashboard/explore"
+                href="/dashboard/events/create"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm text-black transition-transform hover:scale-[1.02]"
                 style={{ background: '#a6ff00' }}
             >
                 <FiPlus size={16} />
-                Explore Events
+                Create Events
             </a>
         )}
     </div>
@@ -860,7 +853,7 @@ const Overview: React.FC = () => {
         : mineEvents?.data?.results ?? [];
 
     const myEvents = rawEvents.map(mapApiEventToRegistered);
-    console.log('Seleceted Event', myEvents)
+    console.log('Seleceted Event', rawEvents)
 
     const filtered = myEvents.filter((e) => e.status === tab);
 
@@ -897,8 +890,6 @@ const Overview: React.FC = () => {
                 type="checkbox"
                 className="drawer-toggle"
             />
-
-            {/* Only block the page for the mentors fetch; events get inline skeletons */}
             <LoadingOverlay visible={isLoading} />
 
             <div className="drawer-content">

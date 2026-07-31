@@ -109,3 +109,21 @@ export const useCreateDigitalProduct = () => {
 
   return createDigitalProduct
 }
+
+
+// ============== Book Mentor Session ============
+export const useBookMentorship = () => {
+  const queryClient = useQueryClient()
+
+  const bookMentorship = useMutation({
+    mutationFn: async (data: any) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return post_requests('sessions/', data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookMentorship", "mentorProfile"] })
+    },
+  })
+
+  return bookMentorship
+}

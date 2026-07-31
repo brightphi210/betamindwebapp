@@ -8,7 +8,6 @@ import MentorProfile from '../pages/mentorDasboard/MentorProfile'
 import MentorWallet from '../pages/mentorDasboard/MentorWallet'
 import NotFound from '../pages/NotFound'
 import EventCreate from '../pages/userDashboard/EventCreate'
-import EventPublicPage from '../pages/userDashboard/EventPublicPage'
 import Events from '../pages/userDashboard/Events'
 import Explore from '../pages/userDashboard/Explore'
 import Mentor from '../pages/userDashboard/Mentor'
@@ -45,7 +44,6 @@ const Content = () => {
                     <Route path="profile" element={<MentorProfile />} />
                 </Route>
 
-                <Route path="/events/:id" element={<EventPublicPage />} />
                 <Route path='/dashboard/mentors/:id' element={<Mentor />} />
                 <Route path="/dashboard/products/:id" element={<Product />} />
                 <Route path='*' element={<NotFound />} />

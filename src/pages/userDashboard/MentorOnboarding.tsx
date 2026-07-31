@@ -27,6 +27,65 @@ const CATEGORY_OPTIONS = [
     "science",
 ];
 
+// Fixed expertise/skill options — same pattern as categories, kept in sync
+// with MentorProfile.tsx since there's no expertise endpoint.
+const EXPERTISE_OPTIONS = [
+    "career coaching",
+    "resume review",
+    "interview prep",
+    "public speaking",
+    "leadership coaching",
+    "technical mentoring",
+    "startup advice",
+    "product strategy",
+    "ux design",
+    "data analysis",
+    "marketing strategy",
+    "financial planning",
+    "personal branding",
+    "networking",
+    "time management",
+    "fundraising",
+];
+
+// Major world languages for the language dropdown — matches MentorProfile.tsx.
+const LANGUAGE_OPTIONS = [
+    "English",
+    "Spanish",
+    "French",
+    "Portuguese",
+    "German",
+    "Italian",
+    "Mandarin Chinese",
+    "Arabic",
+    "Hindi",
+    "Russian",
+    "Japanese",
+    "Korean",
+    "Swahili",
+    "Yoruba",
+    "Igbo",
+    "Hausa",
+    "Dutch",
+    "Turkish",
+    "Vietnamese",
+    "Indonesian",
+];
+
+const AVAILABILITY_OPTIONS: { value: string; label: string }[] = [
+    { value: "weekdays", label: "Weekdays" },
+    { value: "weekends", label: "Weekends" },
+];
+
+// Hours-per-day dropdown — value sent to the backend is the bare number.
+const DAILY_AVAILABILITY_OPTIONS: { value: string; label: string }[] = [
+    { value: "1", label: "1 hr" },
+    { value: "2", label: "2 hrs" },
+    { value: "3", label: "3 hrs" },
+    { value: "5", label: "5 hrs" },
+    { value: "8", label: "8 hrs" },
+];
+
 const cardBg = "rgba(255,255,255,0.02)";
 const cardBorder = "1px solid rgba(205,220,57,.08)";
 const prefixBg = "rgba(255,255,255,0.03)";
@@ -52,6 +111,36 @@ const Field: React.FC<{
             className={fieldClass}
             style={{ background: cardBg, border: cardBorder }}
         />
+        {helper && <p className="mt-2 text-xs text-white/40">{helper}</p>}
+    </div>
+);
+
+// Native <select> dropdown, styled to match the other inputs — used for Language.
+const SelectField: React.FC<{
+    label: string;
+    value: string;
+    options: string[];
+    onChange: (v: string) => void;
+    placeholder?: string;
+    helper?: string;
+}> = ({ label, value, options, onChange, placeholder = "Select...", helper }) => (
+    <div>
+        <label className="mb-2 block text-sm font-semibold text-white">{label}</label>
+        <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className={fieldClass}
+            style={{ background: cardBg, border: cardBorder }}
+        >
+            <option value="" disabled>
+                {placeholder}
+            </option>
+            {options.map((opt) => (
+                <option key={opt} value={opt}>
+                    {opt}
+                </option>
+            ))}
+        </select>
         {helper && <p className="mt-2 text-xs text-white/40">{helper}</p>}
     </div>
 );
@@ -108,7 +197,73 @@ const SocialField: React.FC<{
     </div>
 );
 
-type Step = "professional" | "social" | "account";
+// Single-select pill group — used for availability and daily availability hours.
+const PillSelect: React.FC<{
+    label: string;
+    value: string;
+    options: { value: string; label: string }[];
+    onChange: (v: string) => void;
+}> = ({ label, value, options, onChange }) => (
+    <div>
+        <p className="mb-2 text-sm font-semibold text-white">{label}</p>
+        <div className="flex flex-wrap gap-2">
+            {options.map((opt) => {
+                const active = value === opt.value;
+                return (
+                    <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => onChange(opt.value)}
+                        className={`rounded-full px-3.5 py-2 text-sm font-medium transition-all ${active
+                            ? "bg-[#a6ff00] text-black"
+                            : "text-white hover:border-[#a6ff00] hover:text-[#a6ff00]"
+                            }`}
+                        style={active ? undefined : { background: cardBg, border: cardBorder }}
+                    >
+                        {opt.label}
+                    </button>
+                );
+            })}
+        </div>
+    </div>
+);
+
+// Multi-select pill group — used for expertise (same interaction as Category).
+const MultiPillSelect: React.FC<{
+    label: string;
+    values: string[];
+    options: string[];
+    onChange: (v: string[]) => void;
+}> = ({ label, values, options, onChange }) => (
+    <div>
+        <p className="mb-2 text-sm font-semibold text-white">{label}</p>
+        <div className="flex flex-wrap gap-2">
+            {options.map((opt) => {
+                const active = values.includes(opt);
+                return (
+                    <button
+                        key={opt}
+                        type="button"
+                        onClick={() =>
+                            onChange(active ? values.filter((v) => v !== opt) : [...values, opt])
+                        }
+                        className={`rounded-full px-3.5 py-2 text-sm font-medium capitalize transition-all ${active
+                            ? "bg-[#a6ff00] text-black"
+                            : "text-white hover:border-[#a6ff00] hover:text-[#a6ff00]"
+                            }`}
+                        style={active ? undefined : { background: cardBg, border: cardBorder }}
+                    >
+                        {opt}
+                    </button>
+                );
+            })}
+        </div>
+    </div>
+);
+
+type Step = "professional" | "social" | "availability" | "account";
+
+const stepOrder: Step[] = ["professional", "social", "availability", "account"];
 
 const MentorOnboarding = () => {
     const navigate = useNavigate();
@@ -130,13 +285,20 @@ const MentorOnboarding = () => {
     const [occupation, setOccupation] = useState("");
     const [bio, setBio] = useState("");
     const [experience, setExperience] = useState("");
+    const [hourlyRate, setHourlyRate] = useState("");
+    const [language, setLanguage] = useState("");
 
     // Categories — button picker from a fixed list, same pattern as MentorProfile.tsx
     const [categories, setCategories] = useState<string[]>([]);
+    const [expertise, setExpertise] = useState<string[]>([]);
 
     const [linkedin, setLinkedin] = useState("");
     const [xHandle, setXHandle] = useState("");
     const [website, setWebsite] = useState("");
+
+    // Availability
+    const [availability, setAvailability] = useState("");
+    const [dailyAvailability, setDailyAvailability] = useState("");
 
     // Bank details (Account Details step)
     const [bankName, setBankName] = useState("");
@@ -146,6 +308,7 @@ const MentorOnboarding = () => {
 
     const professionalComplete = !!(nickname && occupation && bio && experience);
     const socialComplete = categories.length > 0;
+    const availabilityComplete = !!(availability && dailyAvailability);
     const accountComplete = !!(bankName && accountName && accountNumber);
 
     const toggleCategory = (cat: string) => {
@@ -163,13 +326,13 @@ const MentorOnboarding = () => {
     };
 
     const goNext = () => {
-        if (step === "professional") setStep("social");
-        else if (step === "social") setStep("account");
+        const idx = stepOrder.indexOf(step);
+        if (idx < stepOrder.length - 1) setStep(stepOrder[idx + 1]);
     };
 
     const goBack = () => {
-        if (step === "account") setStep("social");
-        else if (step === "social") setStep("professional");
+        const idx = stepOrder.indexOf(step);
+        if (idx > 0) setStep(stepOrder[idx - 1]);
         else navigate("/dashboard/overview");
     };
 
@@ -181,12 +344,15 @@ const MentorOnboarding = () => {
         formData.append("bio", bio);
         formData.append("nick_name", nickname);
         formData.append("years_of_experience", String(parseInt(experience, 10) || 0));
+        formData.append("hourly_rate", hourlyRate ? String(parseFloat(hourlyRate)) : "");
+        formData.append("language", language);
 
         if (bannerFile) formData.append("cover_images", bannerFile);
 
-        // Categories as a JSON-stringified array — the backend expects a single
-        // field it can json.loads() itself, not repeated plain-string fields.
+        // Categories/Expertise as JSON-stringified arrays — the backend expects a
+        // single field it can json.loads() itself, not repeated plain-string fields.
         formData.append("categories", JSON.stringify(categories));
+        formData.append("expertise", JSON.stringify(expertise));
 
         // Backend expects the singular key "social_link" as a flat object:
         // { twitter, linkedin, website } — NOT "social_links" as an array of
@@ -198,12 +364,16 @@ const MentorOnboarding = () => {
         };
         formData.append("social_link", JSON.stringify(socialLink));
 
-        // Bank details as a nested "bank_account" JSON object — sending these as
+        formData.append("availability", availability);
+        // daily_availability is a plain number of hours (e.g. "2"), not "2 hrs".
+        formData.append("daily_availability", dailyAvailability);
+
+        // Bank details as a nested "bank_details" JSON object — sending these as
         // flat top-level fields (bank_name, account_name, ...) was previously
-        // resulting in bank_account: null on the server, since the backend reads
-        // a single "bank_account" field and json.loads()s it itself.
+        // resulting in bank_details: null on the server, since the backend reads
+        // a single "bank_details" field and json.loads()s it itself.
         formData.append(
-            "bank_account",
+            "bank_details",
             JSON.stringify({
                 bank_name: bankName,
                 account_name: accountName,
@@ -229,6 +399,13 @@ const MentorOnboarding = () => {
                 addToast(message, "error");
             },
         });
+    };
+
+    const stepLabels: Record<Step, string> = {
+        professional: "Professional Info",
+        social: "Category & Socials",
+        availability: "Availability",
+        account: "Account Details",
     };
 
     return (
@@ -260,25 +437,16 @@ const MentorOnboarding = () => {
                 </div>
 
                 {/* Step tabs */}
-                <div className="mb-10 flex items-center gap-6" style={{ borderBottom: cardBorder }}>
-                    <span
-                        className={`border-b-2 pb-3 text-xs font-semibold transition-colors ${step === "professional" ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
-                            }`}
-                    >
-                        Professional Info
-                    </span>
-                    <span
-                        className={`border-b-2 pb-3 text-xs font-semibold transition-colors ${step === "social" ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
-                            }`}
-                    >
-                        Category &amp; Socials
-                    </span>
-                    <span
-                        className={`border-b-2 pb-3 text-xs font-semibold transition-colors ${step === "account" ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
-                            }`}
-                    >
-                        Account Details
-                    </span>
+                <div className="mb-10 flex items-center gap-6 flex-wrap" style={{ borderBottom: cardBorder }}>
+                    {stepOrder.map((s) => (
+                        <span
+                            key={s}
+                            className={`border-b-2 pb-3 text-xs font-semibold transition-colors ${step === s ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
+                                }`}
+                        >
+                            {stepLabels[s]}
+                        </span>
+                    ))}
                 </div>
 
                 {step === "professional" && (
@@ -343,13 +511,29 @@ const MentorOnboarding = () => {
                                 helper="This appears on your public mentor profile."
                             />
 
-                            <Field
-                                label="Years of Experience"
-                                value={experience}
-                                onChange={(v) => setExperience(v.replace(/[^0-9]/g, ""))}
-                                placeholder="e.g. 4"
-                                helper="Enter a whole number of years."
-                            />
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                <Field
+                                    label="Years of Experience"
+                                    value={experience}
+                                    onChange={(v) => setExperience(v.replace(/[^0-9]/g, ""))}
+                                    placeholder="e.g. 4"
+                                    helper="Enter a whole number of years."
+                                />
+                                <Field
+                                    label="Hourly Rate"
+                                    value={hourlyRate}
+                                    onChange={(v) => setHourlyRate(v.replace(/[^0-9.]/g, ""))}
+                                    placeholder="e.g. 50"
+                                    helper="In NGN."
+                                />
+                                <SelectField
+                                    label="Language"
+                                    value={language}
+                                    options={LANGUAGE_OPTIONS}
+                                    onChange={setLanguage}
+                                    placeholder="Select a language"
+                                />
+                            </div>
                         </div>
                     </div>
                 )}
@@ -381,6 +565,13 @@ const MentorOnboarding = () => {
                                 </div>
                             </div>
 
+                            <MultiPillSelect
+                                label="Expertise"
+                                values={expertise}
+                                options={EXPERTISE_OPTIONS}
+                                onChange={setExpertise}
+                            />
+
                             <div>
                                 <p className="mb-3 text-sm font-semibold text-white">Social Links</p>
                                 <div className="space-y-3">
@@ -406,6 +597,26 @@ const MentorOnboarding = () => {
                                     />
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {step === "availability" && (
+                    <div>
+                        <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Availability</h2>
+                        <div className="space-y-5">
+                            <PillSelect
+                                label="General Availability"
+                                value={availability}
+                                options={AVAILABILITY_OPTIONS}
+                                onChange={setAvailability}
+                            />
+                            <PillSelect
+                                label="Hours Per Day"
+                                value={dailyAvailability}
+                                options={DAILY_AVAILABILITY_OPTIONS}
+                                onChange={setDailyAvailability}
+                            />
                         </div>
                     </div>
                 )}
@@ -458,7 +669,13 @@ const MentorOnboarding = () => {
                         <Button
                             variant="green"
                             onClick={goNext}
-                            disabled={step === "professional" ? !professionalComplete : !socialComplete}
+                            disabled={
+                                step === "professional"
+                                    ? !professionalComplete
+                                    : step === "social"
+                                        ? !socialComplete
+                                        : !availabilityComplete
+                            }
                         >
                             <span className="flex items-center justify-center gap-2">
                                 Next
