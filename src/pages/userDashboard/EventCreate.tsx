@@ -192,10 +192,6 @@ const EventCreate: React.FC = () => {
     const [capacityMode, setCapacityMode] = useState<'unlimited' | 'limited'>('unlimited');
     const [capacity, setCapacity] = useState('');
 
-    const [linkCopied, setLinkCopied] = useState(false);
-
-    const eventLink = `betamind.app/e/${eventName ? eventName.toLowerCase().replace(/\s+/g, '-') : 'your-event'}`;
-
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -249,12 +245,6 @@ const EventCreate: React.FC = () => {
                 addToast(message, 'error');
             },
         });
-    };
-
-    const handleCopyLink = () => {
-        navigator.clipboard.writeText(`https://${eventLink}`);
-        setLinkCopied(true);
-        setTimeout(() => setLinkCopied(false), 2000);
     };
 
     // ─── Success screen ─────────────────────────────────────────────────
