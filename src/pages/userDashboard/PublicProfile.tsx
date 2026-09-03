@@ -80,7 +80,7 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => (
         href={product.link || undefined}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex flex-col overflow-hidden rounded-xl transition-colors hover:bg-white/[0.03]"
+        className="flex flex-col overflow-hidden rounded-xl transition-colors hover:bg-white/3"
         style={{ background: cardBg, border: cardBorder }}
     >
         <div className="relative">
@@ -107,7 +107,7 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => (
             </span>
         </div>
         <div className="flex flex-1 flex-col p-4 sm:p-5">
-            <h3 className="mb-1 break-words text-base font-bold text-white">{product.title}</h3>
+            <h3 className="mb-1 wrap-break-words text-base font-bold text-white">{product.title}</h3>
             <p className="mb-3 text-sm text-white/40">{product.sold} sold</p>
             <div className="mt-auto flex items-center justify-between">
                 <div className="flex items-center gap-1 text-xs text-white/60">
