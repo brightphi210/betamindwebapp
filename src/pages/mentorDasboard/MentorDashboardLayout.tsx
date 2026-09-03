@@ -1,13 +1,11 @@
 import { useEffect } from "react";
-import { FiArrowLeft, FiBarChart2, FiCalendar, FiClock, FiCreditCard, FiShield, FiShoppingBag, FiUser, FiUserPlus } from "react-icons/fi";
+import { FiArrowLeft, FiBarChart2, FiCalendar, FiClock, FiShield, FiShoppingBag, FiUser, FiUserPlus } from "react-icons/fi";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import { cardBg, cardBorder, pageBackground } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
 import { useGetMyMentorProfile, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
 
-// Everything a child page (Overview, Wallet, Bookings, Products, Profile) needs
-// is passed down through this context, via useOutletContext<MentorDashboardContext>().
 export type MentorDashboardContext = {
     mentorProfile: any;
     userProfile: any;
@@ -16,7 +14,7 @@ export type MentorDashboardContext = {
 const NAV_ITEMS = [
     { to: "overview", label: "Overview", icon: <FiBarChart2 size={15} /> },
     { to: "products", label: "Products", icon: <FiShoppingBag size={15} /> },
-    { to: "wallet", label: "Wallet", icon: <FiCreditCard size={15} /> },
+    // { to: "wallet", label: "Wallet", icon: <FiCreditCard size={15} /> },
     { to: "bookings", label: "Bookings", icon: <FiCalendar size={15} /> },
     { to: "profile", label: "Profile", icon: <FiUser size={15} /> },
 ];
@@ -24,19 +22,17 @@ const NAV_ITEMS = [
 const VerificationBadge: React.FC<{ isApproved: boolean }> = ({ isApproved }) =>
     isApproved ? (
         <div
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"
-            style={{ background: "rgba(166,255,0,0.1)", border: "1px solid rgba(166,255,0,.35)", color: "#a6ff00" }}
+            className="inline-flex items-center bg-neutral-900 text-green-600 gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"
         >
             <FiShield size={13} />
-            Verified Mentor
+            Verified
         </div>
     ) : (
         <div
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-amber-400"
-            style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,.3)" }}
+            className="inline-flex items-center gap-1.5 bg-neutral-900 text-amber-400 rounded-full px-3 py-1.5 text-xs font-semibold"
         >
             <FiClock size={13} />
-            Verification Pending
+            Pending
         </div>
     );
 
@@ -92,8 +88,6 @@ const MentorDashboardLayout = () => {
 
     const loading = mentorLoading || userLoading;
 
-    // Default tab: if we've landed on the bare dashboard path (no tab segment
-    // matched, e.g. "/dashboard/mentor"), send the user to Overview.
     useEffect(() => {
         if (loading) return;
         if (!userProfile?.is_mentor || !mentorProfile?.is_approved) return;
@@ -140,25 +134,28 @@ const MentorDashboardLayout = () => {
                     className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-white/50 transition-colors hover:text-white"
                 >
                     <FiArrowLeft size={15} />
-                    Back to Dashboard
+                    Back
                 </button>
 
                 <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex flex-wrap items-center gap-3">
-                        <h1 className="text-3xl font-black leading-tight sm:text-4xl">Mentor Dashboard</h1>
+                        <h1 className="text-2xl font-black leading-tight sm:text-2xl">Mentor Dashboard</h1>
                         <VerificationBadge isApproved={!!mentorProfile?.is_approved} />
                     </div>
                 </div>
 
                 {/* Tab nav — each item is a real route so pages are deep-linkable
                     and keep their own loading/error state independent of the others. */}
-                <div className="mb-10 flex flex-wrap items-center gap-2 sm:gap-3" style={{ borderBottom: cardBorder }}>
+                <div className="mb-10 pb-4 flex flex-wrap items-center gap-2 sm:gap-2" style={{ borderBottom: cardBorder }}>
                     {NAV_ITEMS.map((item) => (
                         <NavLink
                             key={item.to}
                             to={item.to}
                             className={({ isActive }) =>
-                                `flex items-center gap-1.5 border-b-2 pb-3 text-xs font-semibold transition-colors sm:text-sm ${isActive ? "border-[#a6ff00] text-white" : "border-transparent text-white/40 hover:text-white"
+                                `flex  p-2 px-6 items-center gap-1.5 border-b-2 text-xs font-semibold transition-colors sm:text-sm 
+                                ${isActive ?
+                                    "bg-white rounded-full text-black" :
+                                    "border-transparent bg-neutral-900 rounded-full text-white hover:text-white"
                                 }`
                             }
                         >
@@ -168,8 +165,6 @@ const MentorDashboardLayout = () => {
                     ))}
                 </div>
 
-                {/* Child route renders here with mentorProfile/userProfile available
-                    via useOutletContext<MentorDashboardContext>() */}
                 <Outlet context={context} />
             </div>
         </div>

@@ -11,6 +11,7 @@ import Onboarding from "./pages/Onboarding";
 import EventPublicPage from "./pages/userDashboard/EventPublicPage";
 import MentorDashboard from "./pages/userDashboard/MentorDashboard";
 import MentorOnboarding from "./pages/userDashboard/MentorOnboarding";
+import PublicProfile from "./pages/userDashboard/PublicProfile";
 import AuthProvider from "./providers/AuthProvider";
 import { GlobalProvider } from "./providers/GlobalContext";
 import ProtectedRoute from "./providers/ProtectedRoute";
@@ -30,6 +31,7 @@ const App = () => {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/onboarding" element={<Onboarding />} />
+                <Route path='profile-public' element={<PublicProfile />} />
                 <Route path="/mentor-onboarding" element={<MentorOnboarding />} />
                 <Route path="/events/:id" element={<EventPublicPage />} />
                 <Route

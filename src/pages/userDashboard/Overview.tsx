@@ -1,12 +1,16 @@
 import React, { useRef, useState } from 'react';
+import { FaFacebookF, FaLinkedinIn, FaXTwitter } from 'react-icons/fa6';
 import {
     FiArrowRight,
     FiCalendar,
     FiClock,
     FiCopy,
     FiExternalLink,
+    FiMail,
     FiMapPin,
+    FiMessageCircle,
     FiPlus,
+    FiShare2,
     FiTag,
     FiUserCheck,
     FiUsers,
@@ -43,6 +47,7 @@ export interface RegisteredEvent {
     description?: string;
     attendees: Attendee[];
     publicUrl: string;
+    meetingLink?: string;
     ticketPrice: string;
     requireApproval: boolean;
     capacity: number | null;
@@ -68,6 +73,7 @@ export interface ApiEvent {
     title: string;
     description: string;
     image: string;
+    meeting_link?: string;
     start_date: string;
     end_date: string;
     location: string;
@@ -141,6 +147,7 @@ export const mapApiEventToRegistered = (event: ApiEvent): RegisteredEvent => {
         description: event.description,
         attendees,
         publicUrl: `/events/${event.id}`,
+        meetingLink: event.meeting_link,
         ticketPrice: event.ticket_price,
         requireApproval: event.require_approval,
         capacity: event.capacity,
@@ -547,8 +554,7 @@ export const HostInitials: React.FC<{ name?: string }> = ({ name }) => {
 const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }: any) => (
     <Link
         to={`/dashboard/mentors/${mentor.id}`}
-        className="rounded-2xl lg:p-5 p-3 flex flex-col"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
+        className="rounded-2xl lg:p-5 p-3 flex flex-col bg-[rgba(255,255,255,0.02)]"
     >
         <div className="flex items-start justify-between lg:mb-4 mb-2">
             <img
@@ -631,12 +637,187 @@ export const GuestsModal: React.FC<{ attendees: Attendee[]; onClose: () => void 
     </div>
 );
 
+// ─── Invite / share modal ───────────────────────────────────────────────────
+type InviteAction = {
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+};
+
+export const InviteFriendModal: React.FC<{
+    url: string;
+    title: string;
+    onClose: () => void;
+}> = ({ url, title, onClose }) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // clipboard not available, fail silently
+        }
+    };
+
+    const shareText = `You're invited: ${title}`;
+
+    const actions: InviteAction[] = [
+        {
+            id: 'facebook',
+            label: 'Share',
+            icon: <FaFacebookF size={17} />,
+            onClick: () =>
+                window.open(
+                    `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+                    '_blank',
+                    'noopener,noreferrer'
+                ),
+        },
+        {
+            id: 'x',
+            label: 'Post on X',
+            icon: <FaXTwitter size={17} />,
+            onClick: () =>
+                window.open(
+                    `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(shareText)}`,
+                    '_blank',
+                    'noopener,noreferrer'
+                ),
+        },
+        {
+            id: 'linkedin',
+            label: 'Post',
+            icon: <FaLinkedinIn size={17} />,
+            onClick: () =>
+                window.open(
+                    `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
+                    '_blank',
+                    'noopener,noreferrer'
+                ),
+        },
+        {
+            id: 'email',
+            label: 'Email',
+            icon: <FiMail size={17} />,
+            onClick: () => {
+                window.location.href = `mailto:?subject=${encodeURIComponent(
+                    shareText
+                )}&body=${encodeURIComponent(url)}`;
+            },
+        },
+        {
+            id: 'native-share',
+            label: 'Share',
+            icon: <FiShare2 size={17} />,
+            onClick: async () => {
+                if (navigator.share) {
+                    try {
+                        await navigator.share({ title: shareText, url });
+                    } catch {
+                        // user cancelled the native share sheet, ignore
+                    }
+                } else {
+                    handleCopy();
+                }
+            },
+        },
+        {
+            id: 'text',
+            label: 'Text',
+            icon: <FiMessageCircle size={17} />,
+            onClick: () => {
+                window.location.href = `sms:?body=${encodeURIComponent(`${shareText} ${url}`)}`;
+            },
+        },
+    ];
+
+    return (
+        <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+                style={{
+                    background: 'rgba(10,13,9,0.75)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)',
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-start justify-between mb-4">
+                    <div
+                        className="w-12 h-12 rounded-full flex items-center justify-center"
+                        style={{ background: 'rgba(255,255,255,0.06)' }}
+                    >
+                        <FiShare2 className="text-white/70" size={20} />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-2 rounded-lg hover:bg-white/5 text-white/50 hover:text-white shrink-0"
+                    >
+                        <FiX size={18} />
+                    </button>
+                </div>
+
+                <h3 className="text-white text-xl font-black mb-1">Invite a Friend</h3>
+                <p className="text-white/40 text-xs mb-6 leading-relaxed">
+                    It's always more fun with friends. We'll let you know when your friends accept your invite.
+                </p>
+
+                <div className="grid grid-cols-3 gap-y-5 mb-6">
+                    {actions.map((a) => (
+                        <button
+                            key={a.id}
+                            type="button"
+                            onClick={a.onClick}
+                            className="flex flex-col items-center gap-2 cursor-pointer"
+                        >
+                            <div
+                                className="w-12 h-12 rounded-full flex items-center justify-center text-white/80 hover:text-white transition-colors"
+                                style={{ background: 'rgba(255,255,255,0.08)' }}
+                            >
+                                {a.icon}
+                            </div>
+                            <span className="text-white/70 text-xs">{a.label}</span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="h-px w-full mb-5" style={{ background: 'rgba(255,255,255,0.08)' }} />
+
+                <p className="text-white text-sm font-bold mb-2">Share the link:</p>
+                <div
+                    className="flex items-center justify-between gap-3 rounded-xl px-4 py-3"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                    <span className="text-white/60 text-xs truncate">{url}</span>
+                    <button
+                        type="button"
+                        onClick={handleCopy}
+                        className="text-xs font-semibold shrink-0 px-3 py-1.5 rounded-lg text-black cursor-pointer transition-colors"
+                        style={{ background: copied ? 'rgba(255,255,255,0.6)' : '#a6ff00' }}
+                    >
+                        {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const EventDrawerContent: React.FC<{
     event: RegisteredEvent | null;
     onClose: () => void;
     onOpenGuests: (event: RegisteredEvent) => void;
 }> = ({ event, onClose, onOpenGuests }) => {
     const [copied, setCopied] = useState(false);
+    const [showInvite, setShowInvite] = useState(false);
 
     if (!event) return null;
 
@@ -661,7 +842,7 @@ const EventDrawerContent: React.FC<{
                         className="px-3 py-1.5 text-xs"
                     >
                         <FiCopy size={13} />
-                        {copied ? 'Copied!' : 'Copy Link'}
+                        {copied ? 'Copied!' : 'Share Event Page'}
                     </Button>
                     <a
                         href={event.publicUrl}
@@ -670,11 +851,10 @@ const EventDrawerContent: React.FC<{
                         onClick={(e) => e.stopPropagation()}
                         className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors bg-[#010C06] text-white border border-white/10 hover:bg-[#0a140c]"
                     >
-                        Event Page
+                        View Event Page
                         <FiExternalLink size={13} />
                     </a>
                 </div>
-
                 <button
                     type="button"
                     aria-label="close sidebar"
@@ -800,38 +980,62 @@ const EventDrawerContent: React.FC<{
                     </div>
                 )}
 
-                <div
-                    className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 mb-8"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(205,220,57,.08)' }}
-                >
-                    <span className="text-white/40 text-xs truncate">{window.location.origin}{event.publicUrl}</span>
-                    <button
-                        onClick={handleCopyLink}
-                        className="text-xs font-semibold shrink-0 cursor-pointer text-[#a6ff00]"
-                    >
-                        {copied ? 'Copied!' : 'Copy'}
-                    </button>
-                </div>
+                {event.meetingLink && (
+                    <div className="mb-8">
+                        <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">Meeting Link</h3>
+                        <a
+                            href={event.meetingLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center justify-between gap-3 rounded-md px-4 py-3 group"
+                            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(205,220,57,.08)' }}
+                        >
+                            <div className="flex items-center gap-2.5 text-sm min-w-0">
+                                <FiExternalLink size={15} className="text-white/40 shrink-0" />
+                                <span className="truncate text-white/70 group-hover:text-white transition-colors">
+                                    {event.meetingLink}
+                                </span>
+                            </div>
+                            <span className="text-xs font-semibold shrink-0" style={{ color: '#a6ff00' }}>
+                                Join
+                            </span>
+                        </a>
+                    </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                        variant="green"
-                        className="w-full py-3.5 text-sm"
-                    >
-                        {event.actionText}
-                    </Button>
                     <a
                         href={event.publicUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="w-full flex items-center justify-center gap-1.5 py-3.5 rounded-lg font-semibold text-sm transition-colors"
-                        style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(205,220,57,.15)' }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center w-full justify-center gap-1.5 py-2.5 rounded-md text-xs font-semibold transition-colors bg-white/10 text-white"
                     >
                         View Event Page
                         <FiExternalLink size={13} />
                     </a>
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowInvite(true);
+                        }}
+                        className="w-full bg-white text-black flex items-center justify-center gap-1.5 py-2.5 rounded-md font-semibold text-xs transition-colors cursor-pointer"
+                    >
+                        <FiShare2 size={13} />
+                        Invite a Friend
+                    </button>
                 </div>
             </div>
+
+            {showInvite && (
+                <InviteFriendModal
+                    url={window.location.origin + event.publicUrl}
+                    title={event.title}
+                    onClose={() => setShowInvite(false)}
+                />
+            )}
         </div>
     );
 };
@@ -853,7 +1057,6 @@ const Overview: React.FC = () => {
         : mineEvents?.data?.results ?? [];
 
     const myEvents = rawEvents.map(mapApiEventToRegistered);
-    console.log('Seleceted Event', rawEvents)
 
     const filtered = myEvents.filter((e) => e.status === tab);
 

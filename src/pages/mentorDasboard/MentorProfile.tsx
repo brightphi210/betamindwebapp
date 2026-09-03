@@ -505,6 +505,12 @@ const MentorProfile = () => {
         const idx = stepOrder.indexOf(step);
         if (idx > 0) setStep(stepOrder[idx - 1]);
     };
+    // Used in view (non-editing) mode, where there's no tab bar to jump
+    // between sections — cycles forward, wrapping back to the first step.
+    const goToNextStep = () => {
+        const idx = stepOrder.indexOf(step);
+        setStep(stepOrder[(idx + 1) % stepOrder.length]);
+    };
 
     const saveProfile = async () => {
         if (!accountComplete || !mentorProfile) return;
@@ -577,13 +583,6 @@ const MentorProfile = () => {
         }
     };
 
-    const stepIndex = stepOrder.indexOf(step);
-    const stepLabels: Record<Step, string> = {
-        professional: "Professional Info",
-        social: "Category & Socials",
-        availability: "Availability",
-        account: "Account Details",
-    };
 
     const loading = mentorLoading || userLoading;
     const isSaving = isPending || isPreparingSave;
@@ -645,25 +644,7 @@ const MentorProfile = () => {
     return (
         <div className="min-h-screen w-full text-white" >
             <LoadingOverlay visible={isSaving} />
-            {/* max-w-4xl matches the Explore page container width */}
             <div className="mx-auto max-w-4xl ">
-                <div className="mb-10 flex items-center gap-6 flex-wrap" style={{ borderBottom: cardBorder }}>
-                    {stepOrder.map((s) => (
-                        <button
-                            key={s}
-                            type="button"
-                            onClick={() => (!isEditing ? setStep(s) : undefined)}
-                            disabled={isEditing && s !== step}
-                            className={`border-b-2 pb-3 text-xs font-semibold transition-colors ${step === s ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
-                                } ${!isEditing ? "cursor-pointer hover:text-white" : ""} ${isEditing && s !== step ? "cursor-not-allowed opacity-40" : ""
-                                }`}
-                        >
-                            {stepLabels[s]}
-                        </button>
-                    ))}
-                </div>
-
-                {/* ---------------- Professional Info ---------------- */}
                 {step === "professional" && (
                     <div>
                         <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Your Profile</h2>
@@ -672,14 +653,14 @@ const MentorProfile = () => {
                                 <p className="mb-2 text-sm font-semibold text-white">Cover Photo</p>
                                 <div className="relative mb-14 sm:mb-16">
                                     <div
-                                        className="flex h-32 w-full items-center justify-center overflow-hidden rounded-2xl sm:h-44"
+                                        className="flex lg:h-40 h-20 w-full items-center justify-center overflow-hidden rounded-xl"
                                         style={{ background: cardBg, border: cardBorder }}
                                     >
                                         {(isEditing ? draft.banner : mentorProfile?.cover_images) ? (
                                             <img
                                                 src={(isEditing ? draft.banner : mentorProfile?.cover_images) as string}
                                                 alt="Cover"
-                                                className="h-full w-full object-cover"
+                                                className="h-full w-full object-cover aspect-video"
                                             />
                                         ) : (
                                             <FiImage size={28} className="text-white/20" />
@@ -709,18 +690,13 @@ const MentorProfile = () => {
 
                                     <div className="absolute -bottom-10 left-4 sm:-bottom-12 sm:left-6">
                                         <div
-                                            className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl sm:h-24 sm:w-24"
-                                            style={{
-                                                background: cardBg,
-                                                border: "3px solid #05080340",
-                                                boxShadow: "0 0 0 2px rgba(166,255,0,.35)",
-                                            }}
+                                            className="flex bg-white p-1 lg:h-20 lg:w-20 h-16 w-16 items-center justify-center overflow-hidden rounded-xl"
                                         >
                                             {userProfile?.avatar ? (
                                                 <img
                                                     src={userProfile.avatar}
                                                     alt="Profile"
-                                                    className="h-full w-full object-cover"
+                                                    className="h-full w-full object-cover rounded-xl"
                                                 />
                                             ) : (
                                                 <FiUser size={26} className="text-white/20" />
@@ -1061,17 +1037,20 @@ const MentorProfile = () => {
                             )}
                         </>
                     ) : (
-                        <>
-                            <span className="text-xs text-white/30">
-                                Step {stepIndex + 1} of {stepOrder.length} — {stepLabels[step]}
-                            </span>
-                            <Button variant="green" onClick={startEditing}>
+                        <div className="flex flex-wrap gap-3 justify-between">
+                            <Button variant="white" onClick={goToNextStep}>
                                 <span className="flex items-center justify-center gap-2">
-                                    <FiEdit2 size={14} />
-                                    Edit Profile
+                                    Next
+                                    <FiArrowRight size={15} />
                                 </span>
                             </Button>
-                        </>
+                            <Button variant="green" onClick={startEditing}>
+                                <span className="flex items-center justify-center gap-2">
+                                    Edit Profile
+                                    <FiEdit2 size={14} />
+                                </span>
+                            </Button>
+                        </div>
                     )}
                 </div>
             </div>

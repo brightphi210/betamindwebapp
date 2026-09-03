@@ -1,5 +1,4 @@
 import {
-    FiArrowDownLeft,
     FiArrowUpRight,
     FiBookOpen,
     FiCalendar,
@@ -12,61 +11,52 @@ import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import { useGetMentorStatistics } from "../../hooks/queries/allQueriess";
 import { type MentorDashboardContext } from "./MentorDashboardLayout";
 
-// TODO: replace with the real wallet/transactions hook once it exists — this
-// mirrors the same mock shape used in MentorWallet.tsx so the two stay
-// consistent until a shared hook is wired up.
-type Transaction = {
+// TODO: replace with the real sessions hook once it exists.
+type BookedSession = {
     id: string;
-    type: "payout" | "earning";
-    label: string;
-    amount: number;
-    status: "completed" | "pending" | "failed";
+    mentee: string;
+    topic: string;
     date: string;
+    time: string;
+    status: "upcoming" | "completed" | "cancelled";
 };
 
-const MOCK_TRANSACTIONS: Transaction[] = [
-    { id: "t1", type: "earning", label: "Mentorship session — Ada O.", amount: 15000, status: "completed", date: "Jul 18, 2026" },
-    { id: "t2", type: "payout", label: "Withdrawal to GTBank ••1234", amount: -50000, status: "completed", date: "Jul 12, 2026" },
-    { id: "t3", type: "earning", label: "\"System Design Basics\" course sale", amount: 24000, status: "completed", date: "Jul 10, 2026" },
-    { id: "t4", type: "payout", label: "Withdrawal to GTBank ••1234", amount: -20000, status: "pending", date: "Jul 6, 2026" },
+const MOCK_SESSIONS: BookedSession[] = [
+    { id: "s1", mentee: "Ada O.", topic: "Resume Review", date: "Aug 22, 2026", time: "3:00 PM", status: "upcoming" },
+    { id: "s2", mentee: "Tunde A.", topic: "System Design Mock", date: "Aug 20, 2026", time: "11:00 AM", status: "upcoming" },
+    { id: "s3", mentee: "Chinwe E.", topic: "Career Strategy", date: "Aug 15, 2026", time: "1:30 PM", status: "completed" },
+    { id: "s4", mentee: "Bola S.", topic: "1:1 Mentorship", date: "Aug 10, 2026", time: "9:00 AM", status: "cancelled" },
 ];
 
-const STATUS_STYLES: Record<Transaction["status"], { color: string; bg: string; label: string }> = {
-    completed: { color: "#a6ff00", bg: "rgba(166,255,0,0.1)", label: "Completed" },
-    pending: { color: "#fbbf24", bg: "rgba(251,191,36,0.1)", label: "Pending" },
-    failed: { color: "#f87171", bg: "rgba(248,113,113,0.1)", label: "Failed" },
+const SESSION_STATUS_STYLES: Record<BookedSession["status"], { color: string; bg: string; label: string }> = {
+    upcoming: { color: "#a6ff00", bg: "rgba(166,255,0,0.1)", label: "Upcoming" },
+    completed: { color: "rgba(255,255,255,0.6)", bg: "rgba(255,255,255,0.06)", label: "Completed" },
+    cancelled: { color: "#f87171", bg: "rgba(248,113,113,0.1)", label: "Cancelled" },
 };
 
-const TransactionRow: React.FC<{ tx: Transaction }> = ({ tx }) => {
-    const isPayout = tx.type === "payout";
-    const statusStyle = STATUS_STYLES[tx.status];
+const SessionRow: React.FC<{ session: BookedSession }> = ({ session }) => {
+    const statusStyle = SESSION_STATUS_STYLES[session.status];
     return (
-        <div className="flex items-center gap-3 rounded-xl p-4" style={{ background: cardBg, border: cardBorder }}>
+        <div className="flex items-center gap-3 rounded-xl p-4 bg-white/5">
             <div
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-                style={{ background: isPayout ? "rgba(248,113,113,0.05)" : "rgba(166,255,0,0.05)" }}
+                className="flex h-9 w-9 shrink-0 bg-white/10 text-white items-center justify-center rounded-lg text-xs font-bold"
             >
-                {isPayout ? (
-                    <FiArrowUpRight size={15} className="text-red-600" />
-                ) : (
-                    <FiArrowDownLeft size={15} className="text-[#a6ff00]" />
-                )}
+                {session.mentee.charAt(0)}
             </div>
             <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-white">{tx.label}</p>
-                <p className="text-xs text-white/40">{tx.date}</p>
-            </div>
-            <div className="shrink-0 text-right">
-                <p className="text-sm font-bold">
-                    {isPayout ? "-" : "+"}₦{Math.abs(tx.amount).toLocaleString()}
+                <p className="truncate text-sm font-medium text-white">
+                    {session.mentee} — {session.topic}
                 </p>
-                <span
-                    className="mt-1 inline-block rounded-full text-white/40 px-2 py-0.5 text-[10px] font-semibold"
-                    style={{ background: statusStyle.bg, color: statusStyle.color }}
-                >
-                    {statusStyle.label}
-                </span>
+                <p className="text-xs text-white/40">
+                    {session.date} · {session.time}
+                </p>
             </div>
+            <span
+                className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                style={{ background: statusStyle.bg, color: statusStyle.color }}
+            >
+                {statusStyle.label}
+            </span>
         </div>
     );
 };
@@ -80,11 +70,9 @@ const StatCard: React.FC<{
     loading?: boolean;
 }> = ({ icon, label, value, loading }) => {
     return (
-        <div className="rounded-xl p-5" style={{ background: cardBg, border: cardBorder }}>
+        <div className="rounded-xl p-5 bg-white/5">
             <div className="mb-4 flex items-center gap-2.5">
-                <div
-                    className="flex shrink-0 items-center justify-center rounded-lg text-white/30"
-                >
+                <div className="flex shrink-0 items-center justify-center rounded-lg text-white/30">
                     {icon}
                 </div>
                 <span className="text-xs font-semibold text-white/50">{label}</span>
@@ -103,9 +91,6 @@ const MentorOverview = () => {
     const { mentorStatistics, isLoading } = useGetMentorStatistics();
     const statsData = mentorStatistics?.data;
 
-    // Map the API's snake_case response onto the stat cards. All numeric fields
-    // come back as numbers except total_earnings, which is a numeric string
-    // (e.g. "0.00").
     const stats = [
         {
             key: "sessions",
@@ -156,19 +141,28 @@ const MentorOverview = () => {
 
             <div className="mt-8">
                 <div className="mb-4 flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-white">Recent Transactions</h3>
+                    <h3 className="text-sm font-bold text-white">Sessions Booked</h3>
                     <Link
-                        to="../wallet"
+                        to="../sessions"
                         className="flex items-center gap-1 text-xs font-semibold text-white/40 transition-colors hover:text-white"
                     >
-                        View Wallet
+                        View All
                         <FiArrowUpRight size={12} />
                     </Link>
                 </div>
                 <div className="flex flex-col gap-3">
-                    {MOCK_TRANSACTIONS.map((tx) => (
-                        <TransactionRow key={tx.id} tx={tx} />
-                    ))}
+                    {MOCK_SESSIONS.length === 0 ? (
+                        <div
+                            className="rounded-xl p-8 text-center text-sm text-white/40"
+                            style={{ background: cardBg, border: cardBorder }}
+                        >
+                            No sessions booked yet.
+                        </div>
+                    ) : (
+                        MOCK_SESSIONS.map((session) => (
+                            <SessionRow key={session.id} session={session} />
+                        ))
+                    )}
                 </div>
             </div>
         </div>

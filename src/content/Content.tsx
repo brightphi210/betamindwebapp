@@ -5,7 +5,6 @@ import MentorDashboardLayout from '../pages/mentorDasboard/MentorDashboardLayout
 import MentorOverview from '../pages/mentorDasboard/MentorOverview'
 import MentorProducts from '../pages/mentorDasboard/MentorProducts'
 import MentorProfile from '../pages/mentorDasboard/MentorProfile'
-import MentorWallet from '../pages/mentorDasboard/MentorWallet'
 import NotFound from '../pages/NotFound'
 import EventCreate from '../pages/userDashboard/EventCreate'
 import Events from '../pages/userDashboard/Events'
@@ -17,6 +16,7 @@ import Overview from '../pages/userDashboard/Overview'
 import Product from '../pages/userDashboard/Product'
 import SearchPage from '../pages/userDashboard/Search'
 import SettingsPage from '../pages/userDashboard/Settings'
+import Wallet from '../pages/userDashboard/Wallet'
 
 const Content = () => {
     return (
@@ -28,6 +28,7 @@ const Content = () => {
                 <Route path='/dashboard/explore' element={<Explore />} />
                 <Route path="/dashboard/search" element={<SearchPage />} />
                 <Route path='/dashboard/setting' element={<SettingsPage />} />
+                <Route path='/dashboard/wallet' element={<Wallet />} />
                 <Route path='/dashboard/notifications' element={<Notifications />} />
                 <Route path='/dashboard/events/create' element={<EventCreate />} />
                 <Route path='/dashboard/mentor/success' element={<MentorOnboardingSuccess />} />
@@ -38,7 +39,6 @@ const Content = () => {
                 <Route path="dashboard/mentor/product/create" element={<MentorCreateProduct />} />
                 <Route path="/dashboard/mentor" element={<MentorDashboardLayout />}>
                     <Route path="overview" element={<MentorOverview />} />
-                    <Route path="wallet" element={<MentorWallet />} />
                     <Route path="products" element={<MentorProducts />} />
                     <Route path="bookings" element={<MentorBookings />} />
                     <Route path="profile" element={<MentorProfile />} />

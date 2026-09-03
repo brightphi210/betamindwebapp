@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { BsPerson } from 'react-icons/bs';
+import { BsEyeFill } from 'react-icons/bs';
 import {
     FiBell,
     FiCalendar,
     FiCompass,
+    FiCreditCard,
     FiHome,
     FiLogOut,
     FiPlus,
-    FiSettings,
-    FiUser,
+    FiUser
 } from 'react-icons/fi';
 import { HiMenuAlt3 } from 'react-icons/hi';
-import { MdClose } from 'react-icons/md';
+import { MdClose, MdSettings } from 'react-icons/md';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import avatar from '../assets/Avatar.png';
 import betamindLogo from '../assets/betamindlogo.png';
@@ -22,6 +22,7 @@ const NAV_ITEMS = [
     { id: 'home', name: 'Home', icon: <FiHome className="w-4 h-4" />, path: '/dashboard/overview' },
     { id: 'events', name: 'Events', icon: <FiCalendar className="w-4 h-4" />, path: '/dashboard/events' },
     { id: 'explore', name: 'Explore', icon: <FiCompass className="w-4 h-4" />, path: '/dashboard/explore' },
+    { id: 'wallet', name: 'Wallet', icon: <FiCreditCard className="w-4 h-4" />, path: '/dashboard/wallet' },
 ];
 
 const DashNavbar = () => {
@@ -44,12 +45,22 @@ const DashNavbar = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Close the mobile menu and profile dropdown whenever the route changes,
-    // regardless of which link was clicked (or back/forward navigation).
     useEffect(() => {
         setShowMobileMenu(false);
         setShowProfileMenu(false);
     }, [location.pathname]);
+
+    // Lock body scroll while the drawer is open
+    useEffect(() => {
+        if (showMobileMenu) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [showMobileMenu]);
 
 
     const navigate = useNavigate()
@@ -184,19 +195,15 @@ const DashNavbar = () => {
 
                                 {/* Dropdown panel */}
                                 <div
-                                    className={`absolute right-0 top-full mt-3 w-64 rounded-2xl overflow-hidden origin-top-right transition-all duration-200 ease-out ${showProfileMenu
+                                    className={`absolute bg-neutral-900 right-0 top-full mt-3 w-64 rounded-2xl overflow-hidden origin-top-right transition-all duration-200 ease-out ${showProfileMenu
                                         ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
                                         : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
                                         }`}
                                     style={{
-                                        background: 'rgba(12, 16, 9, 0.95)',
                                         backdropFilter: 'blur(24px) saturate(150%)',
                                         WebkitBackdropFilter: 'blur(24px) saturate(150%)',
-                                        border: '1px solid rgba(166,255,0,0.1)',
-                                        boxShadow: '0 20px 48px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04)',
                                     }}
                                 >
-                                    {/* top glow line, matches navbar */}
                                     <div
                                         className="h-px w-full"
                                         style={{ background: 'linear-gradient(90deg, transparent, rgba(166,255,0,0.3), transparent)' }}
@@ -215,23 +222,22 @@ const DashNavbar = () => {
                                         }}
                                     >
                                         <div
-                                            className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0"
+                                            className="w-10 h-10 p-1 rounded-full overflow-hidden flex items-center justify-center shrink-0"
                                             style={{
                                                 background: 'rgba(255,255,255,0.08)',
-                                                border: '1px solid rgba(166,255,0,0.25)',
                                             }}
                                         >
                                             {userProfile?.avatar ? (
-                                                <img src={userProfile.avatar} alt="avatar" className="w-full h-full object-cover" />
+                                                <img src={userProfile.avatar} alt="avatar" className="w-full rounded-full h-full object-cover" />
                                             ) : (
-                                                <img src={avatar} alt="avatar" className="w-full object-cover" />
+                                                <img src={avatar} alt="avatar" className="w-full rounded-full h-full object-cover" />
                                             )}
                                         </div>
                                         <div className="min-w-0">
                                             <p className="text-white text-base font-semibold leading-tight truncate">
                                                 {userProfile?.first_name} {userProfile?.last_name}
                                             </p>
-                                            <p className="text-xs leading-tight truncate mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                                            <p className="text-xs leading-tight font-semibold truncate mt-0.5 text-neutral-500">
                                                 {userProfile?.email}
                                             </p>
                                         </div>
@@ -240,31 +246,34 @@ const DashNavbar = () => {
                                     <div className="h-px w-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
 
                                     {/* Menu items */}
-                                    <div className="py-2">
-                                        <Link
-                                            to="/dashboard/profile"
+                                    <div className="py-1">
+                                        <a
+                                            href="/profile-public"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
                                             onClick={() => setShowProfileMenu(false)}
-                                            className="flex items-center gap-3 px-5 py-2 text-xs no-underline transition-colors"
+                                            className="flex items-center gap-3 px-5 py-3 text-xs no-underline transition-colors"
                                             style={{ color: 'rgba(255,255,255,0.75)' }}
                                             onMouseEnter={(e) => {
-                                                (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
-                                                (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
+                                                e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                                                e.currentTarget.style.color = '#fff';
                                             }}
                                             onMouseLeave={(e) => {
-                                                (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
-                                                (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
+                                                e.currentTarget.style.background = 'transparent';
+                                                e.currentTarget.style.color = 'rgba(255,255,255,0.75)';
                                             }}
                                         >
-                                            <BsPerson className="w-4 h-4" style={{ color: '#a6ff00' }} />
-                                            Profile
-                                        </Link>
+                                            <BsEyeFill className="w-4 h-4" />
+                                            Public Profile
+                                        </a>
+
                                     </div>
 
-                                    <div className="py-2">
+                                    <div className="py-1">
                                         <Link
                                             to="/dashboard/setting"
                                             onClick={() => setShowProfileMenu(false)}
-                                            className="flex items-center gap-3 px-5 py-2 text-xs no-underline transition-colors"
+                                            className="flex items-center gap-3 px-5 py-3 text-xs no-underline transition-colors"
                                             style={{ color: 'rgba(255,255,255,0.75)' }}
                                             onMouseEnter={(e) => {
                                                 (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
@@ -275,7 +284,7 @@ const DashNavbar = () => {
                                                 (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
                                             }}
                                         >
-                                            <FiSettings className="w-4 h-4" style={{ color: '#a6ff00' }} />
+                                            <MdSettings className="w-5 h-5" />
                                             Settings
                                         </Link>
                                     </div>
@@ -288,8 +297,7 @@ const DashNavbar = () => {
                                                 localStorage.removeItem('betamindToken')
                                                 navigate('/login')
                                             }}
-                                            className="w-full flex items-center gap-3 px-5 py-2 text-xs text-left transition-colors"
-                                            style={{ color: 'rgba(255,120,120,0.85)', background: 'transparent' }}
+                                            className="w-full flex items-center gap-3 px-5 py-3 text-white text-xs text-left transition-colors"
                                             onMouseEnter={(e) => {
                                                 (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)';
                                             }}
@@ -319,26 +327,40 @@ const DashNavbar = () => {
                 </div>
             </nav>
 
-
+            {/* Blurred backdrop overlay, sits below the navbar so the logo/bell/avatar stay visible and clickable */}
             <div
-                className={`lg:hidden fixed top-16 left-0 right-0 z-20 overflow-hidden transition-all duration-300 ease-in-out ${showMobileMenu ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                onClick={() => setShowMobileMenu(false)}
+                aria-hidden="true"
+                className={`lg:hidden fixed top-16 left-0 right-0 bottom-0 z-40 transition-opacity duration-300 ease-in-out ${showMobileMenu ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
                     }`}
                 style={{
-                    background: 'rgba(6, 10, 4, 0.85)',
+                    background: 'rgba(0,0,0,0.5)',
+                    backdropFilter: 'blur(6px)',
+                    WebkitBackdropFilter: 'blur(6px)',
+                }}
+            />
+
+            {/* Left-sliding drawer, starts below the fixed navbar so the top bar is never covered */}
+            <div
+                role="dialog"
+                aria-modal="true"
+                className={`lg:hidden fixed top-16 left-0 bottom-0 z-40 w-72 sm:w-80 max-w-[85vw] transition-transform duration-300 ease-in-out ${showMobileMenu ? 'translate-x-0' : '-translate-x-full'
+                    }`}
+                style={{
+                    background: 'rgba(6, 10, 4, 0.97)',
                     backdropFilter: 'blur(24px) saturate(150%)',
                     WebkitBackdropFilter: 'blur(24px) saturate(150%)',
-                    borderBottom: showMobileMenu ? '1px solid rgba(205,220,57,.2)' : '1px solid transparent',
-                    boxShadow: showMobileMenu ? '0 12px 32px rgba(0,0,0,0.5)' : 'none',
+                    boxShadow: showMobileMenu ? '12px 0 32px rgba(0,0,0,0.5)' : 'none',
                 }}
             >
+                {/* subtle side glass highlight */}
                 <div
-                    className="p-8 pt-5 transition-all duration-300 ease-in-out"
-                    style={{
-                        transform: showMobileMenu ? 'translateY(0)' : 'translateY(-8px)',
-                        opacity: showMobileMenu ? 1 : 0,
-                    }}
-                >
-                    <ul className="flex flex-col gap-6 mb-4">
+                    className="absolute top-0 right-0 bottom-0 w-px"
+                    style={{ background: 'linear-gradient(180deg, transparent, rgba(166,255,0,0.25), transparent)' }}
+                />
+
+                <div className="h-full flex flex-col p-6 pt-8 overflow-y-auto">
+                    <ul className="flex flex-col gap-6 mb-8">
                         {NAV_ITEMS.map((item) => {
                             const isActive = location.pathname === item.path;
                             return (
@@ -346,7 +368,7 @@ const DashNavbar = () => {
                                     <Link
                                         to={item.path}
                                         onClick={() => setShowMobileMenu(false)}
-                                        className="flex items-center gap-3 text-sm"
+                                        className="flex items-center gap-3 text-base text-center"
                                         style={{
                                             color: isActive ? '#a6ff00' : 'rgba(255,255,255,.6)',
                                             fontWeight: isActive ? 600 : 400,
@@ -360,13 +382,13 @@ const DashNavbar = () => {
                         })}
                     </ul>
 
-                    <div className="flex gap-3">
+                    <div className="flex flex-col gap-3 mt-auto">
 
                         {userProfile?.is_mentor ?
                             <Link
                                 to="/dashboard/mentor"
                                 onClick={() => setShowMobileMenu(false)}
-                                className="lg:hidden flex w-full justify-center items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                                className="flex w-full justify-center items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
                             >
                                 <FiUser />
                                 Mentor Profile
@@ -374,7 +396,7 @@ const DashNavbar = () => {
                             <Link
                                 to="/mentor-onboarding"
                                 onClick={() => setShowMobileMenu(false)}
-                                className="lg:hidden flex w-full items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                                className="flex w-full justify-center items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
                             >
                                 <FiPlus size={16} />
                                 Become a Mentor
