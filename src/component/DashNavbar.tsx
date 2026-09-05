@@ -18,10 +18,10 @@ import { useGetMyUserProfile } from '../hooks/queries/allQueriess';
 import LoadingOverlay from './LoadingOverlay';
 
 const NAV_ITEMS = [
-    { id: 'home', name: 'Home', icon: <FiHome className="w-4 h-4" />, path: '/dashboard/overview' },
-    { id: 'events', name: 'Events', icon: <FiCalendar className="w-4 h-4" />, path: '/dashboard/events' },
-    { id: 'explore', name: 'Explore', icon: <FiCompass className="w-4 h-4" />, path: '/dashboard/explore' },
-    { id: 'wallet', name: 'Wallet', icon: <FiCreditCard className="w-4 h-4" />, path: '/dashboard/wallet' },
+    { id: 'home', name: 'Home', icon: <FiHome className="" />, path: '/dashboard/overview' },
+    { id: 'events', name: 'Events', icon: <FiCalendar className="" />, path: '/dashboard/events' },
+    { id: 'explore', name: 'Explore', icon: <FiCompass className="" />, path: '/dashboard/explore' },
+    { id: 'wallet', name: 'Wallet', icon: <FiCreditCard className="" />, path: '/dashboard/wallet' },
 ];
 
 const DashNavbar = () => {
@@ -250,7 +250,7 @@ const DashNavbar = () => {
                                                 e.currentTarget.style.color = 'rgba(255,255,255,0.75)';
                                             }}
                                         >
-                                            <BsEyeFill className="w-4 h-4" />
+                                            <BsEyeFill className="" />
                                             Public Profile
                                         </a>
 
@@ -292,7 +292,7 @@ const DashNavbar = () => {
                                                 (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
                                             }}
                                         >
-                                            <FiLogOut className="w-4 h-4" />
+                                            <FiLogOut className="" />
                                             Sign Out
                                         </button>
                                     </div>
@@ -332,7 +332,7 @@ const DashNavbar = () => {
                                 fontWeight: isActive ? 600 : 400,
                             }}
                         >
-                            <span className="text-lg">{item.icon}</span>
+                            <span className="text-2xl">{item.icon}</span>
                             <span>{item.name}</span>
                         </Link>
                     );
@@ -345,10 +345,10 @@ const DashNavbar = () => {
                     style={{ color: '#a6ff00', fontWeight: 600 }}
                 >
                     <span
-                        className="w-8 h-8 -mt-1 rounded-full flex items-center justify-center"
+                        className="w-10 h-10 -mt-1 rounded-full flex items-center justify-center"
                         style={{ background: '#a6ff00', boxShadow: '0 0 12px rgba(166,255,0,0.4)' }}
                     >
-                        <FiPlus className="text-black" size={16} />
+                        <FiPlus className="text-black" size={20} />
                     </span>
                     Create
                 </button>
@@ -365,7 +365,7 @@ const DashNavbar = () => {
                                 fontWeight: isActive ? 600 : 400,
                             }}
                         >
-                            <span className="text-lg">{item.icon}</span>
+                            <span className="text-2xl">{item.icon}</span>
                             <span>{item.name}</span>
                         </Link>
                     );
