@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { FaFacebookF, FaLinkedinIn, FaXTwitter } from 'react-icons/fa6';
 import {
+    FiAlertTriangle,
     FiArrowRight,
     FiCalendar,
     FiClock,
@@ -341,7 +342,7 @@ export const AvatarStack: React.FC<{
                 ))}
             </div>
             <span
-                className="text-white/50 group-hover:text-white/80 transition-colors text-left"
+                className="text-white/50 lg:block hidden group-hover:text-white/80 transition-colors text-left"
                 style={{ fontSize: size <= 24 ? '0.7rem' : '0.8rem' }}
             >
                 {label}
@@ -465,72 +466,139 @@ const LatestEventHero: React.FC<{
     </div>
 );
 
-export const EventRow: React.FC<{
+const EventRow: React.FC<{
     event: RegisteredEvent;
     onView: (event: RegisteredEvent) => void;
     onOpenGuests: (event: RegisteredEvent) => void;
 }> = ({ event, onView, onOpenGuests }) => (
+    <>
+        {/* ── Mobile card (matches design) ── */}
+        <div
+            onClick={() => onView(event)}
+            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-neutral-950"
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                    <p className="text-white/50 text-sm mb-1">{event.time}</p>
+                    <h3 className="text-white font-bold text-lg break-words mb-2">
+                        {event.title}
+                    </h3>
 
+                    {event.location ? (
+                        <div className="flex items-center gap-2 text-white/40 text-sm mb-1.5">
+                            <FiMapPin size={15} />
+                            <span className="truncate">{event.location}</span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-amber-400 text-sm mb-1.5">
+                            <FiAlertTriangle size={15} />
+                            <span>Location Missing</span>
+                        </div>
+                    )}
 
-    <div
-        onClick={() => onView(event)}
-        className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 rounded-xl p-4 sm:p-5 transition-colors hover:bg-white/[0.03] cursor-pointer"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
-    >
-        <img
-            src={event.thumbnail}
-            alt={event.title}
-            className="w-full h-full aspect-square sm:w-24 sm:h-24 rounded-lg shrink-0 object-cover"
-        />
+                    <div className="flex items-center gap-2 text-white/40 text-sm">
+                        <FiUsers size={15} />
+                        <span>{event.registered > 0 ? `${event.registered} guest${event.registered === 1 ? '' : 's'}` : 'No guests'}</span>
+                    </div>
+                </div>
 
-        <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 text-white/40 text-xs sm:text-sm mb-1.5">
-                <FiClock size={13} />
-                <span>{event.time}</span>
-            </div>
-            <h3 className="text-white font-bold text-base sm:text-lg break-words mb-2">
-                {event.title}
-            </h3>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-white/40 text-xs sm:text-sm mb-2">
-                {event.location && (
-                    <span className="flex items-center gap-1.5">
-                        <FiMapPin size={13} />
-                        {event.location}
-                    </span>
-                )}
-                {event.attendees.length === 0 && (
-                    <span className="flex items-center gap-1.5">
-                        <FiUsers size={13} />
-                        {event.registered} registered
-                    </span>
-                )}
-            </div>
-            <div className="mb-2">
-                <EventMetaBadges event={event} size="sm" />
-            </div>
-            {event.attendees.length > 0 && (
-                <AvatarStack
-                    attendees={event.attendees}
-                    total={event.registered}
-                    size={24}
-                    onOpenGuests={() => onOpenGuests(event)}
+                <img
+                    src={event.thumbnail}
+                    alt={event.title}
+                    className="w-24 h-23 border-4 border-white/5 rounded-lg object-cover shrink-0"
                 />
-            )}
+            </div>
+
+            <div className="flex justify-between items-center gap-3">
+                <Button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onView(event);
+                    }}
+                    variant="white"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm mt-3"
+                >
+                    Manage Event
+                    <FiArrowRight size={14} />
+                </Button>
+
+                {event.attendees.length > 0 && (
+                    <AvatarStack
+                        attendees={event.attendees}
+                        total={event.registered}
+                        size={20}
+                        onOpenGuests={() => onOpenGuests(event)}
+                    />
+                )}
+            </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
-            <Button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onView(event);
-                }}
-                variant="white"
-                className="w-full sm:w-auto text-xs"
-            >
-                {event.actionText}
-            </Button>
+        {/* ── Desktop row (unchanged) ── */}
+        <div
+            onClick={() => onView(event)}
+            className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors hover:bg-white/[0.03] cursor-pointer"
+            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
+        >
+            <img
+                src={event.thumbnail}
+                alt={event.title}
+                className="w-24 h-24 rounded-lg shrink-0 object-cover"
+            />
+
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 text-white/40 text-sm mb-1.5">
+                    <FiClock size={13} />
+                    <span>{event.time}</span>
+                </div>
+                <h3 className="text-white font-bold text-lg break-words mb-2">
+                    {event.title}
+                </h3>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-white/40 text-sm mb-2">
+                    {event.location ? (
+                        <span className="flex items-center gap-1.5">
+                            <FiMapPin size={13} />
+                            {event.location}
+                        </span>
+                    ) : (
+                        <span className="flex items-center gap-1.5 text-amber-400">
+                            <FiAlertTriangle size={13} />
+                            Location Missing
+                        </span>
+                    )}
+                    {event.attendees.length === 0 && (
+                        <span className="flex items-center gap-1.5">
+                            <FiUsers size={13} />
+                            {event.registered} registered
+                        </span>
+                    )}
+                </div>
+                <div className="mb-2">
+                    <EventMetaBadges event={event} size="sm" />
+                </div>
+                {event.attendees.length > 0 && (
+                    <AvatarStack
+                        attendees={event.attendees}
+                        total={event.registered}
+                        size={24}
+                        onOpenGuests={() => onOpenGuests(event)}
+                    />
+                )}
+            </div>
+
+            <div className="flex gap-2 shrink-0">
+                <Button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onView(event);
+                    }}
+                    variant="white"
+                    className="text-xs"
+                >
+                    {event.actionText}
+                </Button>
+            </div>
         </div>
-    </div>
+    </>
 );
 
 export const HostInitials: React.FC<{ name?: string }> = ({ name }) => {
@@ -1158,7 +1226,7 @@ const Overview: React.FC = () => {
                         ) : filtered.length === 0 ? (
                             <EmptyState tab={tab} />
                         ) : (
-                            <div className="flex flex-col gap-10">
+                            <div className="flex flex-col lg:gap-10 gap-4">
                                 {Object.entries(grouped).map(([label, events]) => (
                                     <div key={label} className="flex flex-col sm:flex-row gap-4 sm:gap-8">
                                         <div className="sm:w-28 shrink-0 pt-1">
