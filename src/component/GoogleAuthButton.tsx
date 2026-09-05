@@ -1,5 +1,5 @@
 import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSendGoogleToken } from "../hooks/mutations/auth";
 import { useGlobalContext } from "../providers/GlobalContext";
@@ -20,13 +20,26 @@ const GoogleAuthButton = ({
   const navigate = useNavigate();
   const { mutate, isPending } = useSendGoogleToken();
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [buttonWidth, setButtonWidth] = useState<number>();
+
+  // Measure the container and keep the real Google button's width in sync,
+  // instead of trying to force it via CSS (which the library ignores after mount).
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+    const observer = new ResizeObserver(([entry]) => {
+      setButtonWidth(Math.floor(entry.contentRect.width));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const handleSuccess = (credentialResponse: CredentialResponse) => {
     if (!credentialResponse.credential) {
       addToast("Google sign-in failed. Please try again.", "error");
       return;
     }
-
-    console.log("Google credential received:", credentialResponse);
 
     setGoogleLoading(true);
 
@@ -35,11 +48,9 @@ const GoogleAuthButton = ({
       {
         onSuccess: (data: any) => {
           localStorage.setItem("betamindToken", data?.data?.tokens?.access);
-          console.log("Google token sent successfully. Response data:", data?.data?.tokens?.access);
           navigate("/dashboard/overview");
         },
         onError: (e: any) => {
-          console.error("Error sending Google token:", e?.response?.data);
           const message =
             e?.response?.data?.message ||
             e?.response?.data?.detail ||
@@ -60,17 +71,21 @@ const GoogleAuthButton = ({
   const isLoading = googleLoading || isPending;
 
   return (
-    <div className="relative w-full">
-      {/* Real Google button — invisible, stretched over the custom button to capture the click */}
-      <div className="absolute inset-0 z-10 overflow-hidden opacity-0">
-        <div className="w-full h-full [&>div]:w-full [&>div]:h-full [&_iframe]:w-full! [&_iframe]:h-full!">
+    <div ref={containerRef} className="relative w-full">
+      {/* Real Google button — invisible, sized to match the container exactly.
+          We pass an explicit width instead of relying on CSS, since Google's
+          button re-renders at a smaller fixed size right after mount and
+          ignores width:100% forced via CSS. */}
+      {buttonWidth && (
+        <div className="absolute inset-0 z-10 overflow-hidden opacity-0">
           <GoogleLogin
             onSuccess={handleSuccess}
             onError={handleError}
             useOneTap={false}
+            width={buttonWidth}
           />
         </div>
-      </div>
+      )}
 
       {/* Custom styled button — purely visual, sits behind the real button */}
       <button

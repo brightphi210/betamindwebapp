@@ -10,8 +10,7 @@ import {
     FiPlus,
     FiUser
 } from 'react-icons/fi';
-import { HiMenuAlt3 } from 'react-icons/hi';
-import { MdClose, MdSettings } from 'react-icons/md';
+import { MdSettings } from 'react-icons/md';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import avatar from '../assets/Avatar.png';
 import betamindLogo from '../assets/betamindlogo.png';
@@ -27,8 +26,8 @@ const NAV_ITEMS = [
 
 const DashNavbar = () => {
     const location = useLocation();
-    const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
+    const [showQuickActions, setShowQuickActions] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
 
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
@@ -46,21 +45,9 @@ const DashNavbar = () => {
     }, []);
 
     useEffect(() => {
-        setShowMobileMenu(false);
         setShowProfileMenu(false);
+        setShowQuickActions(false);
     }, [location.pathname]);
-
-    // Lock body scroll while the drawer is open
-    useEffect(() => {
-        if (showMobileMenu) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = '';
-        }
-        return () => {
-            document.body.style.overflow = '';
-        };
-    }, [showMobileMenu]);
 
 
     const navigate = useNavigate()
@@ -311,111 +298,148 @@ const DashNavbar = () => {
                                     </div>
                                 </div>
                             </div>
-
-                            <button
-                                className="lg:hidden rounded-lg transition-colors text-white/60 hover:text-white"
-                                onClick={() => setShowMobileMenu((prev) => !prev)}
-                                title={showMobileMenu ? "Close menu" : "Menu"}
-                                aria-expanded={showMobileMenu}
-                            >
-                                <span className="text-3xl inline-block transition-all duration-300">
-                                    {showMobileMenu ? <MdClose /> : <HiMenuAlt3 />}
-                                </span>
-                            </button>
                         </div>
                     </div>
                 </div>
             </nav>
 
-            {/* Blurred backdrop overlay, sits below the navbar so the logo/bell/avatar stay visible and clickable */}
-            <div
-                onClick={() => setShowMobileMenu(false)}
-                aria-hidden="true"
-                className={`lg:hidden fixed top-16 left-0 right-0 bottom-0 z-40 transition-opacity duration-300 ease-in-out ${showMobileMenu ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-                    }`}
+            {/* Mobile bottom tab bar — replaces the old side drawer */}
+            <nav
+                className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch"
                 style={{
-                    background: 'rgba(0,0,0,0.5)',
-                    backdropFilter: 'blur(6px)',
-                    WebkitBackdropFilter: 'blur(6px)',
-                }}
-            />
-
-            {/* Left-sliding drawer, starts below the fixed navbar so the top bar is never covered */}
-            <div
-                role="dialog"
-                aria-modal="true"
-                className={`lg:hidden fixed top-16 left-0 bottom-0 z-40 w-72 sm:w-80 max-w-[85vw] transition-transform duration-300 ease-in-out ${showMobileMenu ? 'translate-x-0' : '-translate-x-full'
-                    }`}
-                style={{
-                    background: 'rgba(6, 10, 4, 0.97)',
-                    backdropFilter: 'blur(24px) saturate(150%)',
-                    WebkitBackdropFilter: 'blur(24px) saturate(150%)',
-                    boxShadow: showMobileMenu ? '12px 0 32px rgba(0,0,0,0.5)' : 'none',
+                    background: 'rgba(6, 10, 4, 0.95)',
+                    backdropFilter: 'blur(20px) saturate(150%)',
+                    WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+                    boxShadow: '0 -8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
+                    paddingBottom: 'env(safe-area-inset-bottom)',
                 }}
             >
-                {/* subtle side glass highlight */}
+                {/* subtle top glass highlight */}
                 <div
-                    className="absolute top-0 right-0 bottom-0 w-px"
-                    style={{ background: 'linear-gradient(180deg, transparent, rgba(166,255,0,0.25), transparent)' }}
+                    className="absolute top-0 left-0 right-0 h-px"
+                    style={{ background: 'linear-gradient(90deg, transparent, rgba(166,255,0,0.25), transparent)' }}
                 />
 
-                <div className="h-full flex flex-col p-6 pt-8 overflow-y-auto">
-                    <ul className="flex flex-col gap-6 mb-8">
-                        {NAV_ITEMS.map((item) => {
-                            const isActive = location.pathname === item.path;
-                            return (
-                                <li key={item.id}>
-                                    <Link
-                                        to={item.path}
-                                        onClick={() => setShowMobileMenu(false)}
-                                        className="flex items-center gap-3 text-base text-center"
-                                        style={{
-                                            color: isActive ? '#a6ff00' : 'rgba(255,255,255,.6)',
-                                            fontWeight: isActive ? 600 : 400,
-                                        }}
-                                    >
-                                        {item.icon}
-                                        {item.name}
-                                    </Link>
-                                </li>
-                            );
-                        })}
-                    </ul>
+                {NAV_ITEMS.slice(0, 2).map((item) => {
+                    const isActive = location.pathname === item.path;
+                    return (
+                        <Link
+                            key={item.id}
+                            to={item.path}
+                            className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] transition-colors duration-200"
+                            style={{
+                                color: isActive ? '#a6ff00' : 'rgba(255,255,255,.55)',
+                                fontWeight: isActive ? 600 : 400,
+                            }}
+                        >
+                            <span className="text-lg">{item.icon}</span>
+                            <span>{item.name}</span>
+                        </Link>
+                    );
+                })}
 
-                    <div className="flex flex-col gap-3 mt-auto">
+                {/* Plus — raised action in the middle slot, opens the quick-actions dialog */}
+                <button
+                    onClick={() => setShowQuickActions(true)}
+                    className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[10px]"
+                    style={{ color: '#a6ff00', fontWeight: 600 }}
+                >
+                    <span
+                        className="w-8 h-8 -mt-1 rounded-full flex items-center justify-center"
+                        style={{ background: '#a6ff00', boxShadow: '0 0 12px rgba(166,255,0,0.4)' }}
+                    >
+                        <FiPlus className="text-black" size={16} />
+                    </span>
+                    Create
+                </button>
 
-                        {userProfile?.is_mentor ?
+                {NAV_ITEMS.slice(2).map((item) => {
+                    const isActive = location.pathname === item.path;
+                    return (
+                        <Link
+                            key={item.id}
+                            to={item.path}
+                            className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] transition-colors duration-200"
+                            style={{
+                                color: isActive ? '#a6ff00' : 'rgba(255,255,255,.55)',
+                                fontWeight: isActive ? 600 : 400,
+                            }}
+                        >
+                            <span className="text-lg">{item.icon}</span>
+                            <span>{item.name}</span>
+                        </Link>
+                    );
+                })}
+            </nav>
+
+            {/* Quick actions dialog, opened from the middle Plus tab */}
+            {showQuickActions && (
+                <>
+                    <div
+                        onClick={() => setShowQuickActions(false)}
+                        aria-hidden="true"
+                        className="lg:hidden fixed inset-0 z-40"
+                        style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+                    />
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        className="lg:hidden fixed left-0 right-0 bottom-0 z-50 rounded-t-3xl overflow-hidden"
+                        style={{
+                            background: 'rgba(10, 14, 8, 0.98)',
+                            backdropFilter: 'blur(24px) saturate(150%)',
+                            WebkitBackdropFilter: 'blur(24px) saturate(150%)',
+                            boxShadow: '0 -12px 40px rgba(0,0,0,0.5)',
+                            paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
+                        }}
+                    >
+                        <div
+                            className="h-px w-full"
+                            style={{ background: 'linear-gradient(90deg, transparent, rgba(166,255,0,0.3), transparent)' }}
+                        />
+
+                        <div className="flex justify-center pt-3">
+                            <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
+                        </div>
+
+                        <div className="px-5 pt-4 pb-2">
+                            <p className="text-white text-center text-sm font-semibold">Quick Actions</p>
+                        </div>
+
+                        <div className="flex flex-col gap-2.5 px-5 pb-5 ">
                             <Link
-                                to="/dashboard/mentor"
-                                onClick={() => setShowMobileMenu(false)}
-                                className="flex w-full justify-center items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
-                            >
-                                <FiUser />
-                                Mentor Profile
-                            </Link> :
-                            <Link
-                                to="/mentor-onboarding"
-                                onClick={() => setShowMobileMenu(false)}
-                                className="flex w-full justify-center items-center bg-white gap-1.5 px-3 py-3 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                                to="/dashboard/events/create"
+                                onClick={() => setShowQuickActions(false)}
+                                className="flex items-center justify-center gap-2 w-full py-3 rounded-md text-sm font-semibold text-black"
+                                style={{ background: '#a6ff00' }}
                             >
                                 <FiPlus size={16} />
-                                Become a Mentor
+                                Create Event
                             </Link>
-                        }
 
-                        <Link
-                            to="/dashboard/events/create"
-                            onClick={() => setShowMobileMenu(false)}
-                            className="flex items-center justify-center gap-1.5 w-full px-4 py-3 rounded-md text-xs font-semibold text-black"
-                            style={{ background: '#a6ff00' }}
-                        >
-                            <FiPlus size={16} />
-                            Create Event
-                        </Link>
+                            {userProfile?.is_mentor ? (
+                                <Link
+                                    to="/dashboard/mentor"
+                                    onClick={() => setShowQuickActions(false)}
+                                    className="flex items-center justify-center bg-white text-black gap-2 w-full py-3.5 rounded-xl text-sm font-semibold"
+                                >
+                                    <FiUser size={16} />
+                                    View Mentor Profile
+                                </Link>
+                            ) : (
+                                <Link
+                                    to="/mentor-onboarding"
+                                    onClick={() => setShowQuickActions(false)}
+                                    className="flex items-center justify-center bg-white text-black gap-2 w-full py-3 rounded-md text-sm font-semibold"
+                                >
+                                    <FiUser size={16} />
+                                    Become a Mentor
+                                </Link>
+                            )}
+                        </div>
                     </div>
-
-                </div>
-            </div>
+                </>
+            )}
 
             <style>{`
         input::placeholder {
