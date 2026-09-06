@@ -422,12 +422,13 @@ const SearchPage: React.FC = () => {
                     </section>
                 )}
 
-                {/* Events — same card grid as the Explore page (2 per row on
-                    mobile, up to 4 on desktop) for a consistent look */}
+                {/* Events — same card as the Explore page. EventCard renders a
+                    full-width row on mobile now, so this grid is single-column
+                    on mobile and steps up to 4 columns on desktop. */}
                 {activeTypes.has('events') && filteredEvents.length > 0 && (
                     <section className="mb-14">
                         <SectionHeading icon={<FiCalendar size={16} />} label="Events" count={filteredEvents.length} />
-                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-2">
                             {filteredEvents.map((event) => (
                                 <EventCard key={event.id} event={event} />
                             ))}

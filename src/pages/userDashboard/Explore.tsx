@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
 import {
+    FiAlertTriangle,
+    FiArrowRight,
     FiBarChart2,
     FiBookOpen,
     FiBriefcase,
@@ -247,61 +249,57 @@ const NoMentorsState: React.FC = () => (
 );
 
 // ─── Event card ─────────────────────────────────────────────────────────────
-// Card-grid variant (matches ProductCard/MentorCard layout) — reuses
+// Mobile: row layout matching the Events dashboard mobile card (time/title
+// /location/price on the left, thumbnail on the right, action pill + guest
+// avatars underneath). Desktop/tablet: unchanged vertical card, reusing
 // formatTicketPrice / EventMetaBadges / AvatarStack from Overview.tsx so
 // pricing, badges, and attendees stay in sync with the rest of the app.
 export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
-    <Link
-        to={event.publicUrl}
-        className="rounded-md overflow-hidden flex flex-col transition-colors hover:bg-white/3 cursor-pointer"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
-    >
-        <div className="relative">
-            <img
-                src={event.thumbnail}
-                alt={event.title}
-                className="w-full h-40 sm:h-48 object-cover"
-            />
-            <span
-                className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
-                style={{ background: 'rgba(0,0,0,0.55)', color: '#fff', backdropFilter: 'blur(4px)' }}
-            >
-                <FiCalendar size={13} />
-                {event.dateLabel}
-            </span>
-            <span
-                className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-semibold"
-                style={{
-                    background: formatTicketPrice(event.ticketPrice) === 'Free' ? 'rgba(0,0,0,0.55)' : 'rgba(166,255,0,0.9)',
-                    color: formatTicketPrice(event.ticketPrice) === 'Free' ? '#fff' : '#000',
-                    backdropFilter: 'blur(4px)',
-                }}
-            >
-                {formatTicketPrice(event.ticketPrice)}
-            </span>
-        </div>
-        <div className="p-4 sm:p-5 flex flex-col flex-1">
-            <div className="flex items-center gap-1.5 text-white/40 text-xs mb-2 min-w-0">
-                <span className="flex items-center gap-1 shrink-0">
-                    <FiClock size={12} />
-                    {event.time}
+    <>
+        {/* ── Mobile row (matches Events dashboard mobile layout) ── */}
+        <Link
+            to={event.publicUrl}
+            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer"
+            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                    <p className="text-white/50 text-sm mb-1">{event.time}</p>
+                    <h3 className="text-white font-bold text-lg break-words mb-2 line-clamp-2">
+                        {event.title}
+                    </h3>
+
+                    {event.location ? (
+                        <div className="flex items-center gap-2 text-white/40 text-sm mb-1.5">
+                            <FiMapPin size={15} />
+                            <span className="truncate">{event.location}</span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-amber-400 text-sm mb-1.5">
+                            <FiAlertTriangle size={15} />
+                            <span>Location Missing</span>
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-2 text-white/40 text-sm">
+                        <FiTag size={15} />
+                        <span>{formatTicketPrice(event.ticketPrice)}</span>
+                    </div>
+                </div>
+
+                <img
+                    src={event.thumbnail}
+                    alt={event.title}
+                    className="w-24 h-23 border-4 border-white/5 rounded-lg object-cover shrink-0"
+                />
+            </div>
+
+            <div className="flex justify-between items-center gap-3">
+                <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-semibold mt-3 bg-white text-black">
+                    View Event
+                    <FiArrowRight size={14} />
                 </span>
-                {event.location && (
-                    <span className="flex items-center gap-1 min-w-0">
-                        <span className="text-white/20 shrink-0">·</span>
-                        <FiMapPin size={12} className="shrink-0" />
-                        <span className="truncate">{event.location}</span>
-                    </span>
-                )}
-            </div>
 
-            <h3 className="text-white font-bold text-base mb-2 break-words line-clamp-2">{event.title}</h3>
-
-            <div className="mb-3">
-                <EventMetaBadges event={event} size="sm" />
-            </div>
-
-            <div className="flex items-center mt-auto">
                 {event.attendees.length > 0 ? (
                     <AvatarStack attendees={event.attendees} total={event.registered} size={20} />
                 ) : event.registered > 0 ? (
@@ -309,26 +307,111 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
                         <FiUsers size={12} />
                         {event.registered} registered
                     </span>
-                ) : (
-                    <span className="text-white/30 text-xs">Be the first to join</span>
-                )}
+                ) : null}
             </div>
-        </div>
-    </Link>
+        </Link>
+
+        {/* ── Desktop/tablet card (unchanged) ── */}
+        <Link
+            to={event.publicUrl}
+            className="hidden sm:flex rounded-md overflow-hidden flex-col transition-colors hover:bg-white/3 cursor-pointer"
+            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+        >
+            <div className="relative">
+                <img
+                    src={event.thumbnail}
+                    alt={event.title}
+                    className="w-full h-40 sm:h-48 object-cover"
+                />
+                <span
+                    className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
+                    style={{ background: 'rgba(0,0,0,0.55)', color: '#fff', backdropFilter: 'blur(4px)' }}
+                >
+                    <FiCalendar size={13} />
+                    {event.dateLabel}
+                </span>
+                <span
+                    className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-semibold"
+                    style={{
+                        background: formatTicketPrice(event.ticketPrice) === 'Free' ? 'rgba(0,0,0,0.55)' : 'rgba(166,255,0,0.9)',
+                        color: formatTicketPrice(event.ticketPrice) === 'Free' ? '#fff' : '#000',
+                        backdropFilter: 'blur(4px)',
+                    }}
+                >
+                    {formatTicketPrice(event.ticketPrice)}
+                </span>
+            </div>
+            <div className="p-4 sm:p-5 flex flex-col flex-1">
+                <div className="flex items-center gap-1.5 text-white/40 text-xs mb-2 min-w-0">
+                    <span className="flex items-center gap-1 shrink-0">
+                        <FiClock size={12} />
+                        {event.time}
+                    </span>
+                    {event.location && (
+                        <span className="flex items-center gap-1 min-w-0">
+                            <span className="text-white/20 shrink-0">·</span>
+                            <FiMapPin size={12} className="shrink-0" />
+                            <span className="truncate">{event.location}</span>
+                        </span>
+                    )}
+                </div>
+
+                <h3 className="text-white font-bold text-base mb-2 break-words line-clamp-2">{event.title}</h3>
+
+                <div className="mb-3">
+                    <EventMetaBadges event={event} size="sm" />
+                </div>
+
+                <div className="flex items-center mt-auto">
+                    {event.attendees.length > 0 ? (
+                        <AvatarStack attendees={event.attendees} total={event.registered} size={20} />
+                    ) : event.registered > 0 ? (
+                        <span className="flex items-center gap-1.5 text-white/40 text-xs">
+                            <FiUsers size={12} />
+                            {event.registered} registered
+                        </span>
+                    ) : (
+                        <span className="text-white/30 text-xs">Be the first to join</span>
+                    )}
+                </div>
+            </div>
+        </Link>
+    </>
 );
 
 const EventCardSkeleton: React.FC = () => (
-    <div
-        className="rounded-xl overflow-hidden flex flex-col animate-pulse"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
-    >
-        <div className="w-full h-40 sm:h-48 bg-white/5" />
-        <div className="p-4 sm:p-5 flex flex-col gap-2.5">
-            <div className="h-3 w-1/2 rounded bg-white/5" />
-            <div className="h-4 w-3/4 rounded bg-white/5" />
-            <div className="h-3 w-2/3 rounded bg-white/5" />
+    <>
+        {/* Mobile row skeleton — mirrors the mobile EventCard shape so
+            loading state doesn't jump when data arrives. */}
+        <div
+            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 animate-pulse"
+            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0 space-y-2">
+                    <div className="h-3 w-12 rounded bg-white/5" />
+                    <div className="h-5 w-3/4 rounded bg-white/5" />
+                    <div className="h-3 w-2/3 rounded bg-white/5" />
+                    <div className="h-3 w-1/3 rounded bg-white/5" />
+                </div>
+                <div className="w-24 h-23 rounded-lg bg-white/5 shrink-0" />
+            </div>
+            <div className="h-9 w-28 rounded-md bg-white/5 mt-3" />
         </div>
-    </div>
+
+        {/* Desktop/tablet skeleton (unchanged) */}
+        <div
+            className="hidden sm:flex rounded-xl overflow-hidden flex-col animate-pulse"
+            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+        >
+            <div className="w-full h-40 sm:h-48 bg-white/5" />
+            <div className="p-4 sm:p-5 flex flex-col gap-2.5">
+                <div className="h-3 w-1/2 rounded bg-white/5" />
+                <div className="h-4 w-3/4 rounded bg-white/5" />
+                <div className="h-3 w-2/3 rounded bg-white/5" />
+            </div>
+        </div>
+    </>
 );
 
 const NoEventsState: React.FC = () => (
@@ -509,10 +592,11 @@ const Explore: React.FC = () => {
 
                 {/* Events — card grid, below Mentors. Wired to real data via
                     useGetAllEvents; shares the ApiEvent/RegisteredEvent shape
-                    and mapping used across the app. */}
+                    and mapping used across the app. Mobile is single-column
+                    since EventCard now renders a full-width row on mobile. */}
                 <section className="mb-16">
                     <SectionHeader title="Events You Can Explore" subtitle="Join a session hosted by the community" />
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-2">
                         {eventsLoading ? (
                             Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
                         ) : upcomingEvents.length > 0 ? (
