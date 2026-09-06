@@ -378,13 +378,13 @@ const DashNavbar = () => {
                     <div
                         onClick={() => setShowQuickActions(false)}
                         aria-hidden="true"
-                        className="lg:hidden fixed inset-0 z-40"
-                        style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+                        className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                    // style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
                     />
                     <div
                         role="dialog"
                         aria-modal="true"
-                        className="lg:hidden fixed left-0 right-0 bottom-0 z-50 rounded-t-3xl overflow-hidden"
+                        className="lg:hidden fixed left-0 right-0 bottom-0 z-50 rounded-t-3xl overflow-hidden bg-neutral-950!"
                         style={{
                             background: 'rgba(10, 14, 8, 0.98)',
                             backdropFilter: 'blur(24px) saturate(150%)',
@@ -394,7 +394,7 @@ const DashNavbar = () => {
                         }}
                     >
                         <div
-                            className="h-px w-full"
+                            className="h-px p-0.5 w-full"
                             style={{ background: 'linear-gradient(90deg, transparent, rgba(166,255,0,0.3), transparent)' }}
                         />
 
@@ -421,7 +421,7 @@ const DashNavbar = () => {
                                 <Link
                                     to="/dashboard/mentor"
                                     onClick={() => setShowQuickActions(false)}
-                                    className="flex items-center justify-center bg-white text-black gap-2 w-full py-3.5 rounded-xl text-sm font-semibold"
+                                    className="flex items-center justify-center bg-white text-black gap-2 w-full py-3 rounded-md text-sm font-semibold"
                                 >
                                     <FiUser size={16} />
                                     View Mentor Profile
