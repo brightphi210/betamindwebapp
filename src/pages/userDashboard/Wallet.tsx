@@ -6,6 +6,7 @@ import {
     FiChevronDown,
     FiCreditCard,
     FiDollarSign,
+    FiPlus,
     FiTrendingUp,
     FiX,
 } from "react-icons/fi";
@@ -37,9 +38,38 @@ const MOCK_BALANCE = {
     totalWithdrawn: 145000,
 };
 
-const MOCK_BANK_ACCOUNTS = [
+type BankAccount = { id: string; label: string };
+
+const MOCK_BANK_ACCOUNTS: BankAccount[] = [
     { id: "b1", label: "GTBank ••1234" },
     { id: "b2", label: "Kuda ••8890" },
+];
+
+// Nigerian banks only, for now — matches the NGN-only scope of the wallet.
+const NIGERIAN_BANKS = [
+    "Access Bank",
+    "Zenith Bank",
+    "Guaranty Trust Bank (GTBank)",
+    "First Bank of Nigeria",
+    "United Bank for Africa (UBA)",
+    "Fidelity Bank",
+    "Union Bank",
+    "Wema Bank",
+    "Sterling Bank",
+    "Stanbic IBTC",
+    "Ecobank Nigeria",
+    "First City Monument Bank (FCMB)",
+    "Polaris Bank",
+    "Keystone Bank",
+    "Unity Bank",
+    "Providus Bank",
+    "Jaiz Bank",
+    "SunTrust Bank",
+    "Titan Trust Bank",
+    "Opay",
+    "PalmPay",
+    "Kuda Bank",
+    "Moniepoint MFB",
 ];
 
 const STATUS_STYLES: Record<Transaction["status"], { color: string; bg: string; label: string }> = {
@@ -82,18 +112,128 @@ const TransactionRow: React.FC<{ tx: Transaction }> = ({ tx }) => {
     );
 };
 
+// ─── Add bank account modal ─────────────────────────────────────────────────
+const AddBankModal: React.FC<{
+    onClose: () => void;
+    onAdd: (account: BankAccount) => void;
+}> = ({ onClose, onAdd }) => {
+    const [bankName, setBankName] = useState(NIGERIAN_BANKS[0]);
+    const [accountNumber, setAccountNumber] = useState("");
+    const [accountName, setAccountName] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+
+    const isValid = !!bankName && accountNumber.length === 10 && accountName.trim().length > 0;
+
+    const handleSubmit = async () => {
+        if (!isValid) return;
+        setSubmitting(true);
+        // TODO: call the real add-bank-account mutation here, ideally with
+        // NUBAN resolution so accountName is verified rather than typed.
+        await new Promise((res) => setTimeout(res, 800));
+        setSubmitting(false);
+        onAdd({
+            id: `b${Date.now()}`,
+            label: `${bankName} ••${accountNumber.slice(-4)}`,
+        });
+        onClose();
+    };
+
+    return (
+        <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+                style={{
+                    background: "rgba(10,13,9,0.85)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    backdropFilter: "blur(24px)",
+                    WebkitBackdropFilter: "blur(24px)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="mb-4 flex items-start justify-between">
+                    <div
+                        className="flex h-12 w-12 items-center justify-center rounded-full"
+                        style={{ background: "rgba(255,255,255,0.06)" }}
+                    >
+                        <FiCreditCard className="text-white/70" size={20} />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="shrink-0 rounded-lg p-2 text-white/50 hover:bg-white/5 hover:text-white"
+                    >
+                        <FiX size={18} />
+                    </button>
+                </div>
+
+                <h3 className="mb-1 text-xl font-black text-white">Add Bank Account</h3>
+                <p className="mb-6 text-xs text-white/40">
+                    Currently supports Nigerian bank accounts only — payouts are made in NGN.
+                </p>
+
+                <label className="mb-2 block text-xs font-semibold text-white/50">Bank</label>
+                <div className="relative mb-4">
+                    <select
+                        value={bankName}
+                        onChange={(e) => setBankName(e.target.value)}
+                        className="w-full appearance-none rounded-xl px-4 py-3 text-sm text-white outline-none"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
+                        {NIGERIAN_BANKS.map((b) => (
+                            <option key={b} value={b} className="bg-[#0a0f08]">
+                                {b}
+                            </option>
+                        ))}
+                    </select>
+                    <FiChevronDown
+                        size={16}
+                        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-white/40"
+                    />
+                </div>
+
+                <label className="mb-2 block text-xs font-semibold text-white/50">Account Number</label>
+                <input
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value.replace(/[^0-9]/g, "").slice(0, 10))}
+                    placeholder="0123456789"
+                    className="mb-1 w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                />
+                <p className="mb-4 text-[11px] text-white/30">10-digit NUBAN account number.</p>
+
+                <label className="mb-2 block text-xs font-semibold text-white/50">Account Name</label>
+                <input
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    placeholder="Name on the account"
+                    className="mb-6 w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                />
+
+                <Button onClick={handleSubmit} variant="green" className="w-full" disabled={!isValid || submitting}>
+                    {submitting ? "Verifying…" : "Add Bank Account"}
+                </Button>
+            </div>
+        </div>
+    );
+};
+
 // ─── Withdraw modal ─────────────────────────────────────────────────────────
 const WithdrawModal: React.FC<{
     availableBalance: number;
+    bankAccounts: BankAccount[];
     onClose: () => void;
-}> = ({ availableBalance, onClose }) => {
+}> = ({ availableBalance, bankAccounts, onClose }) => {
     const [amount, setAmount] = useState("");
-    const [bankId, setBankId] = useState(MOCK_BANK_ACCOUNTS[0].id);
+    const [bankId, setBankId] = useState(bankAccounts[0]?.id ?? "");
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
 
     const numericAmount = parseFloat(amount) || 0;
-    const isValid = numericAmount > 0 && numericAmount <= availableBalance;
+    const isValid = numericAmount > 0 && numericAmount <= availableBalance && !!bankId;
 
     const handleQuickSelect = (pct: number) => {
         setAmount(String(Math.floor((availableBalance * pct) / 100)));
@@ -134,11 +274,27 @@ const WithdrawModal: React.FC<{
                         <h3 className="mb-1 text-lg font-black text-white">Withdrawal Requested</h3>
                         <p className="mb-6 text-sm text-white/50">
                             ₦{numericAmount.toLocaleString()} is on its way to{" "}
-                            {MOCK_BANK_ACCOUNTS.find((b) => b.id === bankId)?.label}. It typically takes 1–3
+                            {bankAccounts.find((b) => b.id === bankId)?.label}. It typically takes 1–3
                             business days.
                         </p>
                         <Button onClick={onClose} variant="green" className="w-full">
                             Done
+                        </Button>
+                    </div>
+                ) : bankAccounts.length === 0 ? (
+                    <div className="flex flex-col items-center py-4 text-center">
+                        <div
+                            className="mb-4 flex h-14 w-14 items-center justify-center rounded-full"
+                            style={{ background: "rgba(255,255,255,0.06)" }}
+                        >
+                            <FiCreditCard className="text-white/50" size={24} />
+                        </div>
+                        <h3 className="mb-1 text-lg font-black text-white">No Bank Account Linked</h3>
+                        <p className="mb-6 text-sm text-white/50">
+                            Add a Nigerian bank account first so we know where to send your withdrawals.
+                        </p>
+                        <Button onClick={onClose} variant="green" className="w-full">
+                            Got it
                         </Button>
                     </div>
                 ) : (
@@ -201,7 +357,7 @@ const WithdrawModal: React.FC<{
                                 className="w-full appearance-none rounded-xl px-4 py-3 text-sm text-white outline-none"
                                 style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                             >
-                                {MOCK_BANK_ACCOUNTS.map((b) => (
+                                {bankAccounts.map((b) => (
                                     <option key={b.id} value={b.id} className="bg-[#0a0f08]">
                                         {b.label}
                                     </option>
@@ -213,7 +369,7 @@ const WithdrawModal: React.FC<{
                             />
                             <div className="mt-2 flex items-center gap-1.5 text-[11px] text-white/30">
                                 <FiCreditCard size={12} />
-                                Manage accounts in Settings
+                                Manage accounts below
                             </div>
                         </div>
 
@@ -241,6 +397,8 @@ const WithdrawModal: React.FC<{
 // ─── Wallet page ────────────────────────────────────────────────────────────
 const Wallet = () => {
     const [showWithdraw, setShowWithdraw] = useState(false);
+    const [showAddBank, setShowAddBank] = useState(false);
+    const [bankAccounts, setBankAccounts] = useState<BankAccount[]>(MOCK_BANK_ACCOUNTS);
     const isLoading = false; // TODO: wire to the real wallet-fetch hook.
 
     return (
@@ -301,6 +459,52 @@ const Wallet = () => {
                 </Button>
             </div>
 
+            {/* Linked bank accounts */}
+            <div className="mb-8">
+                <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-white">Linked Bank Accounts</h3>
+                    <button
+                        type="button"
+                        onClick={() => setShowAddBank(true)}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-[#a6ff00] transition-opacity hover:opacity-80"
+                    >
+                        <FiPlus size={14} /> Add Bank
+                    </button>
+                </div>
+                <div className="flex flex-col gap-2">
+                    {bankAccounts.length === 0 ? (
+                        <div
+                            className="rounded-xl p-6 text-center text-sm text-white/40"
+                            style={{ background: cardBg, border: cardBorder }}
+                        >
+                            No bank account linked yet.
+                        </div>
+                    ) : (
+                        bankAccounts.map((b) => (
+                            <div
+                                key={b.id}
+                                className="flex items-center gap-3 rounded-xl p-4"
+                                style={{ background: cardBg, border: cardBorder }}
+                            >
+                                <div
+                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                                    style={{ background: "rgba(166,255,0,0.08)" }}
+                                >
+                                    <FiCreditCard size={15} className="text-[#a6ff00]" />
+                                </div>
+                                <p className="text-sm font-medium text-white">{b.label}</p>
+                                <span
+                                    className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold text-white/40"
+                                    style={{ background: "rgba(255,255,255,0.05)" }}
+                                >
+                                    NGN
+                                </span>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
             {/* Transaction history */}
             <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-sm font-bold text-white">Previous Transactions</h3>
@@ -321,7 +525,15 @@ const Wallet = () => {
             {showWithdraw && (
                 <WithdrawModal
                     availableBalance={MOCK_BALANCE.available}
+                    bankAccounts={bankAccounts}
                     onClose={() => setShowWithdraw(false)}
+                />
+            )}
+
+            {showAddBank && (
+                <AddBankModal
+                    onClose={() => setShowAddBank(false)}
+                    onAdd={(account) => setBankAccounts((prev) => [...prev, account])}
                 />
             )}
         </div>

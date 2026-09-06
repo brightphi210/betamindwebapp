@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { FiArrowLeft, FiArrowRight, FiCamera, FiCheck, FiImage } from "react-icons/fi";
+import { FiArrowLeft, FiArrowRight, FiCamera, FiCheck, FiImage, FiPlus, FiTrash2 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import Button from "../../component/ui/Button";
@@ -72,26 +72,272 @@ const LANGUAGE_OPTIONS = [
     "Indonesian",
 ];
 
-const AVAILABILITY_OPTIONS: { value: string; label: string }[] = [
-    { value: "weekdays", label: "Weekdays" },
-    { value: "weekends", label: "Weekends" },
-];
-
-// Hours-per-day dropdown — value sent to the backend is the bare number.
-const DAILY_AVAILABILITY_OPTIONS: { value: string; label: string }[] = [
-    { value: "1", label: "1 hr" },
-    { value: "2", label: "2 hrs" },
-    { value: "3", label: "3 hrs" },
-    { value: "5", label: "5 hrs" },
-    { value: "8", label: "8 hrs" },
-];
-
 const cardBg = "rgba(255,255,255,0.02)";
 const cardBorder = "1px solid rgba(205,220,57,.08)";
 const prefixBg = "rgba(255,255,255,0.03)";
 
 const fieldClass =
-    "w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 outline-none transition-colors focus:border-[#a6ff00]";
+    "w-full rounded-md px-4 py-3 text-sm text-white placeholder-white/30 outline-none transition-colors focus:border-[#a6ff00]";
+
+/* ─── Availability (same pattern as TutorProfile.tsx) ─────────────────── */
+interface TimeSlot {
+    id: number;
+    startTime: string; // 24hr "HH:MM"
+    endTime: string;
+}
+
+interface DayAvailability {
+    day: string;
+    enabled: boolean;
+    slots: TimeSlot[];
+}
+
+const DAYS_OF_WEEK = [
+    { key: "monday", label: "Monday" },
+    { key: "tuesday", label: "Tuesday" },
+    { key: "wednesday", label: "Wednesday" },
+    { key: "thursday", label: "Thursday" },
+    { key: "friday", label: "Friday" },
+    { key: "saturday", label: "Saturday" },
+    { key: "sunday", label: "Sunday" },
+];
+
+const MAX_SLOTS_PER_DAY = 3;
+
+const defaultAvailability: DayAvailability[] = DAYS_OF_WEEK.map((d) => ({
+    day: d.key,
+    enabled: false,
+    slots: [],
+}));
+
+const emptyTimeSlot = (id: number): TimeSlot => ({ id, startTime: "09:00", endTime: "10:00" });
+
+// Backend expects an array of concrete { day_of_week, start_time, end_time }
+// slots — same shape TutorProfile.tsx already sends for tutors.
+const buildAvailabilityPayload = (availability: DayAvailability[]) =>
+    availability
+        .filter((d) => d.enabled)
+        .flatMap((d) =>
+            d.slots.map((s) => ({
+                day_of_week: d.day.charAt(0).toUpperCase() + d.day.slice(1),
+                start_time: `${s.startTime}:00`,
+                end_time: `${s.endTime}:00`,
+            }))
+        );
+
+const to12Hour = (time24: string): { hour: number; minute: number; period: "AM" | "PM" } => {
+    if (!time24) return { hour: 9, minute: 0, period: "AM" };
+    const [hStr, mStr] = time24.split(":");
+    const hours = parseInt(hStr, 10) || 0;
+    const minutes = parseInt(mStr, 10) || 0;
+    const period: "AM" | "PM" = hours >= 12 ? "PM" : "AM";
+    let hour12 = hours % 12;
+    if (hour12 === 0) hour12 = 12;
+    return { hour: hour12, minute: minutes, period };
+};
+
+const to24Hour = (hour12: number, minute: number, period: "AM" | "PM"): string => {
+    let hours = hour12 % 12;
+    if (period === "PM") hours += 12;
+    return `${String(hours).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
+
+const HOURS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
+const MINUTES_5MIN = Array.from({ length: 12 }, (_, i) => i * 5);
+
+const TimePickerInput: React.FC<{
+    value: string;
+    onChange: (value: string) => void;
+    disabled?: boolean;
+}> = ({ value, onChange, disabled }) => {
+    const { hour, minute, period } = to12Hour(value);
+    const update = (h: number, m: number, p: "AM" | "PM") => onChange(to24Hour(h, m, p));
+    const selectCls = "rounded-lg px-1.5 py-2 text-xs text-white outline-none transition-all disabled:opacity-60";
+
+    return (
+        <div className="flex items-center gap-1 flex-1 min-w-[170px]">
+            <select
+                disabled={disabled}
+                value={hour}
+                onChange={(e) => update(parseInt(e.target.value, 10), minute, period)}
+                className={selectCls}
+                style={{ background: cardBg, border: cardBorder }}
+                aria-label="Hour"
+            >
+                {HOURS_12.map((h) => (
+                    <option key={h} value={h} className="bg-[#0a0f08]">
+                        {h}
+                    </option>
+                ))}
+            </select>
+            <span className="text-xs text-white/30 shrink-0">:</span>
+            <select
+                disabled={disabled}
+                value={minute}
+                onChange={(e) => update(hour, parseInt(e.target.value, 10), period)}
+                className={selectCls}
+                style={{ background: cardBg, border: cardBorder }}
+                aria-label="Minute"
+            >
+                {MINUTES_5MIN.map((m) => (
+                    <option key={m} value={m} className="bg-[#0a0f08]">
+                        {String(m).padStart(2, "0")}
+                    </option>
+                ))}
+            </select>
+            <div className="flex rounded-lg overflow-hidden shrink-0" style={{ border: cardBorder }}>
+                {(["AM", "PM"] as const).map((p) => (
+                    <button
+                        key={p}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => update(hour, minute, p)}
+                        className={`px-2 py-2 text-[10px] font-bold transition-all ${period === p ? "bg-[#a6ff00] text-black" : "text-white/40 hover:text-white"
+                            }`}
+                    >
+                        {p}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const AvailabilitySection: React.FC<{
+    availability: DayAvailability[];
+    onChange: (a: DayAvailability[]) => void;
+    disabled?: boolean;
+}> = ({ availability, onChange, disabled }) => {
+    const updateDay = (dayKey: string, updater: (d: DayAvailability) => DayAvailability) => {
+        onChange(availability.map((d) => (d.day === dayKey ? updater(d) : d)));
+    };
+
+    const toggleDay = (dayKey: string) => {
+        updateDay(dayKey, (d) => {
+            const enabling = !d.enabled;
+            return {
+                ...d,
+                enabled: enabling,
+                slots: enabling && d.slots.length === 0 ? [emptyTimeSlot(1)] : d.slots,
+            };
+        });
+    };
+
+    const addSlot = (dayKey: string) => {
+        updateDay(dayKey, (d) => {
+            if (d.slots.length >= MAX_SLOTS_PER_DAY) return d;
+            const nextId = d.slots.length ? Math.max(...d.slots.map((s) => s.id)) + 1 : 1;
+            return { ...d, slots: [...d.slots, emptyTimeSlot(nextId)] };
+        });
+    };
+
+    const removeSlot = (dayKey: string, slotId: number) => {
+        updateDay(dayKey, (d) => ({ ...d, slots: d.slots.filter((s) => s.id !== slotId) }));
+    };
+
+    const updateSlot = (dayKey: string, slotId: number, field: "startTime" | "endTime", value: string) => {
+        updateDay(dayKey, (d) => ({
+            ...d,
+            slots: d.slots.map((s) => (s.id === slotId ? { ...s, [field]: value } : s)),
+        }));
+    };
+
+    const applyToAllDays = (dayKey: string) => {
+        const source = availability.find((d) => d.day === dayKey);
+        if (!source || source.slots.length === 0) return;
+        onChange(
+            availability.map((d) => ({
+                ...d,
+                enabled: true,
+                slots: source.slots.map((s, idx) => ({ ...s, id: idx + 1 })),
+            }))
+        );
+    };
+
+    return (
+        <div className="flex flex-col gap-2.5">
+            {availability.map((dayAv) => {
+                const dayMeta = DAYS_OF_WEEK.find((d) => d.key === dayAv.day)!;
+                const atMax = dayAv.slots.length >= MAX_SLOTS_PER_DAY;
+
+                return (
+                    <div key={dayAv.day} className="rounded-xl p-3.5 transition-all" style={{ background: cardBg, border: cardBorder }}>
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() => toggleDay(dayAv.day)}
+                                    className="relative w-9 h-5 rounded-full transition-all shrink-0"
+                                    style={{ background: dayAv.enabled ? "#a6ff00" : "rgba(255,255,255,0.15)" }}
+                                >
+                                    <span
+                                        className={`absolute top-0.5 w-4 h-4 rounded-full shadow transition-all ${dayAv.enabled ? "left-4 bg-black" : "left-0.5 bg-white"
+                                            }`}
+                                    />
+                                </button>
+                                <span className={`text-sm font-bold ${dayAv.enabled ? "text-white" : "text-white/40"}`}>
+                                    {dayMeta.label}
+                                </span>
+                                {!dayAv.enabled && <span className="text-xs text-white/30 italic">Unavailable</span>}
+                            </div>
+
+                            {dayAv.enabled && (
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        type="button"
+                                        disabled={disabled}
+                                        onClick={() => applyToAllDays(dayAv.day)}
+                                        className="text-[11px] font-semibold text-white/30 hover:text-[#a6ff00] transition-colors"
+                                    >
+                                        Copy to all days
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={disabled || atMax}
+                                        onClick={() => addSlot(dayAv.day)}
+                                        className="flex items-center gap-1 text-xs font-semibold text-[#a6ff00] hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                    >
+                                        <FiPlus size={12} /> Add slot
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {dayAv.enabled && (
+                            <div className="mt-3 flex flex-col gap-2">
+                                {dayAv.slots.map((slot) => (
+                                    <div key={slot.id} className="flex flex-wrap items-center gap-2">
+                                        <TimePickerInput
+                                            value={slot.startTime}
+                                            disabled={disabled}
+                                            onChange={(v) => updateSlot(dayAv.day, slot.id, "startTime", v)}
+                                        />
+                                        <span className="text-xs text-white/30 shrink-0">to</span>
+                                        <TimePickerInput
+                                            value={slot.endTime}
+                                            disabled={disabled}
+                                            onChange={(v) => updateSlot(dayAv.day, slot.id, "endTime", v)}
+                                        />
+                                        <button
+                                            type="button"
+                                            disabled={disabled}
+                                            onClick={() => removeSlot(dayAv.day, slot.id)}
+                                            className="p-1.5 text-white/20 hover:text-red-400 transition-colors shrink-0"
+                                        >
+                                            <FiTrash2 size={13} />
+                                        </button>
+                                    </div>
+                                ))}
+                                {atMax && <p className="text-[11px] text-white/30 italic">Maximum {MAX_SLOTS_PER_DAY} slots reached for this day</p>}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
 
 const Field: React.FC<{
     label: string;
@@ -197,37 +443,6 @@ const SocialField: React.FC<{
     </div>
 );
 
-// Single-select pill group — used for availability and daily availability hours.
-const PillSelect: React.FC<{
-    label: string;
-    value: string;
-    options: { value: string; label: string }[];
-    onChange: (v: string) => void;
-}> = ({ label, value, options, onChange }) => (
-    <div>
-        <p className="mb-2 text-sm font-semibold text-white">{label}</p>
-        <div className="flex flex-wrap gap-2">
-            {options.map((opt) => {
-                const active = value === opt.value;
-                return (
-                    <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => onChange(opt.value)}
-                        className={`rounded-full px-3.5 py-2 text-sm font-medium transition-all ${active
-                            ? "bg-[#a6ff00] text-black"
-                            : "text-white hover:border-[#a6ff00] hover:text-[#a6ff00]"
-                            }`}
-                        style={active ? undefined : { background: cardBg, border: cardBorder }}
-                    >
-                        {opt.label}
-                    </button>
-                );
-            })}
-        </div>
-    </div>
-);
-
 // Multi-select pill group — used for expertise (same interaction as Category).
 const MultiPillSelect: React.FC<{
     label: string;
@@ -261,9 +476,9 @@ const MultiPillSelect: React.FC<{
     </div>
 );
 
-type Step = "professional" | "social" | "availability" | "account";
+type Step = "professional" | "social" | "availability";
 
-const stepOrder: Step[] = ["professional", "social", "availability", "account"];
+const stepOrder: Step[] = ["professional", "social", "availability"];
 
 const MentorOnboarding = () => {
     const navigate = useNavigate();
@@ -288,6 +503,9 @@ const MentorOnboarding = () => {
     const [hourlyRate, setHourlyRate] = useState("");
     const [language, setLanguage] = useState("");
 
+    // Optional 2-minute pitch video — shown on the public mentor profile.
+    const [videoLink, setVideoLink] = useState("");
+
     // Categories — button picker from a fixed list, same pattern as MentorProfile.tsx
     const [categories, setCategories] = useState<string[]>([]);
     const [expertise, setExpertise] = useState<string[]>([]);
@@ -296,20 +514,12 @@ const MentorOnboarding = () => {
     const [xHandle, setXHandle] = useState("");
     const [website, setWebsite] = useState("");
 
-    // Availability
-    const [availability, setAvailability] = useState("");
-    const [dailyAvailability, setDailyAvailability] = useState("");
-
-    // Bank details (Account Details step)
-    const [bankName, setBankName] = useState("");
-    const [accountName, setAccountName] = useState("");
-    const [accountNumber, setAccountNumber] = useState("");
-    const [routingOrSortCode, setRoutingOrSortCode] = useState("");
+    // Availability — per-day toggle + up to MAX_SLOTS_PER_DAY time slots each.
+    const [availability, setAvailability] = useState<DayAvailability[]>(defaultAvailability);
 
     const professionalComplete = !!(nickname && occupation && bio && experience);
     const socialComplete = categories.length > 0;
-    const availabilityComplete = !!(availability && dailyAvailability);
-    const accountComplete = !!(bankName && accountName && accountNumber);
+    const availabilityComplete = availability.some((d) => d.enabled && d.slots.length > 0);
 
     const toggleCategory = (cat: string) => {
         setCategories((prev) =>
@@ -337,7 +547,7 @@ const MentorOnboarding = () => {
     };
 
     const handleFinish = () => {
-        if (!accountComplete) return;
+        if (!availabilityComplete) return;
 
         const formData = new FormData();
         formData.append("occupation", occupation);
@@ -346,6 +556,8 @@ const MentorOnboarding = () => {
         formData.append("years_of_experience", String(parseInt(experience, 10) || 0));
         formData.append("hourly_rate", hourlyRate ? String(parseFloat(hourlyRate)) : "");
         formData.append("language", language);
+        // Link to the mentor's ~2-minute expertise walkthrough (YouTube/Loom/Vimeo).
+        formData.append("intro_video_url", videoLink);
 
         if (bannerFile) formData.append("cover_images", bannerFile);
 
@@ -364,24 +576,10 @@ const MentorOnboarding = () => {
         };
         formData.append("social_link", JSON.stringify(socialLink));
 
-        formData.append("availability", availability);
-        // daily_availability is a plain number of hours (e.g. "2"), not "2 hrs".
-        formData.append("daily_availability", dailyAvailability);
-
-        // Bank details as a nested "bank_details" JSON object — sending these as
-        // flat top-level fields (bank_name, account_name, ...) was previously
-        // resulting in bank_details: null on the server, since the backend reads
-        // a single "bank_details" field and json.loads()s it itself.
-        formData.append(
-            "bank_details",
-            JSON.stringify({
-                bank_name: bankName,
-                account_name: accountName,
-                account_number: accountNumber,
-                routing_or_sort_code: routingOrSortCode,
-                currency: "NGN",
-            })
-        );
+        // Availability now sent as concrete day/time slots — same shape
+        // TutorProfile.tsx sends for tutors — instead of a coarse
+        // "weekdays/weekends" + hours-per-day pair.
+        formData.append("availability", JSON.stringify(buildAvailabilityPayload(availability)));
 
         mutate(formData, {
             onSuccess: () => {
@@ -405,7 +603,6 @@ const MentorOnboarding = () => {
         professional: "Professional Info",
         social: "Category & Socials",
         availability: "Availability",
-        account: "Account Details",
     };
 
     return (
@@ -422,26 +619,27 @@ const MentorOnboarding = () => {
                 <button
                     type="button"
                     onClick={() => navigate("/dashboard/overview")}
-                    className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-white/50 transition-colors hover:text-white"
+                    className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-white/50 transition-colors hover:text-white"
                 >
                     <FiArrowLeft size={15} />
                     Back to Dashboard
                 </button>
 
                 {/* Page header */}
-                <div className="mb-8">
+                <div className="mb-5">
                     <h1 className="mt-2 text-3xl font-black leading-tight sm:text-4xl">Become a mentor</h1>
                     <p className="mt-3 max-w-2xl text-sm text-white/40 sm:text-base">
-                        Share your professional background first, then set up your payout details.
+                        Share your professional background first, then set up your availability.
                     </p>
                 </div>
 
                 {/* Step tabs */}
-                <div className="mb-10 flex items-center gap-6 flex-wrap" style={{ borderBottom: cardBorder }}>
+                <div className="mb-5 flex items-center gap-2 flex-wrap">
                     {stepOrder.map((s) => (
                         <span
                             key={s}
-                            className={`border-b-2 pb-3 text-xs font-semibold transition-colors ${step === s ? "border-[#a6ff00] text-white" : "border-transparent text-white/40"
+                            className={`text-xs font-semibold transition-colors p-2.5 px-5 rounded-full 
+                                ${step === s ? " bg-white text-black" : "bg-white/10 text-white/25"
                                 }`}
                         >
                             {stepLabels[s]}
@@ -451,12 +649,11 @@ const MentorOnboarding = () => {
 
                 {step === "professional" && (
                     <div>
-                        <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Your Profile</h2>
                         <div className="space-y-5">
-                            {/* Cover banner */}
+                            <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Personal Info</h2>
                             <div>
                                 <p className="mb-2 text-sm font-semibold text-white">Cover Photo</p>
-                                <div className="relative mb-14 sm:mb-16">
+                                <div className="relative mb-6 sm:mb-6">
                                     <div
                                         className="flex h-32 w-full items-center justify-center overflow-hidden rounded-2xl sm:h-44"
                                         style={{ background: cardBg, border: cardBorder }}
@@ -509,6 +706,14 @@ const MentorOnboarding = () => {
                                 onChange={setBio}
                                 placeholder="Tell people who you are and what you help with"
                                 helper="This appears on your public mentor profile."
+                            />
+
+                            <Field
+                                label="Intro Video Link"
+                                value={videoLink}
+                                onChange={setVideoLink}
+                                placeholder="https://youtube.com/watch?v=..."
+                                helper="Optional — share a 2-minute video walking mentees through your expertise. YouTube, Loom, or Vimeo links work best."
                             />
 
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -604,57 +809,14 @@ const MentorOnboarding = () => {
                 {step === "availability" && (
                     <div>
                         <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Availability</h2>
-                        <div className="space-y-5">
-                            <PillSelect
-                                label="General Availability"
-                                value={availability}
-                                options={AVAILABILITY_OPTIONS}
-                                onChange={setAvailability}
-                            />
-                            <PillSelect
-                                label="Hours Per Day"
-                                value={dailyAvailability}
-                                options={DAILY_AVAILABILITY_OPTIONS}
-                                onChange={setDailyAvailability}
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {step === "account" && (
-                    <div>
-                        <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Bank Details</h2>
                         <p className="mb-6 -mt-3 text-sm text-white/40">
-                            We use these details to pay out your mentoring earnings.
+                            Turn on the days you're available and add up to {MAX_SLOTS_PER_DAY} time slots per day so mentees know when to book you.
                         </p>
-                        <div className="space-y-5">
-                            <Field
-                                label="Bank Name"
-                                value={bankName}
-                                onChange={setBankName}
-                                placeholder="e.g. GTBank"
-                            />
-                            <Field
-                                label="Account Name"
-                                value={accountName}
-                                onChange={setAccountName}
-                                placeholder="Name on the account"
-                            />
-                            <Field
-                                label="Account Number"
-                                value={accountNumber}
-                                onChange={(v) => setAccountNumber(v.replace(/[^0-9]/g, ""))}
-                                placeholder="0123456789"
-                                helper="10-digit NUBAN account number."
-                            />
-                            <Field
-                                label="Routing / Sort Code"
-                                value={routingOrSortCode}
-                                onChange={setRoutingOrSortCode}
-                                placeholder="Optional — for non-NGN accounts"
-                                helper="Leave blank if not applicable."
-                            />
-                        </div>
+                        <AvailabilitySection
+                            availability={availability}
+                            onChange={setAvailability}
+                            disabled={isPending}
+                        />
                     </div>
                 )}
 
@@ -665,17 +827,11 @@ const MentorOnboarding = () => {
                             {step === "professional" ? "Cancel" : "Previous"}
                         </span>
                     </Button>
-                    {step !== "account" ? (
+                    {step !== "availability" ? (
                         <Button
                             variant="green"
                             onClick={goNext}
-                            disabled={
-                                step === "professional"
-                                    ? !professionalComplete
-                                    : step === "social"
-                                        ? !socialComplete
-                                        : !availabilityComplete
-                            }
+                            disabled={step === "professional" ? !professionalComplete : !socialComplete}
                         >
                             <span className="flex items-center justify-center gap-2">
                                 Next
@@ -683,7 +839,7 @@ const MentorOnboarding = () => {
                             </span>
                         </Button>
                     ) : (
-                        <Button variant="green" onClick={handleFinish} disabled={!accountComplete || isPending}>
+                        <Button variant="green" onClick={handleFinish} disabled={!availabilityComplete || isPending}>
                             <span className="flex items-center justify-center gap-2">
                                 <FiCheck size={15} />
                                 Finish

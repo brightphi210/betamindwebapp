@@ -7,6 +7,8 @@ import {
     FiClock,
     FiEdit2,
     FiImage,
+    FiPlus,
+    FiTrash2,
     FiUser,
     FiUserPlus,
     FiX
@@ -85,23 +87,334 @@ const LANGUAGE_OPTIONS = [
     "Indonesian",
 ];
 
-const AVAILABILITY_OPTIONS: { value: string; label: string }[] = [
-    { value: "weekdays", label: "Weekdays" },
-    { value: "weekends", label: "Weekends" },
-];
-
-// Hours-per-day dropdown — value sent to the backend is the bare number.
-const DAILY_AVAILABILITY_OPTIONS: { value: string; label: string }[] = [
-    { value: "1", label: "1 hr" },
-    { value: "2", label: "2 hrs" },
-    { value: "3", label: "3 hrs" },
-    { value: "5", label: "5 hrs" },
-    { value: "8", label: "8 hrs" },
-];
-
 // Page-specific tint for the social-link input prefixes (linkedin.com/in/, x.com/@).
 // Not part of the shared MentorDashboardStyles set since it's only used here.
 const prefixBg = "rgba(255,255,255,0.03)";
+
+/* ─── Availability (same pattern as TutorProfile.tsx) ─────────────────── */
+interface TimeSlot {
+    id: number;
+    startTime: string; // 24hr "HH:MM"
+    endTime: string;
+}
+
+interface DayAvailability {
+    day: string;
+    enabled: boolean;
+    slots: TimeSlot[];
+}
+
+const DAYS_OF_WEEK = [
+    { key: "monday", label: "Monday" },
+    { key: "tuesday", label: "Tuesday" },
+    { key: "wednesday", label: "Wednesday" },
+    { key: "thursday", label: "Thursday" },
+    { key: "friday", label: "Friday" },
+    { key: "saturday", label: "Saturday" },
+    { key: "sunday", label: "Sunday" },
+];
+
+const MAX_SLOTS_PER_DAY = 3;
+
+const defaultAvailability: DayAvailability[] = DAYS_OF_WEEK.map((d) => ({
+    day: d.key,
+    enabled: false,
+    slots: [],
+}));
+
+const emptyTimeSlot = (id: number): TimeSlot => ({ id, startTime: "09:00", endTime: "10:00" });
+
+// Backend expects an array of concrete { day_of_week, start_time, end_time }
+// slots — same shape TutorProfile.tsx already sends for tutors.
+const buildAvailabilityPayload = (availability: DayAvailability[]) =>
+    availability
+        .filter((d) => d.enabled)
+        .flatMap((d) =>
+            d.slots.map((s) => ({
+                day_of_week: d.day.charAt(0).toUpperCase() + d.day.slice(1),
+                start_time: `${s.startTime}:00`,
+                end_time: `${s.endTime}:00`,
+            }))
+        );
+
+const normalizeDayKey = (value: unknown): string | undefined => {
+    if (typeof value !== "string") return undefined;
+    const normalized = value.trim().toLowerCase();
+    return DAYS_OF_WEEK.find((d) => d.key === normalized)?.key;
+};
+
+const toShortTime = (t: unknown, fallback: string) =>
+    typeof t === "string" && t.length >= 5 ? t.slice(0, 5) : fallback;
+
+// Accepts either the array-of-slots shape from the backend, or nothing yet
+// (brand-new mentor profile) — always returns a full 7-day structure.
+function normalizeAvailability(value: unknown): DayAvailability[] {
+    if (!Array.isArray(value) || value.length === 0) return defaultAvailability;
+
+    const grouped: Record<string, TimeSlot[]> = {};
+    value.forEach((item: any) => {
+        const dayKey = normalizeDayKey(item?.day_of_week ?? item?.day);
+        if (!dayKey) return;
+        if (!grouped[dayKey]) grouped[dayKey] = [];
+        if (grouped[dayKey].length >= MAX_SLOTS_PER_DAY) return;
+        grouped[dayKey].push({
+            id: grouped[dayKey].length + 1,
+            startTime: toShortTime(item?.start_time, "09:00"),
+            endTime: toShortTime(item?.end_time, "10:00"),
+        });
+    });
+
+    return DAYS_OF_WEEK.map((d) => {
+        const slots = grouped[d.key] || [];
+        return { day: d.key, enabled: slots.length > 0, slots };
+    });
+}
+
+const to12Hour = (time24: string): { hour: number; minute: number; period: "AM" | "PM" } => {
+    if (!time24) return { hour: 9, minute: 0, period: "AM" };
+    const [hStr, mStr] = time24.split(":");
+    const hours = parseInt(hStr, 10) || 0;
+    const minutes = parseInt(mStr, 10) || 0;
+    const period: "AM" | "PM" = hours >= 12 ? "PM" : "AM";
+    let hour12 = hours % 12;
+    if (hour12 === 0) hour12 = 12;
+    return { hour: hour12, minute: minutes, period };
+};
+
+const to24Hour = (hour12: number, minute: number, period: "AM" | "PM"): string => {
+    let hours = hour12 % 12;
+    if (period === "PM") hours += 12;
+    return `${String(hours).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
+
+const to12Label = (time24: string) => {
+    const { hour, minute, period } = to12Hour(time24);
+    return `${hour}:${String(minute).padStart(2, "0")} ${period}`;
+};
+
+const HOURS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
+const MINUTES_5MIN = Array.from({ length: 12 }, (_, i) => i * 5);
+
+const TimePickerInput: React.FC<{
+    value: string;
+    onChange: (value: string) => void;
+    disabled?: boolean;
+}> = ({ value, onChange, disabled }) => {
+    const { hour, minute, period } = to12Hour(value);
+    const update = (h: number, m: number, p: "AM" | "PM") => onChange(to24Hour(h, m, p));
+    const selectCls = "rounded-lg px-1.5 py-2 text-xs text-white outline-none transition-all disabled:opacity-60";
+
+    return (
+        <div className="flex items-center gap-1 flex-1 min-w-[170px]">
+            <select
+                disabled={disabled}
+                value={hour}
+                onChange={(e) => update(parseInt(e.target.value, 10), minute, period)}
+                className={selectCls}
+                style={{ background: cardBg, border: cardBorder }}
+                aria-label="Hour"
+            >
+                {HOURS_12.map((h) => (
+                    <option key={h} value={h} className="bg-[#0a0f08]">
+                        {h}
+                    </option>
+                ))}
+            </select>
+            <span className="text-xs text-white/30 shrink-0">:</span>
+            <select
+                disabled={disabled}
+                value={minute}
+                onChange={(e) => update(hour, parseInt(e.target.value, 10), period)}
+                className={selectCls}
+                style={{ background: cardBg, border: cardBorder }}
+                aria-label="Minute"
+            >
+                {MINUTES_5MIN.map((m) => (
+                    <option key={m} value={m} className="bg-[#0a0f08]">
+                        {String(m).padStart(2, "0")}
+                    </option>
+                ))}
+            </select>
+            <div className="flex rounded-lg overflow-hidden shrink-0" style={{ border: cardBorder }}>
+                {(["AM", "PM"] as const).map((p) => (
+                    <button
+                        key={p}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => update(hour, minute, p)}
+                        className={`px-2 py-2 text-[10px] font-bold transition-all ${period === p ? "bg-[#a6ff00] text-black" : "text-white/40 hover:text-white"
+                            }`}
+                    >
+                        {p}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const AvailabilitySection: React.FC<{
+    availability: DayAvailability[];
+    onChange: (a: DayAvailability[]) => void;
+    disabled?: boolean;
+}> = ({ availability, onChange, disabled }) => {
+    const updateDay = (dayKey: string, updater: (d: DayAvailability) => DayAvailability) => {
+        onChange(availability.map((d) => (d.day === dayKey ? updater(d) : d)));
+    };
+
+    const toggleDay = (dayKey: string) => {
+        updateDay(dayKey, (d) => {
+            const enabling = !d.enabled;
+            return {
+                ...d,
+                enabled: enabling,
+                slots: enabling && d.slots.length === 0 ? [emptyTimeSlot(1)] : d.slots,
+            };
+        });
+    };
+
+    const addSlot = (dayKey: string) => {
+        updateDay(dayKey, (d) => {
+            if (d.slots.length >= MAX_SLOTS_PER_DAY) return d;
+            const nextId = d.slots.length ? Math.max(...d.slots.map((s) => s.id)) + 1 : 1;
+            return { ...d, slots: [...d.slots, emptyTimeSlot(nextId)] };
+        });
+    };
+
+    const removeSlot = (dayKey: string, slotId: number) => {
+        updateDay(dayKey, (d) => ({ ...d, slots: d.slots.filter((s) => s.id !== slotId) }));
+    };
+
+    const updateSlot = (dayKey: string, slotId: number, field: "startTime" | "endTime", value: string) => {
+        updateDay(dayKey, (d) => ({
+            ...d,
+            slots: d.slots.map((s) => (s.id === slotId ? { ...s, [field]: value } : s)),
+        }));
+    };
+
+    const applyToAllDays = (dayKey: string) => {
+        const source = availability.find((d) => d.day === dayKey);
+        if (!source || source.slots.length === 0) return;
+        onChange(
+            availability.map((d) => ({
+                ...d,
+                enabled: true,
+                slots: source.slots.map((s, idx) => ({ ...s, id: idx + 1 })),
+            }))
+        );
+    };
+
+    return (
+        <div className="flex flex-col gap-2.5">
+            {availability.map((dayAv) => {
+                const dayMeta = DAYS_OF_WEEK.find((d) => d.key === dayAv.day)!;
+                const atMax = dayAv.slots.length >= MAX_SLOTS_PER_DAY;
+
+                return (
+                    <div key={dayAv.day} className="rounded-xl p-3.5 transition-all" style={{ background: cardBg, border: cardBorder }}>
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() => toggleDay(dayAv.day)}
+                                    className="relative w-9 h-5 rounded-full transition-all shrink-0"
+                                    style={{ background: dayAv.enabled ? "#a6ff00" : "rgba(255,255,255,0.15)" }}
+                                >
+                                    <span
+                                        className={`absolute top-0.5 w-4 h-4 rounded-full shadow transition-all ${dayAv.enabled ? "left-4 bg-black" : "left-0.5 bg-white"
+                                            }`}
+                                    />
+                                </button>
+                                <span className={`text-sm font-bold ${dayAv.enabled ? "text-white" : "text-white/40"}`}>
+                                    {dayMeta.label}
+                                </span>
+                                {!dayAv.enabled && <span className="text-xs text-white/30 italic">Unavailable</span>}
+                            </div>
+
+                            {dayAv.enabled && (
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        type="button"
+                                        disabled={disabled}
+                                        onClick={() => applyToAllDays(dayAv.day)}
+                                        className="text-[11px] font-semibold text-white/30 hover:text-[#a6ff00] transition-colors"
+                                    >
+                                        Copy to all days
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={disabled || atMax}
+                                        onClick={() => addSlot(dayAv.day)}
+                                        className="flex items-center gap-1 text-xs font-semibold text-[#a6ff00] hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                    >
+                                        <FiPlus size={12} /> Add slot
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {dayAv.enabled && (
+                            <div className="mt-3 flex flex-col gap-2">
+                                {dayAv.slots.map((slot) => (
+                                    <div key={slot.id} className="flex flex-wrap items-center gap-2">
+                                        <TimePickerInput
+                                            value={slot.startTime}
+                                            disabled={disabled}
+                                            onChange={(v) => updateSlot(dayAv.day, slot.id, "startTime", v)}
+                                        />
+                                        <span className="text-xs text-white/30 shrink-0">to</span>
+                                        <TimePickerInput
+                                            value={slot.endTime}
+                                            disabled={disabled}
+                                            onChange={(v) => updateSlot(dayAv.day, slot.id, "endTime", v)}
+                                        />
+                                        <button
+                                            type="button"
+                                            disabled={disabled}
+                                            onClick={() => removeSlot(dayAv.day, slot.id)}
+                                            className="p-1.5 text-white/20 hover:text-red-400 transition-colors shrink-0"
+                                        >
+                                            <FiTrash2 size={13} />
+                                        </button>
+                                    </div>
+                                ))}
+                                {atMax && <p className="text-[11px] text-white/30 italic">Maximum {MAX_SLOTS_PER_DAY} slots reached for this day</p>}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+// Read-only display of the weekly schedule (view mode, not editing).
+const ViewAvailabilityRow: React.FC<{ availability: DayAvailability[] }> = ({ availability }) => {
+    const activeDays = availability.filter((d) => d.enabled && d.slots.length > 0);
+    return (
+        <div className="rounded-xl px-4 py-3" style={{ background: cardBg, border: cardBorder }}>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Weekly Availability</p>
+            {activeDays.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                    {activeDays.map((d) => {
+                        const label = DAYS_OF_WEEK.find((x) => x.key === d.day)?.label ?? d.day;
+                        return (
+                            <div key={d.day} className="flex items-start gap-2 text-sm">
+                                <span className="w-24 shrink-0 font-semibold text-white">{label}</span>
+                                <span className="text-white/60">
+                                    {d.slots.map((s) => `${to12Label(s.startTime)}–${to12Label(s.endTime)}`).join(", ")}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <p className="mt-1 text-sm text-white/30">Not set</p>
+            )}
+        </div>
+    );
+};
 
 // ---------- Shared editable field components ----------
 
@@ -210,37 +523,6 @@ const SocialField: React.FC<{
     </div>
 );
 
-// Single-select pill group (used for availability and daily availability hours).
-const PillSelect: React.FC<{
-    label: string;
-    value: string;
-    options: { value: string; label: string }[];
-    onChange: (v: string) => void;
-}> = ({ label, value, options, onChange }) => (
-    <div>
-        <p className="mb-2 text-sm font-semibold text-white">{label}</p>
-        <div className="flex flex-wrap gap-2">
-            {options.map((opt) => {
-                const active = value === opt.value;
-                return (
-                    <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => onChange(opt.value)}
-                        className={`rounded-full px-3.5 py-2 text-sm font-medium transition-all ${active
-                            ? "bg-[#a6ff00] text-black"
-                            : "text-white hover:border-[#a6ff00] hover:text-[#a6ff00]"
-                            }`}
-                        style={active ? undefined : { background: cardBg, border: cardBorder }}
-                    >
-                        {opt.label}
-                    </button>
-                );
-            })}
-        </div>
-    </div>
-);
-
 // Multi-select pill group (used for expertise — same interaction as Category).
 const MultiPillSelect: React.FC<{
     label: string;
@@ -341,7 +623,7 @@ const extractHandle = (url?: string) => {
     return clean.substring(clean.lastIndexOf("/") + 1).replace(/^@/, "");
 };
 
-type Step = "professional" | "social" | "availability" | "account";
+type Step = "professional" | "social" | "availability";
 
 type Draft = {
     banner: string | null;
@@ -357,12 +639,7 @@ type Draft = {
     linkedin: string;
     xHandle: string;
     website: string;
-    availability: string;
-    dailyAvailability: string;
-    bankName: string;
-    accountName: string;
-    accountNumber: string;
-    routingOrSortCode: string;
+    availability: DayAvailability[];
 };
 
 const emptyDraft: Draft = {
@@ -379,23 +656,17 @@ const emptyDraft: Draft = {
     linkedin: "",
     xHandle: "",
     website: "",
-    availability: "",
-    dailyAvailability: "",
-    bankName: "",
-    accountName: "",
-    accountNumber: "",
-    routingOrSortCode: "",
+    availability: defaultAvailability,
 };
 
 // NOTE: backend returns/expects the singular key "social_link" as a flat
 // object: { twitter, linkedin, website } — not an array of {platform, url}.
-// Bank details come back under "bank_details" (was "bank_account").
-// Several fields (hourly_rate, language, availability, expertise,
-// daily_availability) come back as `null` on a fresh profile rather than
-// "" or [] — every read below normalizes that explicitly.
+// Several fields (hourly_rate, language, expertise) come back as `null` on a
+// fresh profile rather than "" or [] — every read below normalizes that
+// explicitly. `availability` is read from `availability_slots` if present,
+// falling back to `availability`, matching TutorProfile.tsx's pattern.
 const draftFromMentorProfile = (mentorProfile: any): Draft => {
     const socialLink = mentorProfile?.social_link ?? {};
-    const bank = mentorProfile?.bank_details ?? {};
 
     return {
         banner: mentorProfile?.cover_images ?? null,
@@ -411,12 +682,7 @@ const draftFromMentorProfile = (mentorProfile: any): Draft => {
         linkedin: extractHandle(socialLink.linkedin),
         xHandle: extractHandle(socialLink.twitter),
         website: socialLink.website ?? "",
-        availability: mentorProfile?.availability ?? "",
-        dailyAvailability: mentorProfile?.daily_availability != null ? String(mentorProfile.daily_availability) : "",
-        bankName: bank.bank_name ?? "",
-        accountName: bank.account_name ?? "",
-        accountNumber: bank.account_number ?? "",
-        routingOrSortCode: bank.routing_or_sort_code ?? "",
+        availability: normalizeAvailability(mentorProfile?.availability_slots ?? mentorProfile?.availability),
     };
 };
 
@@ -493,10 +759,9 @@ const MentorProfile = () => {
 
     const professionalComplete = !!(draft.nickname && draft.occupation && draft.bio && draft.experience);
     const socialComplete = draft.categories.length > 0;
-    const availabilityComplete = !!(draft.availability && draft.dailyAvailability);
-    const accountComplete = !!(draft.bankName && draft.accountName && draft.accountNumber);
+    const availabilityComplete = draft.availability.some((d) => d.enabled && d.slots.length > 0);
 
-    const stepOrder: Step[] = ["professional", "social", "availability", "account"];
+    const stepOrder: Step[] = ["professional", "social", "availability"];
     const goNext = () => {
         const idx = stepOrder.indexOf(step);
         if (idx < stepOrder.length - 1) setStep(stepOrder[idx + 1]);
@@ -513,7 +778,7 @@ const MentorProfile = () => {
     };
 
     const saveProfile = async () => {
-        if (!accountComplete || !mentorProfile) return;
+        if (!availabilityComplete || !mentorProfile) return;
 
         setIsPreparingSave(true);
         try {
@@ -549,21 +814,9 @@ const MentorProfile = () => {
             };
             formData.append("social_link", JSON.stringify(socialLink));
 
-            formData.append("availability", draft.availability);
-            // daily_availability is a plain number of hours (e.g. "2"), not "2 hrs".
-            formData.append("daily_availability", draft.dailyAvailability);
-
-            // Backend field is "bank_details" (was "bank_account").
-            formData.append(
-                "bank_details",
-                JSON.stringify({
-                    bank_name: draft.bankName,
-                    account_name: draft.accountName,
-                    account_number: draft.accountNumber,
-                    routing_or_sort_code: draft.routingOrSortCode,
-                    currency: "NGN",
-                })
-            );
+            // Availability sent as concrete day/time slots — same shape
+            // TutorProfile.tsx sends for tutors.
+            formData.append("availability", JSON.stringify(buildAvailabilityPayload(draft.availability)));
 
             updateMentor(formData, {
                 onSuccess: () => {
@@ -632,14 +885,7 @@ const MentorProfile = () => {
     const savedLinkedin = extractHandle(savedSocialLink.linkedin);
     const savedXHandle = extractHandle(savedSocialLink.twitter);
     const savedWebsite: string = savedSocialLink.website ?? "";
-    const savedAvailabilityLabel =
-        AVAILABILITY_OPTIONS.find((o) => o.value === mentorProfile?.availability)?.label ?? "";
-    const savedDailyAvailabilityLabel =
-        mentorProfile?.daily_availability != null
-            ? DAILY_AVAILABILITY_OPTIONS.find((o) => o.value === String(mentorProfile.daily_availability))?.label ??
-            `${mentorProfile.daily_availability} hrs`
-            : "";
-    const bank = mentorProfile?.bank_details;
+    const savedAvailability = normalizeAvailability(mentorProfile?.availability_slots ?? mentorProfile?.availability);
 
     return (
         <div className="min-h-screen w-full text-white" >
@@ -907,79 +1153,13 @@ const MentorProfile = () => {
                         <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Availability</h2>
                         <div className="space-y-5">
                             {isEditing ? (
-                                <>
-                                    <PillSelect
-                                        label="General Availability"
-                                        value={draft.availability}
-                                        options={AVAILABILITY_OPTIONS}
-                                        onChange={(v) => setDraft((d) => ({ ...d, availability: v }))}
-                                    />
-                                    <PillSelect
-                                        label="Hours Per Day"
-                                        value={draft.dailyAvailability}
-                                        options={DAILY_AVAILABILITY_OPTIONS}
-                                        onChange={(v) => setDraft((d) => ({ ...d, dailyAvailability: v }))}
-                                    />
-                                </>
+                                <AvailabilitySection
+                                    availability={draft.availability}
+                                    onChange={(a) => setDraft((d) => ({ ...d, availability: a }))}
+                                    disabled={isSaving}
+                                />
                             ) : (
-                                <>
-                                    <ViewRow label="General Availability" value={savedAvailabilityLabel} />
-                                    <ViewRow label="Hours Per Day" value={savedDailyAvailabilityLabel} />
-                                </>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* ---------------- Account Details ---------------- */}
-                {step === "account" && (
-                    <div>
-                        <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Bank Details</h2>
-                        <p className="mb-6 -mt-3 text-sm text-white/40">
-                            We use these details to pay out your mentoring earnings.
-                        </p>
-                        <div className="space-y-5">
-                            {isEditing ? (
-                                <>
-                                    <Field
-                                        label="Bank Name"
-                                        value={draft.bankName}
-                                        onChange={(v) => setDraft((d) => ({ ...d, bankName: v }))}
-                                        placeholder="e.g. GTBank"
-                                    />
-                                    <Field
-                                        label="Account Name"
-                                        value={draft.accountName}
-                                        onChange={(v) => setDraft((d) => ({ ...d, accountName: v }))}
-                                        placeholder="Name on the account"
-                                    />
-                                    <Field
-                                        label="Account Number"
-                                        value={draft.accountNumber}
-                                        onChange={(v) =>
-                                            setDraft((d) => ({ ...d, accountNumber: v.replace(/[^0-9]/g, "") }))
-                                        }
-                                        placeholder="0123456789"
-                                        helper="10-digit NUBAN account number."
-                                    />
-                                    <Field
-                                        label="Routing / Sort Code"
-                                        value={draft.routingOrSortCode}
-                                        onChange={(v) => setDraft((d) => ({ ...d, routingOrSortCode: v }))}
-                                        placeholder="Optional — for non-NGN accounts"
-                                        helper="Leave blank if not applicable."
-                                    />
-                                </>
-                            ) : (
-                                <>
-                                    <ViewRow label="Bank Name" value={bank?.bank_name ?? ""} />
-                                    <ViewRow label="Account Name" value={bank?.account_name ?? ""} />
-                                    <ViewRow
-                                        label="Account Number"
-                                        value={bank?.account_number ? `••••••${bank.account_number.slice(-4)}` : ""}
-                                    />
-                                    <ViewRow label="Routing / Sort Code" value={bank?.routing_or_sort_code ?? ""} />
-                                </>
+                                <ViewAvailabilityRow availability={savedAvailability} />
                             )}
                         </div>
                     </div>
@@ -1004,17 +1184,11 @@ const MentorProfile = () => {
                                     )}
                                 </span>
                             </Button>
-                            {step !== "account" ? (
+                            {step !== "availability" ? (
                                 <Button
                                     variant="green"
                                     onClick={goNext}
-                                    disabled={
-                                        step === "professional"
-                                            ? !professionalComplete
-                                            : step === "social"
-                                                ? !socialComplete
-                                                : !availabilityComplete
-                                    }
+                                    disabled={step === "professional" ? !professionalComplete : !socialComplete}
                                 >
                                     <span className="flex items-center justify-center gap-2">
                                         Next
@@ -1027,7 +1201,7 @@ const MentorProfile = () => {
                                     onClick={() => {
                                         void saveProfile();
                                     }}
-                                    disabled={!accountComplete || isSaving}
+                                    disabled={!availabilityComplete || isSaving}
                                 >
                                     <span className="flex items-center justify-center gap-2">
                                         <FiCheck size={15} />
