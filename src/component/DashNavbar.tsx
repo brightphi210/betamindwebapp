@@ -305,7 +305,7 @@ const DashNavbar = () => {
 
             {/* Mobile bottom tab bar — replaces the old side drawer */}
             <nav
-                className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch py-2.5!"
+                className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch py-2.5"
                 style={{
                     background: 'rgba(6, 10, 4, 0.95)',
                     backdropFilter: 'blur(20px) saturate(150%)',
