@@ -305,7 +305,7 @@ const DashNavbar = () => {
 
             {/* Mobile bottom tab bar — replaces the old side drawer */}
             <nav
-                className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch"
+                className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch py-2.5!"
                 style={{
                     background: 'rgba(6, 10, 4, 0.95)',
                     backdropFilter: 'blur(20px) saturate(150%)',
@@ -316,7 +316,7 @@ const DashNavbar = () => {
             >
                 {/* subtle top glass highlight */}
                 <div
-                    className="absolute top-0 left-0 right-0 h-px"
+                    className="absolute top-0 left-0 right-0 h-px p-0.5"
                     style={{ background: 'linear-gradient(90deg, transparent, rgba(166,255,0,0.25), transparent)' }}
                 />
 

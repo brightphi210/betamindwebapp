@@ -196,34 +196,27 @@ const EventsTimelineSkeleton: React.FC<{ groups?: number; rowsPerGroup?: number 
 const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
     <div className="flex flex-col items-center justify-center py-24 sm:py-32">
         <div
-            className="relative w-28 h-28 rounded-2xl mb-8 flex items-center justify-center"
-            style={{ background: 'rgba(166,255,0,0.06)', border: '1px solid rgba(205,220,57,.12)' }}
+            className="relative w-24 h-24 rounded-2xl mb-8 flex items-center justify-center bg-neutral-900"
         >
-            <FiCalendar size={44} className="text-white/20" />
-            <div
-                className="absolute -top-3 -right-3 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(205,220,57,.15)' }}
-            >
-                0
-            </div>
+            <FiCalendar size={44} className="text-white" />
         </div>
         <h2 className="text-white text-xl font-bold mb-2">
             No {tab === 'upcoming' ? 'Upcoming' : 'Past'} Events
         </h2>
-        <p className="text-white/40 text-sm mb-8">
+        <p className="text-white/40 text-sm mb-2">
             {tab === 'upcoming'
-                ? "You haven't created any upcoming events yet."
+                ? "You dont have any upcoming event"
                 : "You don't have any past events."}
         </p>
         {tab === 'upcoming' && (
-            <Link
-                to="/dashboard/events/create"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm text-black transition-transform hover:scale-[1.02]"
+            <a
+                href="/dashboard/events/create"
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-md font-semibold text-sm text-black transition-transform hover:scale-[1.02]"
                 style={{ background: '#a6ff00' }}
             >
                 <FiPlus size={16} />
-                Create Event
-            </Link>
+                Create Events
+            </a>
         )}
     </div>
 );
@@ -376,13 +369,12 @@ const EventRow: React.FC<{
         {/* ── Mobile card (matches design) ── */}
         <div
             onClick={() => onView(event)}
-            className="flex sm:hidden flex-col gap-4 rounded-2xl p-4 cursor-pointer"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
+            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-"
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                    <p className="text-white/50 text-base mb-1">{event.time}</p>
-                    <h3 className="text-white font-bold text-xl break-words mb-2">
+                    <p className="text-white/50 text-sm mb-1">{event.time}</p>
+                    <h3 className="text-white font-bold text-lg break-words mb-2">
                         {event.title}
                     </h3>
 
@@ -407,18 +399,18 @@ const EventRow: React.FC<{
                 <img
                     src={event.thumbnail}
                     alt={event.title}
-                    className="w-24 h-24 rounded-2xl object-cover shrink-0"
+                    className="w-24 h-23 border-4 border-white/5 rounded-lg object-cover shrink-0"
                 />
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex justify-between items-center gap-3">
                 <Button
                     onClick={(e) => {
                         e.stopPropagation();
                         onView(event);
                     }}
-                    variant="dark"
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm"
+                    variant="white"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm mt-3"
                 >
                     Manage Event
                     <FiArrowRight size={14} />
@@ -428,7 +420,7 @@ const EventRow: React.FC<{
                     <AvatarStack
                         attendees={event.attendees}
                         total={event.registered}
-                        size={28}
+                        size={20}
                         onOpenGuests={() => onOpenGuests(event)}
                     />
                 )}
@@ -825,10 +817,10 @@ const Events: React.FC = () => {
                                         <button
                                             key={t}
                                             onClick={() => setTab(t)}
-                                            className="px-4 py-1.5 rounded-md text-xs font-semibold capitalize transition-colors cursor-pointer"
+                                            className="px-4 py-1.5 rounded-md text-sm font-semibold capitalize transition-colors cursor-pointer"
                                             style={{
-                                                background: tab === t ? 'rgba(166,255,0,0.12)' : 'transparent',
-                                                color: tab === t ? '#a6ff00' : 'rgba(255,255,255,0.5)',
+                                                background: tab === t ? 'white' : 'transparent',
+                                                color: tab === t ? 'black' : '#ffff',
                                             }}
                                         >
                                             {t}

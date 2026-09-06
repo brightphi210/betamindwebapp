@@ -225,9 +225,9 @@ const EventsTimelineSkeleton: React.FC<{ groups?: number; rowsPerGroup?: number 
 const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
     <div className="flex flex-col items-center justify-center py-24 sm:py-32">
         <div
-            className="relative w-28 h-28 rounded-2xl mb-8 flex items-center justify-center bg-white/5"
+            className="relative w-24 h-24 rounded-2xl mb-8 flex items-center justify-center bg-neutral-900"
         >
-            <FiCalendar size={44} className="text-white/20" />
+            <FiCalendar size={44} className="text-white" />
         </div>
         <h2 className="text-white text-xl font-bold mb-2">
             No {tab === 'upcoming' ? 'Upcoming' : 'Past'} Events
@@ -240,7 +240,7 @@ const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
         {tab === 'upcoming' && (
             <a
                 href="/dashboard/events/create"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm text-black transition-transform hover:scale-[1.02]"
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-md font-semibold text-sm text-black transition-transform hover:scale-[1.02]"
                 style={{ background: '#a6ff00' }}
             >
                 <FiPlus size={16} />
@@ -475,7 +475,7 @@ const EventRow: React.FC<{
         {/* ── Mobile card (matches design) ── */}
         <div
             onClick={() => onView(event)}
-            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-neutral-950"
+            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-"
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -1191,8 +1191,7 @@ const Overview: React.FC = () => {
 
                             <div className="flex items-center gap-3">
                                 <div
-                                    className="flex items-center rounded-lg p-1"
-                                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(205,220,57,.1)' }}
+                                    className="flex items-center rounded-lg p-1 bg-white/5 gap-1.5"
                                 >
                                     {(['upcoming', 'past'] as const).map((t) => (
                                         <button
@@ -1200,23 +1199,14 @@ const Overview: React.FC = () => {
                                             onClick={() => setTab(t)}
                                             className="px-4 py-1.5 rounded-md text-sm font-semibold capitalize transition-colors cursor-pointer"
                                             style={{
-                                                background: tab === t ? 'rgba(166,255,0,0.12)' : 'transparent',
-                                                color: tab === t ? '#a6ff00' : 'rgba(255,255,255,0.5)',
+                                                background: tab === t ? 'white' : 'transparent',
+                                                color: tab === t ? 'black' : '#ffff',
                                             }}
                                         >
                                             {t}
                                         </button>
                                     ))}
                                 </div>
-
-                                <Link
-                                    to="/dashboard/events"
-                                    className="hidden sm:flex items-center gap-1.5 text-xs sm:text-sm font-semibold whitespace-nowrap"
-                                    style={{ color: '#a6ff00' }}
-                                >
-                                    View All
-                                    <FiArrowRight size={13} />
-                                </Link>
                             </div>
                         </div>
 
