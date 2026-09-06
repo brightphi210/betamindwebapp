@@ -68,7 +68,7 @@ const TransactionRow: React.FC<{ tx: Transaction }> = ({ tx }) => {
                 <p className="text-xs text-white/40">{tx.date}</p>
             </div>
             <div className="shrink-0 text-right">
-                <p className="text-sm font-bold text-white">
+                <p className="text-sm font-bold text-white ">
                     {isPayout ? "-" : "+"}₦{Math.abs(tx.amount).toLocaleString()}
                 </p>
                 <span
@@ -252,10 +252,10 @@ const Wallet = () => {
 
             {/* Balance hero */}
             <div
-                className="relative mb-8 overflow-hidden border border-white/0 rounded-2xl p-6 sm:p-8"
+                className="relative bg-white/5! mb-8 overflow-hidden rounded-2xl p-6 sm:p-8"
                 style={{
                     background:
-                        "radial-gradient(ellipse 300px 200px at 100% 0%, rgba(166,255,0,0.08), transparent), rgba(255,255,255,0.02)",
+                        "radial-gradient(ellipse 300px 200px at 100% 0%, rgba(166,255,0,0.2), transparent), rgba(255,255,255,0.02)",
                 }}
             >
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">
