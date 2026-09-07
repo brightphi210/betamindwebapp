@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { BsEyeFill } from 'react-icons/bs';
 import {
     FiBell,
+    FiBookOpen,
     FiCalendar,
     FiCompass,
     FiCreditCard,
     FiHome,
     FiLogOut,
+    FiMoreHorizontal,
     FiPlus,
-    FiUser
+    FiUser,
+    FiX
 } from 'react-icons/fi';
 import { MdSettings } from 'react-icons/md';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -22,13 +25,21 @@ const NAV_ITEMS = [
     { id: 'events', name: 'Events', icon: <FiCalendar className="" />, path: '/dashboard/events' },
     { id: 'explore', name: 'Explore', icon: <FiCompass className="" />, path: '/dashboard/explore' },
     { id: 'wallet', name: 'Wallet', icon: <FiCreditCard className="" />, path: '/dashboard/wallet' },
+    { id: 'bookings', name: 'Bookings', icon: <FiBookOpen className="" />, path: '/dashboard/bookings' },
 ];
+
+// Items shown on the left/right of the mobile bottom tab bar (Create sits in the middle,
+// the "More" dots menu sits at the far end).
+const MOBILE_PRIMARY_IDS = ['home', 'events'];
+const MOBILE_SECONDARY_IDS = ['explore', 'wallet'];
 
 const DashNavbar = () => {
     const location = useLocation();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showQuickActions, setShowQuickActions] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
+    const moreMenuRef = useRef<HTMLDivElement>(null);
 
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
     const userProfile = myProfile?.data;
@@ -39,6 +50,9 @@ const DashNavbar = () => {
             if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
                 setShowProfileMenu(false);
             }
+            if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+                setShowMoreMenu(false);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -47,10 +61,14 @@ const DashNavbar = () => {
     useEffect(() => {
         setShowProfileMenu(false);
         setShowQuickActions(false);
+        setShowMoreMenu(false);
     }, [location.pathname]);
 
 
     const navigate = useNavigate()
+
+    const mobilePrimaryItems = NAV_ITEMS.filter((item) => MOBILE_PRIMARY_IDS.includes(item.id));
+    const mobileSecondaryItems = NAV_ITEMS.filter((item) => MOBILE_SECONDARY_IDS.includes(item.id));
 
     return (
         <>
@@ -320,7 +338,7 @@ const DashNavbar = () => {
                     style={{ background: 'linear-gradient(90deg, transparent, rgba(166,255,0,0.25), transparent)' }}
                 />
 
-                {NAV_ITEMS.slice(0, 2).map((item) => {
+                {mobilePrimaryItems.map((item) => {
                     const isActive = location.pathname === item.path;
                     return (
                         <Link
@@ -353,7 +371,7 @@ const DashNavbar = () => {
                     Create
                 </button>
 
-                {NAV_ITEMS.slice(2).map((item) => {
+                {mobileSecondaryItems.map((item) => {
                     const isActive = location.pathname === item.path;
                     return (
                         <Link
@@ -370,6 +388,118 @@ const DashNavbar = () => {
                         </Link>
                     );
                 })}
+
+                {/* Dots — opens a small menu with Bookings + Become a Mentor */}
+                <div className="relative flex-1" ref={moreMenuRef}>
+                    <button
+                        onClick={() => setShowMoreMenu((prev) => !prev)}
+                        aria-haspopup="true"
+                        aria-expanded={showMoreMenu}
+                        className="w-full h-full flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] transition-colors duration-200"
+                        style={{
+                            color: showMoreMenu ? '#a6ff00' : 'rgba(255,255,255,.55)',
+                            fontWeight: showMoreMenu ? 600 : 400,
+                        }}
+                    >
+                        <span className="text-2xl">
+                            <FiMoreHorizontal />
+                        </span>
+                        More
+                    </button>
+
+                    {/* Dropdown panel — same styling as the profile dropdown, anchored near the dots */}
+                    <div
+                        className={`absolute bg-neutral-950 border-2 border-neutral-900 bottom-9/12 p-5 mb-3 w-56 rounded-2xl overflow-hidden right-3 origin-bottom-right transition-all duration-200 ease-out ${showMoreMenu
+                            ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
+                            : 'opacity-0 scale-95 translate-y-1 pointer-events-none'
+                            }`}
+                        style={{
+                            backdropFilter: 'blur(24px) saturate(150%)',
+                            WebkitBackdropFilter: 'blur(24px) saturate(150%)',
+                            boxShadow: '0 -12px 32px rgba(0,0,0,0.4)',
+                        }}
+                    >
+                        {/* Header with close icon */}
+                        <div className="flex items-center justify-between pb-1">
+                            <p className="text-white text-xs font-semibold">More</p>
+                            <button
+                                onClick={() => setShowMoreMenu(false)}
+                                aria-label="Close menu"
+                                className="w-6 h-6 flex items-center justify-center rounded-full text-white/60 transition-colors"
+                                onMouseEnter={(e) => {
+                                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)';
+                                    (e.currentTarget as HTMLButtonElement).style.color = '#fff';
+                                }}
+                                onMouseLeave={(e) => {
+                                    (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                                    (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.6)';
+                                }}
+                            >
+                                <FiX size={16} />
+                            </button>
+                        </div>
+
+                        <div className="py-1">
+                            <Link
+                                to="/dashboard/bookings"
+                                onClick={() => setShowMoreMenu(false)}
+                                className="flex justify-center items-center gap-2 px-5 py-2.5 text-xs bg-white text-black rounded-lg no-underline transition-colors"
+                                onMouseEnter={(e) => {
+                                    (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
+                                    (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
+                                }}
+                                onMouseLeave={(e) => {
+                                    (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+                                    (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
+                                }}
+                            >
+                                <FiBookOpen />
+                                Bookings
+                            </Link>
+                        </div>
+
+                        <div className="h-px w-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
+
+                        <div className="py-1">
+                            {userProfile?.is_mentor ? (
+                                <Link
+                                    to="/dashboard/mentor"
+                                    onClick={() => setShowMoreMenu(false)}
+                                    className="flex justify-center items-center gap-2 px-5 py-2.5 bg-white text-black rounded-lg text-xs no-underline transition-colors"
+                                    onMouseEnter={(e) => {
+                                        (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
+                                        (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+                                        (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
+                                    }}
+                                >
+                                    <FiUser />
+                                    Mentor Profile
+                                </Link>
+                            ) : (
+                                <Link
+                                    to="/mentor-onboarding"
+                                    onClick={() => setShowMoreMenu(false)}
+                                    className="flex items-center gap-3 px-5 py-3 text-xs no-underline transition-colors"
+                                    style={{ color: 'rgba(255,255,255,0.75)' }}
+                                    onMouseEnter={(e) => {
+                                        (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
+                                        (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+                                        (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
+                                    }}
+                                >
+                                    <FiUser />
+                                    Become a Mentor
+                                </Link>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </nav>
 
             {/* Quick actions dialog, opened from the middle Plus tab */}
@@ -416,26 +546,6 @@ const DashNavbar = () => {
                                 <FiPlus size={16} />
                                 Create Event
                             </Link>
-
-                            {userProfile?.is_mentor ? (
-                                <Link
-                                    to="/dashboard/mentor"
-                                    onClick={() => setShowQuickActions(false)}
-                                    className="flex items-center justify-center bg-white text-black gap-2 w-full py-3 rounded-md text-sm font-semibold"
-                                >
-                                    <FiUser size={16} />
-                                    View Mentor Profile
-                                </Link>
-                            ) : (
-                                <Link
-                                    to="/mentor-onboarding"
-                                    onClick={() => setShowQuickActions(false)}
-                                    className="flex items-center justify-center bg-white text-black gap-2 w-full py-3 rounded-md text-sm font-semibold"
-                                >
-                                    <FiUser size={16} />
-                                    Become a Mentor
-                                </Link>
-                            )}
                         </div>
                     </div>
                 </>
