@@ -409,7 +409,7 @@ const DashNavbar = () => {
 
                     {/* Dropdown panel — same styling as the profile dropdown, anchored near the dots */}
                     <div
-                        className={`absolute bg-neutral-950 border-2 border-neutral-900 bottom-9/12 p-5 mb-3 w-56 rounded-2xl overflow-hidden right-3 origin-bottom-right transition-all duration-200 ease-out ${showMoreMenu
+                        className={`absolute bg-neutral-950 border-2 border-neutral-800 bottom-9/12 p-5 mb-3 w-56 rounded-2xl overflow-hidden right-3 origin-bottom-right transition-all duration-200 ease-out ${showMoreMenu
                             ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
                             : 'opacity-0 scale-95 translate-y-1 pointer-events-none'
                             }`}
@@ -443,7 +443,7 @@ const DashNavbar = () => {
                             <Link
                                 to="/dashboard/bookings"
                                 onClick={() => setShowMoreMenu(false)}
-                                className="flex justify-center items-center gap-2 px-5 py-2.5 text-xs bg-white text-black rounded-lg no-underline transition-colors"
+                                className="flex justify-center items-center gap-2 px-5 py-2.5 text-sm bg-white text-black rounded-lg no-underline transition-colors"
                                 onMouseEnter={(e) => {
                                     (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
                                     (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
@@ -465,7 +465,7 @@ const DashNavbar = () => {
                                 <Link
                                     to="/dashboard/mentor"
                                     onClick={() => setShowMoreMenu(false)}
-                                    className="flex justify-center items-center gap-2 px-5 py-2.5 bg-white text-black rounded-lg text-xs no-underline transition-colors"
+                                    className="flex justify-center items-center gap-2 px-5 py-2.5 bg-white text-black rounded-lg text-sm no-underline transition-colors"
                                     onMouseEnter={(e) => {
                                         (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
                                         (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
@@ -482,7 +482,7 @@ const DashNavbar = () => {
                                 <Link
                                     to="/mentor-onboarding"
                                     onClick={() => setShowMoreMenu(false)}
-                                    className="flex items-center gap-3 px-5 py-3 text-xs no-underline transition-colors"
+                                    className="flex items-center gap-3 px-5 py-3 text-sm no-underline transition-colors"
                                     style={{ color: 'rgba(255,255,255,0.75)' }}
                                     onMouseEnter={(e) => {
                                         (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
