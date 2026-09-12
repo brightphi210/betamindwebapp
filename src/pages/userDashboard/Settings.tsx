@@ -46,6 +46,9 @@ const SettingsPage = () => {
     const navigate = useNavigate();
     const { addToast } = useGlobalContext();
     const avatarInputRef = useRef<HTMLInputElement>(null);
+    const MAX_AVATAR_SIZE_BYTES = 7 * 1024 * 1024; // 7MB
+
+    const cardBg = "rgba(255,255,255,0.02)";
 
     const { myProfile, isLoading } = useGetMyUserProfile();
     const userProfile = myProfile?.data;
@@ -80,10 +83,16 @@ const SettingsPage = () => {
 
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            setAvatarPreview(URL.createObjectURL(file));
-            setAvatarFile(file);
+        if (!file) return;
+
+        if (file.size > MAX_AVATAR_SIZE_BYTES) {
+            addToast("Profile photo must be 7MB or smaller.", "error");
+            e.target.value = "";
+            return;
         }
+
+        setAvatarPreview(URL.createObjectURL(file));
+        setAvatarFile(file);
     };
 
     const handleSave = () => {

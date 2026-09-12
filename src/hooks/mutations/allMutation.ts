@@ -156,7 +156,42 @@ export const useBookMentorship = () => {
   const bookMentorship = useMutation({
     mutationFn: async (data: any) => {
       const token = (await localStorage.getItem("betamindToken")) || ""
-      return post_requests('sessions/', data, token)
+      return post_requests('bookings/', data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookMentorship", "mentorProfile"] })
+    },
+  })
+
+  return bookMentorship
+}
+
+
+
+export const useAcceptBooking = () => {
+  const queryClient = useQueryClient()
+
+  const bookMentorship = useMutation({
+    mutationFn: async (data: any) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return post_requests('bookings/', data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookMentorship", "mentorProfile"] })
+    },
+  })
+
+  return bookMentorship
+}
+
+
+export const useRejectBooking = () => {
+  const queryClient = useQueryClient()
+
+  const bookMentorship = useMutation({
+    mutationFn: async (data: any) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return post_requests('bookings/', data, token)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookMentorship", "mentorProfile"] })

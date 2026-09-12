@@ -23,7 +23,6 @@ import {
     FiShare2,
     FiStar,
     FiTag,
-    FiTarget,
     FiTwitter,
     FiUsers,
     FiX
@@ -529,26 +528,89 @@ const ShareModal: React.FC<{
 
 // ─── Book mentorship modal ────────────────────────────────────────────────
 type BookMentorshipPayload = {
-    goal: string;
-    message: string;
+    title: string;
+    subject: string;
+    description: string;
+    notes: string;
+    duration: number;
+    session_type: 'online' | 'offline';
+    scheduled_date: string; // yyyy-mm-dd
+};
+
+const SESSION_TYPES: { value: 'online' | 'offline'; label: string }[] = [
+    { value: 'online', label: 'Online' },
+    { value: 'offline', label: 'In person' },
+];
+
+const WEEKDAY_INDEX: Record<string, number> = {
+    Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
+};
+
+// Next calendar date (yyyy-mm-dd) that falls on `dayName`, including today if it matches.
+const nextDateForWeekday = (dayName: string): string => {
+    const targetIdx = WEEKDAY_INDEX[dayName];
+    if (targetIdx === undefined) return '';
+    const today = new Date();
+    let diff = targetIdx - today.getDay();
+    if (diff < 0) diff += 7;
+    const result = new Date(today);
+    result.setDate(today.getDate() + diff);
+    return result.toISOString().slice(0, 10);
+};
+
+// Minutes between "HH:MM:SS" strings, e.g. 09:00:00 -> 10:00:00 = 60
+const slotDurationMinutes = (start: string, end: string): number => {
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 60;
+    const minutes = eh * 60 + em - (sh * 60 + sm);
+    return minutes > 0 ? minutes : 60;
 };
 
 const BookMentorshipModal: React.FC<{
     mentorName: string;
     mentorAvatar?: string;
+    selectedSlot: AvailabilitySlot;
     isSubmitting?: boolean;
     errorMessage?: string | null;
     onClose: () => void;
     onSubmit: (payload: BookMentorshipPayload) => void;
-}> = ({ mentorName, mentorAvatar, isSubmitting = false, errorMessage, onClose, onSubmit }) => {
-    const [goal, setGoal] = useState<string | null>(null);
-    const [message, setMessage] = useState('');
+}> = ({ mentorName, mentorAvatar, selectedSlot, isSubmitting = false, errorMessage, onClose, onSubmit }) => {
+    const [title, setTitle] = useState('');
+    const [subject, setSubject] = useState('');
+    const [sessionType, setSessionType] = useState<'online' | 'offline'>('online');
+    const [duration, setDuration] = useState(() =>
+        slotDurationMinutes(selectedSlot.start_time, selectedSlot.end_time)
+    );
+    const [scheduledDate, setScheduledDate] = useState(() => nextDateForWeekday(selectedSlot.day_of_week));
+    const [description, setDescription] = useState('');
+    const [notes, setNotes] = useState('');
 
-    const canSubmit = !!goal && message.trim().length > 0 && !isSubmitting;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const dateWeekdayMismatch =
+        !!scheduledDate &&
+        new Date(`${scheduledDate}T00:00:00`).getDay() !== WEEKDAY_INDEX[selectedSlot.day_of_week];
+
+    const canSubmit =
+        !!title.trim() &&
+        !!subject.trim() &&
+        !!description.trim() &&
+        !!scheduledDate &&
+        !dateWeekdayMismatch &&
+        duration > 0 &&
+        !isSubmitting;
 
     const handleSubmit = () => {
-        if (!canSubmit || !goal) return;
-        onSubmit({ goal, message: message.trim() });
+        if (!canSubmit) return;
+        onSubmit({
+            title: title.trim(),
+            subject: subject.trim(),
+            description: description.trim(),
+            notes: notes.trim(),
+            duration,
+            session_type: sessionType,
+            scheduled_date: scheduledDate,
+        });
     };
 
     return (
@@ -566,7 +628,6 @@ const BookMentorshipModal: React.FC<{
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header */}
                 <div className="mb-5 flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0">
                         <img
@@ -592,10 +653,18 @@ const BookMentorshipModal: React.FC<{
                     </button>
                 </div>
 
-                {/* Error banner */}
+                {/* Selected slot summary */}
+                <div
+                    className="mb-5 flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-xs font-semibold"
+                    style={{ background: 'rgba(166,255,0,0.08)', border: '1px solid rgba(166,255,0,0.25)', color: '#a6ff00' }}
+                >
+                    <FiCalendar size={14} className="shrink-0" />
+                    {selectedSlot.day_of_week}, {formatTime(selectedSlot.start_time)} – {formatTime(selectedSlot.end_time)}
+                </div>
+
                 {errorMessage && (
                     <div
-                        className="mb-5 flex items-start gap-2 rounded-lg px-3.5 py-2.5 text-xs font-medium"
+                        className="mb-5 flex items-start gap-2 rounded-lg px-3.5 py-2.5 text-xs font-medium whitespace-pre-line"
                         style={{ background: 'rgba(255,80,80,0.08)', border: '1px solid rgba(255,80,80,0.25)', color: '#ff9a9a' }}
                     >
                         <FiAlertCircle size={14} className="shrink-0 mt-0.5" />
@@ -603,52 +672,116 @@ const BookMentorshipModal: React.FC<{
                     </div>
                 )}
 
-                {/* Goal selection */}
-                <div className="mb-6">
-                    <label className="mb-2.5 flex items-center gap-1.5 text-sm font-semibold text-white">
-                        <FiTarget size={14} className="text-neutral-400" />
-                        What best describes the goal of your mentorship?
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                        {MENTORSHIP_GOALS.map((option) => {
-                            const active = goal === option;
-                            return (
-                                <button
-                                    key={option}
-                                    type="button"
-                                    disabled={isSubmitting}
-                                    onClick={() => setGoal(option)}
-                                    className="cursor-pointer px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                    style={
-                                        active
-                                            ? { background: '#a6ff00', color: '#000' }
-                                            : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.75)', border: '1px solid rgba(255,255,255,0.1)' }
-                                    }
-                                >
-                                    {option}
-                                </button>
-                            );
-                        })}
+                <div className="space-y-4 mb-6">
+                    <div>
+                        <label className="mb-1.5 block text-sm font-semibold text-white">Session title</label>
+                        <input
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            disabled={isSubmitting}
+                            placeholder="e.g. Python Backend Development Mentorship"
+                            className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none placeholder:text-white/25 disabled:opacity-60"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="mb-1.5 block text-sm font-semibold text-white">Subject</label>
+                        <input
+                            value={subject}
+                            onChange={(e) => setSubject(e.target.value)}
+                            disabled={isSubmitting}
+                            placeholder="e.g. Python and Django"
+                            className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none placeholder:text-white/25 disabled:opacity-60"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="mb-1.5 block text-sm font-semibold text-white">Session type</label>
+                            <select
+                                value={sessionType}
+                                onChange={(e) => setSessionType(e.target.value as 'online' | 'offline')}
+                                disabled={isSubmitting}
+                                className="w-full rounded-xl px-4 py-3 text-sm text-white bg-transparent outline-none disabled:opacity-60"
+                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                            >
+                                {SESSION_TYPES.map((t) => (
+                                    <option key={t.value} value={t.value} className="bg-[#0a0f08]">
+                                        {t.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="mb-1.5 block text-sm font-semibold text-white">Duration (min)</label>
+                            <input
+                                type="number"
+                                min={15}
+                                step={5}
+                                value={duration}
+                                onChange={(e) => setDuration(parseInt(e.target.value, 10) || 0)}
+                                disabled={isSubmitting}
+                                className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none disabled:opacity-60"
+                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="mb-1.5 block text-sm font-semibold text-white">Date</label>
+                        <input
+                            type="date"
+                            min={todayStr}
+                            value={scheduledDate}
+                            onChange={(e) => setScheduledDate(e.target.value)}
+                            disabled={isSubmitting}
+                            className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none disabled:opacity-60"
+                            style={{
+                                background: 'rgba(255,255,255,0.04)',
+                                border: dateWeekdayMismatch ? '1px solid rgba(255,80,80,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                            }}
+                        />
+                        {dateWeekdayMismatch && (
+                            <p className="mt-1.5 text-xs" style={{ color: '#ff9a9a' }}>
+                                This date isn't a {selectedSlot.day_of_week}. Pick a {selectedSlot.day_of_week} to match the
+                                selected slot.
+                            </p>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="mb-1.5 block text-sm font-semibold text-white">
+                            Describe what you'd like help with
+                        </label>
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder={`Hi ${mentorName}, I'd love your help with...`}
+                            rows={4}
+                            disabled={isSubmitting}
+                            className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none resize-none placeholder:text-white/25 disabled:opacity-60"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="mb-1.5 block text-sm font-semibold text-white">
+                            Additional notes <span className="text-white/30 font-normal">(optional)</span>
+                        </label>
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="Anything else the mentor should know?"
+                            rows={2}
+                            disabled={isSubmitting}
+                            className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none resize-none placeholder:text-white/25 disabled:opacity-60"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                        />
                     </div>
                 </div>
 
-                {/* Message */}
-                <div className="mb-6">
-                    <label className="mb-2 block text-sm font-semibold text-white">
-                        Write a message to {mentorName}
-                    </label>
-                    <textarea
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder={`Hi ${mentorName}, I'd love your help with...`}
-                        rows={5}
-                        disabled={isSubmitting}
-                        className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none resize-none placeholder:text-white/25 disabled:opacity-60"
-                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                    />
-                </div>
-
-                {/* Submit */}
                 <button
                     onClick={handleSubmit}
                     disabled={!canSubmit}
@@ -766,17 +899,44 @@ const Mentor: React.FC = () => {
 
     const { mutate: bookMentorship, isPending: isBooking } = useBookMentorship();
 
-    const mentorName = [mentor?.profile?.first_name, mentor?.profile?.last_name]
-        .filter(Boolean)
+
+
+
+
+    // Flattens DRF-style { field: ["err1","err2"], non_field_errors: [...] } into readable text
+    const flattenErrorMessages = (data: unknown): string => {
+        if (!data) return '';
+        if (typeof data === 'string') return data;
+        if (Array.isArray(data)) {
+            return data.map((item) => flattenErrorMessages(item)).filter(Boolean).join('\n');
+        }
+        if (typeof data === 'object') {
+            const entries = Object.entries(data as Record<string, unknown>);
+            const messages = entries.flatMap(([key, value]) => {
+                const label = key === 'non_field_errors' ? '' : `${key.replace(/_/g, ' ')}: `;
+                if (Array.isArray(value)) {
+                    return value.map((v) => `${label}${typeof v === 'string' ? v : flattenErrorMessages(v)}`);
+                }
+                if (typeof value === 'object' && value !== null) {
+                    return [`${label}${flattenErrorMessages(value)}`];
+                }
+                return typeof value === 'string' ? [`${label}${value}`] : [];
+            });
+            return messages.filter(Boolean).join('\n');
+        }
+        return String(data);
+    };
+
+    const mentorName = [mentor?.first_name, mentor?.last_name].filter(Boolean)
         .join(' ') || mentor?.nick_name || 'Mentor';
-    const mentorAvatar: string | undefined = mentor?.profile?.avatar;
+    const mentorAvatar: string | undefined = mentor?.avatar;
 
     const socialLink: SocialLink = mentor?.social_link ?? {};
     const activeSocials = (Object.keys(socialLink) as (keyof SocialLink)[]).filter(
         (platform) => !!socialLink[platform]
     );
 
-    const location = [mentor?.profile?.city, mentor?.profile?.country].filter(Boolean).join(', ');
+    const location = [mentor?.address, mentor?.city, mentor?.country].filter(Boolean).join(', ');
     const categories: string[] = mentor?.categories ?? [];
     const expertise: string[] = mentor?.expertise ?? [];
 
@@ -812,6 +972,10 @@ const Mentor: React.FC = () => {
     const [bookingToast, setBookingToast] = useState<string | null>(null);
 
     const handleBookMentorship = () => {
+        if (!selectedSlot) {
+            toast('Please select an availability slot first.', { type: 'warning' });
+            return;
+        }
         setBookingError(null);
         setShowBookModal(true);
     };
@@ -822,8 +986,12 @@ const Mentor: React.FC = () => {
         setBookingError(null);
     };
 
-    const handleBookingSubmit = (payload: { goal: string; message: string }) => {
-        if (!id) {
+    const handleBookingSubmit = (payload: BookMentorshipPayload) => {
+        if (!selectedSlot?.id) {
+            setBookingError('Please select an availability slot first.');
+            return;
+        }
+        if (mentor?.id == null) {
             setBookingError('Missing mentor reference. Please refresh and try again.');
             return;
         }
@@ -832,30 +1000,30 @@ const Mentor: React.FC = () => {
 
         bookMentorship(
             {
-                mentor_id: id,
-                goal: payload.goal,
-                description: payload.message,
-                // Include the selected slot when the user picked one from the sidebar.
-                ...(selectedSlot
-                    ? {
-                        day_of_week: selectedSlot.day_of_week,
-                        start_time: selectedSlot.start_time,
-                        end_time: selectedSlot.end_time,
-                    }
-                    : {}),
+                mentor_profile: mentor.id,
+                availability_slot: selectedSlot.id,
+                title: payload.title,
+                subject: payload.subject,
+                description: payload.description,
+                notes: payload.notes,
+                duration: payload.duration,
+                session_type: payload.session_type,
+                scheduled_date: payload.scheduled_date,
             },
             {
                 onSuccess: () => {
                     setShowBookModal(false);
+                    setSelectedSlotKey(null);
                     toast(`Your request was sent to ${mentorName}.`, { type: 'success' });
-                    setTimeout(() => setBookingToast(null), 4000);
                 },
                 onError: (error: any) => {
+                    const backendMessage = flattenErrorMessages(error?.response?.data);
                     const message =
+                        backendMessage ||
                         error?.response?.data?.message ||
-                        error?.response?.detail ||
                         error?.response?.data?.detail ||
                         'Something went wrong while sending your request. Please try again.';
+                    setBookingError(message); // keeps modal open with inline error
                     toast(message, { type: 'error' });
                 },
             }
@@ -1257,10 +1425,16 @@ const Mentor: React.FC = () => {
                                 <div className="flex flex-col">
                                     <button
                                         onClick={handleBookMentorship}
-                                        className="cursor-pointer w-full text-center bg-white px-4 py-3 rounded-lg text-sm font-bold text-black transition-transform hover:scale-[1.02] mb-3"
+                                        disabled={!selectedSlot}
+                                        className="cursor-pointer w-full text-center bg-white px-4 py-3 rounded-lg text-sm font-bold text-black transition-transform hover:scale-[1.02] mb-3 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
                                     >
                                         Book mentorship
                                     </button>
+                                    {!selectedSlot && (
+                                        <p className="text-[11px] text-white/30 text-center -mt-2 mb-3">
+                                            Select a time slot above to book
+                                        </p>
+                                    )}
 
                                     {/* Secondary action */}
                                     <button
@@ -1304,10 +1478,11 @@ const Mentor: React.FC = () => {
                 />
             )}
 
-            {showBookModal && (
+            {showBookModal && selectedSlot && (
                 <BookMentorshipModal
                     mentorName={mentorName}
                     mentorAvatar={mentorAvatar}
+                    selectedSlot={selectedSlot}
                     isSubmitting={isBooking}
                     errorMessage={bookingError}
                     onClose={handleCloseBookModal}

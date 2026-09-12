@@ -261,12 +261,33 @@ export const useGetMentorSession = () => {
         queryKey: ["session"],
         queryFn: async () => {
             const token = (await localStorage.getItem("betamindToken")) || "";
-            return get_requests(`sessions/mine/`, token);
+            return get_requests(`bookings/`, token);
         },
     });
 
     return {
         mentorSession: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};
+
+
+// ======================= MentorSession ======================
+
+export const useGetUserSession = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["userSession"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`bookings/mine/`, token);
+        },
+    });
+
+    return {
+        userSession: data,
         isLoading,
         isError,
         isFetched,

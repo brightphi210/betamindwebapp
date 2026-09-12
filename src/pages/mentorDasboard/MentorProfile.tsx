@@ -764,6 +764,7 @@ const MentorProfile = () => {
     const navigate = useNavigate();
     const { addToast } = useGlobalContext();
     const bannerInputRef = useRef<HTMLInputElement>(null);
+    const MAX_BANNER_SIZE_BYTES = 7 * 1024 * 1024;
 
     const { myMentorProfile, isLoading: mentorLoading } = useGetMyMentorProfile();
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
@@ -795,7 +796,15 @@ const MentorProfile = () => {
 
     const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) setDraft((d) => ({ ...d, banner: URL.createObjectURL(file), bannerFile: file }));
+        if (!file) return;
+
+        if (file.size > MAX_BANNER_SIZE_BYTES) {
+            addToast("Cover image must be 7MB or smaller.", "error");
+            e.target.value = "";
+            return;
+        }
+
+        setDraft((d) => ({ ...d, banner: URL.createObjectURL(file), bannerFile: file }));
     };
 
     const toggleCategory = (cat: string) => {

@@ -508,7 +508,7 @@ const MentorOnboarding = () => {
     const { mutate, isPending } = useCreateMentor();
 
     const bannerInputRef = useRef<HTMLInputElement>(null);
-
+    const MAX_BANNER_SIZE_BYTES = 7 * 1024 * 1024; // 7MB
     const [step, setStep] = useState<Step>("professional");
 
     // Preview URL (for <img> display)
@@ -550,10 +550,16 @@ const MentorOnboarding = () => {
 
     const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            setBanner(URL.createObjectURL(file));
-            setBannerFile(file);
+        if (!file) return;
+
+        if (file.size > MAX_BANNER_SIZE_BYTES) {
+            addToast("Cover image must be 7MB or smaller.", "error");
+            e.target.value = "";
+            return;
         }
+
+        setBanner(URL.createObjectURL(file));
+        setBannerFile(file);
     };
 
     const goNext = () => {

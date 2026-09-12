@@ -720,8 +720,8 @@ const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }: any) => (
     >
         <div className="flex items-start justify-between lg:mb-4 mb-2">
             <img
-                src={mentor?.profile?.avatar}
-                alt={mentor?.name}
+                src={mentor?.avatar}
+                alt={mentor?.first_name + ' ' + mentor?.last_name}
                 className="w-12 h-12 rounded-xl object-cover"
                 style={{ border: '1px solid rgba(205,220,57,.15)' }}
             />
@@ -732,7 +732,7 @@ const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }: any) => (
                 Follow
             </button>
         </div>
-        <h3 className="text-white font-bold text-base">{mentor.name}</h3>
+        <h3 className="text-white font-bold text-base">{mentor.first_name} {mentor.last_name}</h3>
         <p className="text-white/30 text-xs leading-relaxed lg:mb-3 mb-2">@{mentor.nick_name}</p>
         <p className="text-white/60 text-xs leading-relaxed lg:mb-3 mb-2 line-clamp-2">{mentor.bio}</p>
         <div className="flex flex-wrap gap-1">
