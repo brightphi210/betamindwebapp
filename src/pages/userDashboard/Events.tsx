@@ -5,17 +5,22 @@ import {
     FiCalendar,
     FiClock,
     FiCopy,
+    FiEdit2,
     FiExternalLink,
     FiMapPin,
     FiPlus,
     FiTag,
+    FiTrash2,
     FiUserCheck,
     FiUsers,
     FiX,
 } from 'react-icons/fi';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Button from '../../component/ui/Button';
+// TODO: swap in your real delete-event mutation hook if the name/path differs.
+import { useDeleteEvent } from '../../hooks/mutations/allMutation';
 import { useGetMineEvents } from '../../hooks/queries/allQueriess';
+import { useGlobalContext } from '../../providers/GlobalContext';
 import { HostInitials } from './Overview';
 
 export interface Attendee {
@@ -218,7 +223,7 @@ const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
                 Create Events
             </a>
         )}
-    </div>
+    </div >
 );
 
 // ─── Attendee avatars ───────────────────────────────────────────────────────
@@ -313,7 +318,7 @@ const AvatarStack: React.FC<{
                 ))}
             </div>
             <span
-                className="text-white/50 group-hover:text-white/80 transition-colors text-left"
+                className="text-white/50 lg:block hidden group-hover:text-white/80 transition-colors text-left"
                 style={{ fontSize: size <= 24 ? '0.7rem' : '0.8rem' }}
             >
                 {label}
@@ -364,7 +369,10 @@ const EventRow: React.FC<{
     event: RegisteredEvent;
     onView: (event: RegisteredEvent) => void;
     onOpenGuests: (event: RegisteredEvent) => void;
-}> = ({ event, onView, onOpenGuests }) => (
+    onEdit: (event: RegisteredEvent) => void;
+    onDelete: (event: RegisteredEvent) => void;
+    isDeleting: boolean;
+}> = ({ event, onView, onOpenGuests, onEdit, onDelete, isDeleting }) => (
     <>
         {/* ── Mobile card (matches design) ── */}
         <div
@@ -396,11 +404,40 @@ const EventRow: React.FC<{
                     </div>
                 </div>
 
-                <img
-                    src={event.thumbnail}
-                    alt={event.title}
-                    className="w-24 h-23 border-4 border-white/5 rounded-lg object-cover shrink-0"
-                />
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                    <img
+                        src={event.thumbnail}
+                        alt={event.title}
+                        className="w-24 h-23 border-4 border-white/5 rounded-lg object-cover shrink-0"
+                    />
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit(event);
+                            }}
+                            aria-label="Edit event"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60"
+                            style={{ background: 'rgba(255,255,255,0.06)' }}
+                        >
+                            <FiEdit2 size={13} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(event);
+                            }}
+                            disabled={isDeleting}
+                            aria-label="Delete event"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400/80 disabled:opacity-40"
+                            style={{ background: 'rgba(248,113,113,0.1)' }}
+                        >
+                            <FiTrash2 size={13} />
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div className="flex justify-between items-center gap-3">
@@ -427,7 +464,7 @@ const EventRow: React.FC<{
             </div>
         </div>
 
-        {/* ── Desktop row (unchanged) ── */}
+        {/* ── Desktop row ── */}
         <div
             onClick={() => onView(event)}
             className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors hover:bg-white/[0.03] cursor-pointer"
@@ -480,6 +517,31 @@ const EventRow: React.FC<{
             </div>
 
             <div className="flex gap-2 shrink-0">
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(event);
+                    }}
+                    aria-label="Edit event"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-white/60 hover:text-white transition-colors"
+                    style={{ background: 'rgba(255,255,255,0.06)' }}
+                >
+                    <FiEdit2 size={14} />
+                </button>
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(event);
+                    }}
+                    disabled={isDeleting}
+                    aria-label="Delete event"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-red-400/80 hover:text-red-400 transition-colors disabled:opacity-40"
+                    style={{ background: 'rgba(248,113,113,0.1)' }}
+                >
+                    <FiTrash2 size={14} />
+                </button>
                 <Button
                     onClick={(e) => {
                         e.stopPropagation();
@@ -549,7 +611,10 @@ const EventDrawerContent: React.FC<{
     event: RegisteredEvent | null;
     onClose: () => void;
     onOpenGuests: (event: RegisteredEvent) => void;
-}> = ({ event, onClose, onOpenGuests }) => {
+    onEdit: (event: RegisteredEvent) => void;
+    onDelete: (event: RegisteredEvent) => void;
+    isDeleting: boolean;
+}> = ({ event, onClose, onOpenGuests, onEdit, onDelete, isDeleting }) => {
     const [copied, setCopied] = useState(false);
 
     if (!event) return null;
@@ -589,14 +654,33 @@ const EventDrawerContent: React.FC<{
                     </a>
                 </div>
 
-                <button
-                    type="button"
-                    aria-label="close sidebar"
-                    onClick={onClose}
-                    className="cursor-pointer p-2 rounded-lg hover:bg-white/5 transition-colors shrink-0"
-                >
-                    <FiX className="text-white/60 text-xl" />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => onEdit(event)}
+                        aria-label="Edit event"
+                        className="p-2 rounded-lg hover:bg-white/5 text-white/60 hover:text-white transition-colors"
+                    >
+                        <FiEdit2 size={16} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onDelete(event)}
+                        disabled={isDeleting}
+                        aria-label="Delete event"
+                        className="p-2 rounded-lg hover:bg-red-500/10 text-red-400/80 hover:text-red-400 transition-colors disabled:opacity-40"
+                    >
+                        <FiTrash2 size={16} />
+                    </button>
+                    <button
+                        type="button"
+                        aria-label="close sidebar"
+                        onClick={onClose}
+                        className="cursor-pointer p-2 rounded-lg hover:bg-white/5 transition-colors shrink-0"
+                    >
+                        <FiX className="text-white/60 text-xl" />
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 sm:p-8">
@@ -731,8 +815,12 @@ const EventDrawerContent: React.FC<{
                     <Button
                         variant="green"
                         className="w-full py-3.5 text-sm"
+                        onClick={() => onEdit(event)}
                     >
-                        {event.actionText}
+                        <span className="flex items-center justify-center gap-2">
+                            <FiEdit2 size={14} />
+                            Edit Event
+                        </span>
                     </Button>
                     <a
                         href={event.publicUrl}
@@ -745,18 +833,32 @@ const EventDrawerContent: React.FC<{
                         <FiExternalLink size={13} />
                     </a>
                 </div>
+
+                <button
+                    type="button"
+                    onClick={() => onDelete(event)}
+                    disabled={isDeleting}
+                    className="mt-3 flex w-full items-center justify-center gap-1.5 py-3 rounded-lg font-semibold text-sm text-red-400/80 hover:text-red-400 transition-colors disabled:opacity-40"
+                    style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)' }}
+                >
+                    <FiTrash2 size={14} />
+                    {isDeleting ? 'Deleting…' : 'Delete Event'}
+                </button>
             </div>
-        </div>
+        </div >
     );
 };
 
 const Events: React.FC = () => {
+    const navigate = useNavigate();
+    const { addToast } = useGlobalContext();
     const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
     const [selectedEvent, setSelectedEvent] = useState<RegisteredEvent | null>(null);
     const [guestsEvent, setGuestsEvent] = useState<RegisteredEvent | null>(null);
     const drawerCheckboxRef = useRef<HTMLInputElement>(null);
 
-    const { mineEvents, isLoading } = useGetMineEvents();
+    const { mineEvents, isLoading, refetch } = useGetMineEvents();
+    const { mutate: deleteEvent, isPending: isDeleting, variables: deletingId } = useDeleteEvent();
 
     const rawEvents: ApiEvent[] = Array.isArray(mineEvents?.data)
         ? mineEvents.data
@@ -784,6 +886,33 @@ const Events: React.FC = () => {
             drawerCheckboxRef.current.checked = false;
         }
         setSelectedEvent(null);
+    };
+
+    const handleEdit = (event: RegisteredEvent) => {
+        navigate(`/dashboard/events/edit/${event.id}`);
+    };
+
+    const handleDelete = (event: RegisteredEvent) => {
+        const confirmed = window.confirm(`Delete "${event.title}"? This can't be undone.`);
+        if (!confirmed) return;
+
+        // @ts-ignore - mutation expects no variables in its type, but accepts an id at runtime
+        deleteEvent(event.id, {
+            onSuccess: () => {
+                addToast('Event deleted', 'success');
+                if (selectedEvent?.id === event.id) {
+                    closeDrawer();
+                }
+                refetch?.();
+            },
+            onError: (error: any) => {
+                const message =
+                    error?.response?.data?.message ||
+                    error?.response?.data?.detail ||
+                    'Could not delete event. Please try again.';
+                addToast(message, 'error');
+            },
+        });
     };
 
     return (
@@ -863,6 +992,9 @@ const Events: React.FC = () => {
                                                     event={event}
                                                     onView={openDrawer}
                                                     onOpenGuests={setGuestsEvent}
+                                                    onEdit={handleEdit}
+                                                    onDelete={handleDelete}
+                                                    isDeleting={isDeleting && String(deletingId) === event.id}
                                                 />
                                             ))}
                                         </div>
@@ -884,6 +1016,9 @@ const Events: React.FC = () => {
                     event={selectedEvent}
                     onClose={closeDrawer}
                     onOpenGuests={setGuestsEvent}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    isDeleting={isDeleting && String(deletingId) === selectedEvent?.id}
                 />
             </div>
 

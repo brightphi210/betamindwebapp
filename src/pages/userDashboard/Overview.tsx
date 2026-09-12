@@ -1,11 +1,13 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FaFacebookF, FaLinkedinIn, FaXTwitter } from 'react-icons/fa6';
 import {
     FiAlertTriangle,
     FiArrowRight,
     FiCalendar,
+    FiCheckCircle,
     FiClock,
     FiCopy,
+    FiEdit2,
     FiExternalLink,
     FiMail,
     FiMapPin,
@@ -13,15 +15,22 @@ import {
     FiPlus,
     FiShare2,
     FiTag,
+    FiTrash2,
     FiUserCheck,
     FiUsers,
     FiX,
 } from 'react-icons/fi';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import LoadingOverlay from '../../component/LoadingOverlay';
 import Button from '../../component/ui/Button';
-import { useGetMentors, useGetMineEvents } from '../../hooks/queries/allQueriess';
+// TODO: swap in your real delete-event mutation hook if the name/path differs.
+import { useDeleteEvent } from '../../hooks/mutations/allMutation';
+import { useGetMentors, useGetMineEvents, useGetMyUserProfile } from '../../hooks/queries/allQueriess';
+import { useGlobalContext } from '../../providers/GlobalContext';
 import { type Mentor } from './Explore';
+
+import upload from '../../assets/upload.jpg';
+// import upload2 from '../../assets/upload2.jpg';
 
 export interface Attendee {
     id: string;
@@ -247,7 +256,7 @@ const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
                 Create Events
             </a>
         )}
-    </div>
+    </div >
 );
 
 // ─── Attendee avatars ───────────────────────────────────────────────────────
@@ -393,7 +402,10 @@ const LatestEventHero: React.FC<{
     event: RegisteredEvent;
     onView: (event: RegisteredEvent) => void;
     onOpenGuests: (event: RegisteredEvent) => void;
-}> = ({ event, onView, onOpenGuests }) => (
+    onEdit: (event: RegisteredEvent) => void;
+    onDelete: (event: RegisteredEvent) => void;
+    isDeleting: boolean;
+}> = ({ event, onView, onOpenGuests, onEdit, onDelete, isDeleting }) => (
     <div
         onClick={() => onView(event)}
         className="relative rounded-xl overflow-hidden mb-10 cursor-pointer group"
@@ -408,13 +420,38 @@ const LatestEventHero: React.FC<{
             className="absolute inset-0"
             style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.99) 100%)' }}
         />
-        <div className="absolute lg:top-4 lg:left-4 right-4 top-4">
+        <div className="absolute lg:top-4 lg:left-4 right-4 top-4 flex items-center gap-2">
             <span
                 className="px-3 py-1 rounded-full text-xs font-semibold"
                 style={{ background: 'white', color: 'black', border: '1px solid rgba(166,255,0,.3)' }}
             >
                 Next Up
             </span>
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(event);
+                }}
+                aria-label="Edit event"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-white backdrop-blur-sm"
+                style={{ background: 'rgba(0,0,0,0.5)' }}
+            >
+                <FiEdit2 size={13} />
+            </button>
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(event);
+                }}
+                disabled={isDeleting}
+                aria-label="Delete event"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-red-400 backdrop-blur-sm disabled:opacity-40"
+                style={{ background: 'rgba(0,0,0,0.5)' }}
+            >
+                <FiTrash2 size={13} />
+            </button>
         </div>
         <div className="absolute bottom-0 left-0 right-0 lg:p-5 p-7 lg:pb-5 pb-10">
             <div className="flex items-center gap-2 text-white/70 text-xs sm:text-sm mb-2 flex-wrap sm:flex-nowrap">
@@ -470,7 +507,10 @@ const EventRow: React.FC<{
     event: RegisteredEvent;
     onView: (event: RegisteredEvent) => void;
     onOpenGuests: (event: RegisteredEvent) => void;
-}> = ({ event, onView, onOpenGuests }) => (
+    onEdit: (event: RegisteredEvent) => void;
+    onDelete: (event: RegisteredEvent) => void;
+    isDeleting: boolean;
+}> = ({ event, onView, onOpenGuests, onEdit, onDelete, isDeleting }) => (
     <>
         {/* ── Mobile card (matches design) ── */}
         <div
@@ -502,11 +542,40 @@ const EventRow: React.FC<{
                     </div>
                 </div>
 
-                <img
-                    src={event.thumbnail}
-                    alt={event.title}
-                    className="w-24 h-23 border-4 border-white/5 rounded-lg object-cover shrink-0"
-                />
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                    <img
+                        src={event.thumbnail}
+                        alt={event.title}
+                        className="w-24 h-23 border-4 border-white/5 rounded-lg object-cover shrink-0"
+                    />
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit(event);
+                            }}
+                            aria-label="Edit event"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60"
+                            style={{ background: 'rgba(255,255,255,0.06)' }}
+                        >
+                            <FiEdit2 size={13} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(event);
+                            }}
+                            disabled={isDeleting}
+                            aria-label="Delete event"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400/80 disabled:opacity-40"
+                            style={{ background: 'rgba(248,113,113,0.1)' }}
+                        >
+                            <FiTrash2 size={13} />
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <div className="flex justify-between items-center gap-3">
@@ -533,7 +602,7 @@ const EventRow: React.FC<{
             </div>
         </div>
 
-        {/* ── Desktop row (unchanged) ── */}
+        {/* ── Desktop row ── */}
         <div
             onClick={() => onView(event)}
             className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors hover:bg-white/[0.03] cursor-pointer"
@@ -586,6 +655,31 @@ const EventRow: React.FC<{
             </div>
 
             <div className="flex gap-2 shrink-0">
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(event);
+                    }}
+                    aria-label="Edit event"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-white/60 hover:text-white transition-colors"
+                    style={{ background: 'rgba(255,255,255,0.06)' }}
+                >
+                    <FiEdit2 size={14} />
+                </button>
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(event);
+                    }}
+                    disabled={isDeleting}
+                    aria-label="Delete event"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-red-400/80 hover:text-red-400 transition-colors disabled:opacity-40"
+                    style={{ background: 'rgba(248,113,113,0.1)' }}
+                >
+                    <FiTrash2 size={14} />
+                </button>
                 <Button
                     onClick={(e) => {
                         e.stopPropagation();
@@ -883,7 +977,10 @@ const EventDrawerContent: React.FC<{
     event: RegisteredEvent | null;
     onClose: () => void;
     onOpenGuests: (event: RegisteredEvent) => void;
-}> = ({ event, onClose, onOpenGuests }) => {
+    onEdit: (event: RegisteredEvent) => void;
+    onDelete: (event: RegisteredEvent) => void;
+    isDeleting: boolean;
+}> = ({ event, onClose, onOpenGuests, onEdit, onDelete, isDeleting }) => {
     const [copied, setCopied] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
 
@@ -923,14 +1020,34 @@ const EventDrawerContent: React.FC<{
                         <FiExternalLink size={13} />
                     </a>
                 </div>
-                <button
-                    type="button"
-                    aria-label="close sidebar"
-                    onClick={onClose}
-                    className="cursor-pointer p-2 rounded-lg hover:bg-white/5 transition-colors shrink-0"
-                >
-                    <FiX className="text-white/60 text-xl" />
-                </button>
+
+                <div className="flex items-center gap-2 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => onEdit(event)}
+                        aria-label="Edit event"
+                        className="p-2 rounded-lg hover:bg-white/5 text-white/60 hover:text-white transition-colors"
+                    >
+                        <FiEdit2 size={16} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onDelete(event)}
+                        disabled={isDeleting}
+                        aria-label="Delete event"
+                        className="p-2 rounded-lg hover:bg-red-500/10 text-red-400/80 hover:text-red-400 transition-colors disabled:opacity-40"
+                    >
+                        <FiTrash2 size={16} />
+                    </button>
+                    <button
+                        type="button"
+                        aria-label="close sidebar"
+                        onClick={onClose}
+                        className="cursor-pointer p-2 rounded-lg hover:bg-white/5 transition-colors shrink-0"
+                    >
+                        <FiX className="text-white/60 text-xl" />
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 sm:p-8">
@@ -1095,6 +1212,28 @@ const EventDrawerContent: React.FC<{
                         Invite a Friend
                     </button>
                 </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                    <button
+                        type="button"
+                        onClick={() => onEdit(event)}
+                        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-md font-semibold text-xs transition-colors"
+                        style={{ background: 'rgba(166,255,0,0.1)', color: '#a6ff00', border: '1px solid rgba(166,255,0,.2)' }}
+                    >
+                        <FiEdit2 size={13} />
+                        Edit Event
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onDelete(event)}
+                        disabled={isDeleting}
+                        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-md font-semibold text-xs transition-colors disabled:opacity-40"
+                        style={{ background: 'rgba(248,113,113,0.08)', color: 'rgba(248,113,113,0.9)', border: '1px solid rgba(248,113,113,0.15)' }}
+                    >
+                        <FiTrash2 size={13} />
+                        {isDeleting ? 'Deleting…' : 'Delete Event'}
+                    </button>
+                </div>
             </div>
 
             {showInvite && (
@@ -1108,17 +1247,138 @@ const EventDrawerContent: React.FC<{
     );
 };
 
+/* ─── Complete Profile Modal ─────────────────────────────────────────────── */
+const PROFILE_FIELDS = [
+    { key: 'first_name', label: 'First Name' },
+    { key: 'last_name', label: 'Last Name' },
+    { key: 'phone_number', label: 'Phone Number' },
+    { key: 'address', label: 'Address' },
+    { key: 'city', label: 'City' },
+    { key: 'country', label: 'Country' },
+] as const;
+
+const getMissingFields = (profile: any): string[] => {
+    if (!profile) return [];
+    return PROFILE_FIELDS
+        .filter(({ key }) => !profile[key] || String(profile[key]).trim() === '')
+        .map(({ label }) => label);
+};
+
+const CompleteProfileModal: React.FC<{
+    missingFields: string[];
+    onClose: () => void;
+    onGoToSettings: () => void;
+}> = ({ missingFields, onClose, onGoToSettings }) => (
+    <div
+        className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
+    // onClick={onClose}
+    >
+        <div
+            className="w-full max-w-md rounded-xl overflow-hidden shadow-2xl"
+            style={{
+                background: 'rgba(10,12,9,0.98)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                backdropFilter: 'blur(24px)',
+                WebkitBackdropFilter: 'blur(24px)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            {/* Image first */}
+            <div className="relative w-full h-64 overflow-hidden">
+                <div
+                    className="absolute inset-0"
+                    style={{
+                        background:
+                            'radial-gradient(ellipse 80% 80% at 50% 20%, rgba(166,255,0,0.18), transparent 60%), linear-gradient(180deg, #0f1a0c 0%, #0a0f08 100%)',
+                    }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <img src={upload} alt="" />
+                </div>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="absolute right-3 top-3 p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                    <FiX size={18} />
+                </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 sm:p-7">
+                <h3 className="text-white text-xl sm:text-2xl font-black mb-2">
+                    Complete your profile
+                </h3>
+                <p className="text-white/45 text-sm leading-relaxed mb-5">
+                    A few details are still missing. Finish setting up your account so mentors and
+                    mentees can find and trust you.
+                </p>
+
+                <div className="mb-6">
+                    <p className="text-white/50 text-xs font-semibold uppercase tracking-wide mb-3">
+                        Still needed
+                    </p>
+                    <ul className="space-y-2">
+                        {missingFields.map((field) => (
+                            <li
+                                key={field}
+                                className="flex items-center gap-2.5 text-sm text-white/80"
+                            >
+                                <span
+                                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
+                                    style={{ background: 'rgba(166,255,0,0.12)' }}
+                                >
+                                    <FiCheckCircle size={12} className="text-[#a6ff00]" />
+                                </span>
+                                {field}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2.5">
+                    <Button
+                        variant="white"
+                        onClick={onGoToSettings}
+                        className="w-full sm:flex-1"
+                    >
+                        <span className="flex items-center justify-center gap-2">
+                            Complete Profile
+                            <FiArrowRight size={14} />
+                        </span>
+                    </Button>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="w-full sm:w-auto px-5 py-2.5 rounded-md text-sm font-semibold text-white/60 hover:text-white transition-colors"
+                        style={{ background: 'rgba(255,255,255,0.06)' }}
+                    >
+                        Later
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
 const Overview: React.FC = () => {
+    const navigate = useNavigate();
+    const { addToast } = useGlobalContext();
     const [tab, setTab] = useState<'upcoming' | 'past'>('upcoming');
     const [selectedEvent, setSelectedEvent] = useState<RegisteredEvent | null>(null);
     const [guestsEvent, setGuestsEvent] = useState<RegisteredEvent | null>(null);
+    const [showCompleteProfile, setShowCompleteProfile] = useState(false);
+    const [dismissedProfileModal, setDismissedProfileModal] = useState(false);
     const drawerCheckboxRef = useRef<HTMLInputElement>(null);
 
-    const { mentors, isLoading } = useGetMentors()
-    const allMentors = mentors?.data?.results
+    const { mentors, isLoading } = useGetMentors();
+    const allMentors = mentors?.data?.results;
 
+    const { myProfile, isLoading: isLoadingProfile } = useGetMyUserProfile();
+    const userProfile = myProfile?.data;
 
-    const { mineEvents, isLoading: isLoadingEvents } = useGetMineEvents()
+    const { mineEvents, isLoading: isLoadingEvents, refetch } = useGetMineEvents();
+    const { mutate: deleteEvent, isPending: isDeleting, variables: deletingId } = useDeleteEvent();
 
     const rawEvents: ApiEvent[] = Array.isArray(mineEvents?.data)
         ? mineEvents.data
@@ -1139,6 +1399,20 @@ const Overview: React.FC = () => {
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const latestEvent = upcomingEvents[0];
 
+    const missingFields = getMissingFields(userProfile);
+
+    // Automatically show the modal when profile is loaded and incomplete
+    useEffect(() => {
+        if (
+            !isLoadingProfile &&
+            userProfile &&
+            missingFields.length > 0 &&
+            !dismissedProfileModal
+        ) {
+            setShowCompleteProfile(true);
+        }
+    }, [isLoadingProfile, userProfile, missingFields.length, dismissedProfileModal]);
+
     const openDrawer = (event: RegisteredEvent) => {
         setSelectedEvent(event);
         if (drawerCheckboxRef.current) {
@@ -1153,6 +1427,37 @@ const Overview: React.FC = () => {
         setSelectedEvent(null);
     };
 
+    const handleEdit = (event: RegisteredEvent) => {
+        navigate(`/dashboard/events/edit/${event.id}`);
+    };
+
+    const handleDelete = (event: RegisteredEvent) => {
+        const confirmed = window.confirm(`Delete "${event.title}"? This can't be undone.`);
+        if (!confirmed) return;
+
+        (deleteEvent as any)(event.id, {
+            onSuccess: () => {
+                addToast('Event deleted', 'success');
+                if (selectedEvent?.id === event.id) {
+                    closeDrawer();
+                }
+                refetch?.();
+            },
+            onError: (error: any) => {
+                const message =
+                    error?.response?.data?.message ||
+                    error?.response?.data?.detail ||
+                    'Could not delete event. Please try again.';
+                addToast(message, 'error');
+            },
+        });
+    };
+
+    const handleCloseProfileModal = () => {
+        setShowCompleteProfile(false);
+        setDismissedProfileModal(true);
+    };
+
     return (
         <div className="drawer drawer-end">
             <input
@@ -1161,7 +1466,7 @@ const Overview: React.FC = () => {
                 type="checkbox"
                 className="drawer-toggle"
             />
-            <LoadingOverlay visible={isLoading} />
+            <LoadingOverlay visible={isLoading || isLoadingProfile} />
 
             <div className="drawer-content">
                 <div
@@ -1181,6 +1486,9 @@ const Overview: React.FC = () => {
                                     event={latestEvent}
                                     onView={openDrawer}
                                     onOpenGuests={setGuestsEvent}
+                                    onEdit={handleEdit}
+                                    onDelete={handleDelete}
+                                    isDeleting={isDeleting && String(deletingId) === latestEvent.id}
                                 />
                             )
                         )}
@@ -1225,7 +1533,7 @@ const Overview: React.FC = () => {
 
                                         <div className="flex-1 flex flex-col gap-3 relative">
                                             <div
-                                                className="absolute left-[-1.25rem] sm:left-[-2rem] top-2 bottom-2 w-px hidden sm:block"
+                                                className="absolute -left-5 sm:-left-5 top-2 bottom-2 w-px hidden sm:block"
                                                 style={{ background: 'rgba(205,220,57,.1)' }}
                                             />
                                             {events.map((event) => (
@@ -1234,6 +1542,9 @@ const Overview: React.FC = () => {
                                                     event={event}
                                                     onView={openDrawer}
                                                     onOpenGuests={setGuestsEvent}
+                                                    onEdit={handleEdit}
+                                                    onDelete={handleDelete}
+                                                    isDeleting={isDeleting && String(deletingId) === event.id}
                                                 />
                                             ))}
                                         </div>
@@ -1284,11 +1595,26 @@ const Overview: React.FC = () => {
                     event={selectedEvent}
                     onClose={closeDrawer}
                     onOpenGuests={setGuestsEvent}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    isDeleting={isDeleting && String(deletingId) === selectedEvent?.id}
                 />
             </div>
 
             {guestsEvent && (
                 <GuestsModal attendees={guestsEvent.attendees} onClose={() => setGuestsEvent(null)} />
+            )}
+
+            {/* Complete profile modal – shows automatically when details are incomplete */}
+            {showCompleteProfile && missingFields.length > 0 && (
+                <CompleteProfileModal
+                    missingFields={missingFields}
+                    onClose={handleCloseProfileModal}
+                    onGoToSettings={() => {
+                        handleCloseProfileModal();
+                        navigate('/dashboard/setting');
+                    }}
+                />
             )}
         </div>
     );

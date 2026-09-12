@@ -52,6 +52,63 @@ type MentorProduct = {
     price: string;
 };
 
+// ─── Availability (same shape + rendering pattern as StudentTutorProfile) ──
+interface AvailabilitySlot {
+    id?: number;
+    day_of_week: string;
+    start_time: string; // "HH:MM:SS"
+    end_time: string;   // "HH:MM:SS"
+    is_booked?: boolean;
+}
+
+const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+const formatTime = (time: string) => {
+    if (!time) return '';
+    const [hStr, mStr] = time.split(':');
+    let hours = parseInt(hStr, 10);
+    const minutes = mStr ?? '00';
+    const period = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+    return `${hours}:${minutes} ${period}`;
+};
+
+const groupSlotsByDay = (slots: AvailabilitySlot[]) => {
+    const grouped: Record<string, AvailabilitySlot[]> = {};
+    slots.forEach((slot) => {
+        if (!grouped[slot.day_of_week]) grouped[slot.day_of_week] = [];
+        grouped[slot.day_of_week].push(slot);
+    });
+
+    Object.values(grouped).forEach((daySlots) =>
+        daySlots.sort((a, b) => a.start_time.localeCompare(b.start_time))
+    );
+
+    return DAY_ORDER.filter((day) => grouped[day]).map((day) => ({
+        day,
+        slots: grouped[day],
+    }));
+};
+
+const parseAvailability = (raw: unknown): AvailabilitySlot[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw as AvailabilitySlot[];
+    if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+};
+
+// Stable key even when the API doesn't return an `id`
+const slotKey = (slot: AvailabilitySlot) =>
+    slot.id != null ? String(slot.id) : `${slot.day_of_week}-${slot.start_time}`;
+
 // ─── Dummy data ───────────────────────────────────────────────────────────
 const DUMMY_INTRO_VIDEO = 'https://youtu.be/BD8fDugktAE';
 const getYouTubeEmbedUrl = (url: string): string | null => {
@@ -59,6 +116,7 @@ const getYouTubeEmbedUrl = (url: string): string | null => {
         /youtu\.be\/([a-zA-Z0-9_-]{6,})/,
         /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{6,})/,
         /youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/,
+        /youtube\.com\/shorts\/([a-zA-Z0-9_-]{6,})/,
     ];
     for (const pattern of patterns) {
         const match = url.match(pattern);
@@ -67,9 +125,7 @@ const getYouTubeEmbedUrl = (url: string): string | null => {
     return null;
 };
 
-
 const DUMMY_SESSIONS_COMPLETED = 48;
-
 const DUMMY_RATING = 5;
 
 const DUMMY_REVIEWS: MentorReview[] = [
@@ -616,7 +672,6 @@ const BookMentorshipModal: React.FC<{
     );
 };
 
-
 const MentorSkeleton: React.FC = () => (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
         <div className="inline-flex items-center gap-1.5 mb-6">
@@ -705,11 +760,11 @@ const BookingToast: React.FC<{ message: string; onClose: () => void }> = ({ mess
 // ─── Page ────────────────────────────────────────────────────────────────────
 const Mentor: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { aMentor, isLoading } = useGetMentorProfile(id)
-    const mentor = aMentor?.data
-    console.log('Mentor Data', mentor)
+    const { aMentor, isLoading } = useGetMentorProfile(id);
+    const mentor = aMentor?.data;
+    console.log('Mentor Data', mentor);
 
-    const { mutate: bookMentorship, isPending: isBooking } = useBookMentorship()
+    const { mutate: bookMentorship, isPending: isBooking } = useBookMentorship();
 
     const mentorName = [mentor?.profile?.first_name, mentor?.profile?.last_name]
         .filter(Boolean)
@@ -724,14 +779,27 @@ const Mentor: React.FC = () => {
     const location = [mentor?.profile?.city, mentor?.profile?.country].filter(Boolean).join(', ');
     const categories: string[] = mentor?.categories ?? [];
     const expertise: string[] = mentor?.expertise ?? [];
-    const introVideo: string | null = mentor?.intro_video ?? DUMMY_INTRO_VIDEO;
+
+    // The intro video lives in `video_link` (e.g. a youtube.com/shorts/ URL).
+    const introVideo: string | null = mentor?.video_link ?? DUMMY_INTRO_VIDEO;
     const introVideoEmbedUrl = introVideo ? getYouTubeEmbedUrl(introVideo) : null;
+
     const reviews: MentorReview[] = mentor?.reviews ?? DUMMY_REVIEWS;
     const reviewCount: number = mentor?.review_count ?? reviews.length;
     const averageRating: number | null =
         typeof mentor?.rating === 'number' ? mentor.rating : reviews.length > 0 ? DUMMY_RATING : null;
     const sessionsCompleted: number | null =
         typeof mentor?.sessions_completed === 'number' ? mentor.sessions_completed : DUMMY_SESSIONS_COMPLETED;
+
+    // Prefer the new availability_slots field (same as StudentTutorProfile / onboarding).
+    // Fall back to the legacy daily_availability JSON string for older profiles.
+    const availabilitySlots: AvailabilitySlot[] = parseAvailability(
+        mentor?.availability_slots ?? mentor?.daily_availability
+    );
+    const groupedAvailability = groupSlotsByDay(availabilitySlots);
+
+    const [selectedSlotKey, setSelectedSlotKey] = useState<string | null>(null);
+    const selectedSlot = availabilitySlots.find((s) => slotKey(s) === selectedSlotKey) || null;
 
     const products: MentorProduct[] =
         Array.isArray(mentor?.digital_products) && mentor.digital_products.length > 0
@@ -767,12 +835,19 @@ const Mentor: React.FC = () => {
                 mentor_id: id,
                 goal: payload.goal,
                 description: payload.message,
+                // Include the selected slot when the user picked one from the sidebar.
+                ...(selectedSlot
+                    ? {
+                        day_of_week: selectedSlot.day_of_week,
+                        start_time: selectedSlot.start_time,
+                        end_time: selectedSlot.end_time,
+                    }
+                    : {}),
             },
             {
                 onSuccess: () => {
                     setShowBookModal(false);
-                    // setBookingToast(`Your request was sent to ${mentorName}.`);
-                    toast(`Your request was sent to ${mentorName}.`, { type: 'success' })
+                    toast(`Your request was sent to ${mentorName}.`, { type: 'success' });
                     setTimeout(() => setBookingToast(null), 4000);
                 },
                 onError: (error: any) => {
@@ -781,7 +856,7 @@ const Mentor: React.FC = () => {
                         error?.response?.detail ||
                         error?.response?.data?.detail ||
                         'Something went wrong while sending your request. Please try again.';
-                    toast(message, { type: 'error' })
+                    toast(message, { type: 'error' });
                 },
             }
         );
@@ -790,7 +865,7 @@ const Mentor: React.FC = () => {
     const [showFullBio, setShowFullBio] = useState(false);
 
     const maxBioLength = 180;
-    const bio = mentor?.bio || "";
+    const bio = mentor?.bio || '';
     const isLongBio = bio.length > maxBioLength;
 
     const displayedBio =
@@ -806,8 +881,7 @@ const Mentor: React.FC = () => {
                     'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
             }}
         >
-
-            <ToastContainer theme='dark' />
+            <ToastContainer theme="dark" />
             {isLoading ? (
                 <MentorSkeleton />
             ) : (
@@ -907,7 +981,7 @@ const Mentor: React.FC = () => {
                             <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mb-5 pb-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                                 {typeof mentor?.years_of_experience === 'number' ? (
                                     <div className="flex items-center gap-1.5 text-white/80 text-sm">
-                                        <div className='bg-white/10 p-2 rounded-md'>
+                                        <div className="bg-white/10 p-2 rounded-md">
                                             <FiAward size={15} className="text-neutral-100 " />
                                         </div>
                                         {mentor?.years_of_experience}+ years of experience
@@ -918,7 +992,7 @@ const Mentor: React.FC = () => {
 
                                 {location ? (
                                     <div className="flex items-center gap-1.5 text-white/80 text-sm">
-                                        <div className='bg-white/10 p-2  rounded-md'>
+                                        <div className="bg-white/10 p-2  rounded-md">
                                             <FiMapPin size={15} className="text-neutral-100 " />
                                         </div>
                                         {location}
@@ -929,7 +1003,7 @@ const Mentor: React.FC = () => {
 
                                 {sessionsCompleted !== null ? (
                                     <div className="flex items-center gap-1.5 text-white/80 text-sm">
-                                        <div className='bg-white/10 p-2 rounded-md'>
+                                        <div className="bg-white/10 p-2 rounded-md">
                                             <FiUsers size={15} className="text-neutral-100 " />
                                         </div>
                                         {sessionsCompleted} session{sessionsCompleted === 1 ? '' : 's'} completed
@@ -939,7 +1013,7 @@ const Mentor: React.FC = () => {
                                 )}
                             </div>
 
-                            <div className='mb-10 bg-[rgba(255,255,255,0.03)] rounded-md p-2'>
+                            <div className="mb-10 bg-[rgba(255,255,255,0.03)] rounded-md p-2">
                                 {introVideo ? (
                                     <>
                                         <div className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)', aspectRatio: '16 / 9' }}>
@@ -967,7 +1041,6 @@ const Mentor: React.FC = () => {
                                 )}
                             </div>
 
-
                             {/* Bio */}
                             <div className="border-t border-neutral-800 pb-3">
                                 <p className="text-white/70 text-sm pb-2 pt-5">
@@ -986,9 +1059,9 @@ const Mentor: React.FC = () => {
                                                     setShowFullBio((prev) => !prev)
                                                 }
                                                 className="text-sm font-medium mt-2 hover:underline"
-                                                style={{ color: "#a6ff00" }}
+                                                style={{ color: '#a6ff00' }}
                                             >
-                                                {showFullBio ? "See Less" : "See More"}
+                                                {showFullBio ? 'See Less' : 'See More'}
                                             </button>
                                         )}
                                     </>
@@ -1087,9 +1160,101 @@ const Mentor: React.FC = () => {
                                     )}
                                 </div>
 
-                                {/* Primary CTA */}
+                                {/* ── Weekly availability (same pattern as StudentTutorProfile) — ABOVE the book buttons ── */}
+                                <div className="flex flex-col gap-3 mb-5">
+                                    <div className="flex items-center gap-2 text-white/40 text-[11px] font-bold uppercase tracking-wider mb-1">
+                                        <FiCalendar size={13} />
+                                        Select availability
+                                    </div>
 
-                                <div className='flex flex-col'>
+                                    {groupedAvailability.length > 0 ? (
+                                        <div
+                                            role="radiogroup"
+                                            aria-label="Select an availability slot"
+                                            className="flex flex-col gap-3 max-h-64 overflow-y-auto pr-1"
+                                        >
+                                            {groupedAvailability.map(({ day, slots }) => (
+                                                <div key={day}>
+                                                    <p className="text-[10px] font-bold text-white/35 uppercase tracking-wide mb-1.5">
+                                                        {day}
+                                                    </p>
+                                                    <div className="flex flex-col gap-1.5">
+                                                        {slots.map((slot) => {
+                                                            const key = slotKey(slot);
+                                                            const isSelected = selectedSlotKey === key;
+                                                            const isBooked = !!slot.is_booked;
+
+                                                            return (
+                                                                <button
+                                                                    key={key}
+                                                                    type="button"
+                                                                    role="radio"
+                                                                    aria-checked={isSelected}
+                                                                    disabled={isBooked}
+                                                                    onClick={() => !isBooked && setSelectedSlotKey(key)}
+                                                                    className="cursor-pointer w-full flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-xs font-semibold text-left transition-colors disabled:cursor-not-allowed"
+                                                                    style={
+                                                                        isBooked
+                                                                            ? {
+                                                                                background: 'rgba(255,255,255,0.03)',
+                                                                                border: '1px solid rgba(255,255,255,0.06)',
+                                                                                color: 'rgba(255,255,255,0.25)',
+                                                                            }
+                                                                            : isSelected
+                                                                                ? {
+                                                                                    background: 'rgba(166,255,0,0.1)',
+                                                                                    border: '1px solid #a6ff00',
+                                                                                    color: '#a6ff00',
+                                                                                }
+                                                                                : {
+                                                                                    background: 'rgba(255,255,255,0.04)',
+                                                                                    border: '1px solid rgba(255,255,255,0.08)',
+                                                                                    color: 'rgba(255,255,255,0.75)',
+                                                                                }
+                                                                    }
+                                                                >
+                                                                    {/* Radio circle */}
+                                                                    <span
+                                                                        className="shrink-0 w-3.5 h-3.5 rounded-full border flex items-center justify-center"
+                                                                        style={{
+                                                                            borderColor: isBooked
+                                                                                ? 'rgba(255,255,255,0.15)'
+                                                                                : isSelected
+                                                                                    ? '#a6ff00'
+                                                                                    : 'rgba(255,255,255,0.3)',
+                                                                        }}
+                                                                    >
+                                                                        {isSelected && !isBooked && (
+                                                                            <span
+                                                                                className="w-1.5 h-1.5 rounded-full"
+                                                                                style={{ background: '#a6ff00' }}
+                                                                            />
+                                                                        )}
+                                                                    </span>
+
+                                                                    <span className={isBooked ? 'line-through' : ''}>
+                                                                        {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
+                                                                    </span>
+
+                                                                    {isBooked && (
+                                                                        <span className="ml-auto text-[10px] font-medium text-white/30">
+                                                                            Booked
+                                                                        </span>
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <FieldPlaceholder icon={<FiCalendar size={14} />} label="Availability not set" />
+                                    )}
+                                </div>
+
+                                {/* Primary CTA — Book + Follow */}
+                                <div className="flex flex-col">
                                     <button
                                         onClick={handleBookMentorship}
                                         className="cursor-pointer w-full text-center bg-white px-4 py-3 rounded-lg text-sm font-bold text-black transition-transform hover:scale-[1.02] mb-3"
@@ -1106,7 +1271,7 @@ const Mentor: React.FC = () => {
                                     </button>
                                 </div>
 
-                                {/* Quick facts */}
+                                {/* Language */}
                                 <div className="flex flex-col gap-3 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                                     <div className="flex items-center gap-2 text-white/40 text-[11px] font-bold uppercase tracking-wider mb-1">
                                         <FiClock size={13} />
@@ -1120,24 +1285,6 @@ const Mentor: React.FC = () => {
                                         </div>
                                     ) : (
                                         <FieldPlaceholder icon={<FiGlobe size={14} />} label="Language not set" />
-                                    )}
-
-                                    {mentor?.availability ? (
-                                        <div className="flex items-center gap-2 text-white/65 text-sm capitalize">
-                                            <FiCalendar size={14} className="text-neutral-600 shrink-0" />
-                                            {mentor.availability}
-                                        </div>
-                                    ) : (
-                                        <FieldPlaceholder icon={<FiCalendar size={14} />} label="Availability not set" />
-                                    )}
-
-                                    {mentor?.daily_availability ? (
-                                        <div className="flex items-center gap-2 text-white/65 text-sm">
-                                            <FiClock size={14} className="text-neutral-600 shrink-0" />
-                                            {mentor.daily_availability}h/day
-                                        </div>
-                                    ) : (
-                                        <FieldPlaceholder icon={<FiClock size={14} />} label="Daily availability not set" />
                                     )}
                                 </div>
                             </div>

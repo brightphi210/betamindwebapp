@@ -1,17 +1,16 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { BsMicrosoftTeams } from 'react-icons/bs';
 import {
-    FiAlignLeft,
     FiCamera,
-    FiChevronDown,
     FiClock,
     FiEdit2,
-    FiGlobe,
     FiImage,
     FiMapPin,
     FiTag,
     FiUserCheck,
-    FiUsers
+    FiUsers,
 } from 'react-icons/fi';
+import { SiGooglemeet, SiZoom } from 'react-icons/si';
 import { useNavigate } from 'react-router-dom';
 import LoadingOverlay from '../../component/LoadingOverlay';
 import { useCreateEvents } from '../../hooks/mutations/allMutation';
@@ -98,53 +97,6 @@ const BubbleSplash: React.FC<{ bubbles: Bubble[] }> = ({ bubbles }) => (
 );
 
 // ─── Small building blocks matched to app styling ──────────────────────────
-const IconInputRow: React.FC<{
-    icon: React.ReactNode;
-    value: string;
-    onChange: (v: string) => void;
-    placeholder: string;
-    subtext?: string;
-}> = ({ icon, value, onChange, placeholder, subtext }) => (
-    <div
-        className="w-full rounded-xl px-4 py-3.5"
-        style={{ background: cardBg, border: cardBorder }}
-    >
-        <div className="flex items-center gap-3">
-            <span className="text-white/40 shrink-0">{icon}</span>
-            <input
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                placeholder={placeholder}
-                className="flex-1 bg-transparent outline-none text-white text-sm placeholder-white/30"
-            />
-        </div>
-        {subtext && <p className="text-white/30 text-xs mt-1 ml-7">{subtext}</p>}
-    </div>
-);
-
-const IconTextAreaRow: React.FC<{
-    icon: React.ReactNode;
-    value: string;
-    onChange: (v: string) => void;
-    placeholder: string;
-}> = ({ icon, value, onChange, placeholder }) => (
-    <div
-        className="w-full rounded-xl px-4 py-3.5"
-        style={{ background: cardBg, border: cardBorder }}
-    >
-        <div className="flex items-start gap-3">
-            <span className="text-white/40 shrink-0 mt-0.5">{icon}</span>
-            <textarea
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                placeholder={placeholder}
-                rows={3}
-                className="flex-1 bg-transparent outline-none text-white text-sm placeholder-white/30 resize-none"
-            />
-        </div>
-    </div>
-);
-
 const Toggle: React.FC<{ checked: boolean; onChange: () => void }> = ({ checked, onChange }) => (
     <button
         onClick={onChange}
@@ -161,6 +113,10 @@ const Toggle: React.FC<{ checked: boolean; onChange: () => void }> = ({ checked,
 // ─── Page ────────────────────────────────────────────────────────────────
 type Step = 'form' | 'success';
 type TicketMode = 'free' | 'paid';
+type LocationType = 'offline' | 'online';
+type MeetingPlatform = 'google_meet' | 'zoom' | 'teams';
+
+const MIN_DESCRIPTION_LENGTH = 30;
 
 const EventCreate: React.FC = () => {
     const navigate = useNavigate();
@@ -179,7 +135,11 @@ const EventCreate: React.FC = () => {
     const [startTime, setStartTime] = useState('18:30');
     const [endDate, setEndDate] = useState('');
     const [endTime, setEndTime] = useState('19:30');
+
+    const [locationType, setLocationType] = useState<LocationType>('offline');
     const [location, setLocation] = useState('');
+    const [meetingPlatform, setMeetingPlatform] = useState<MeetingPlatform>('google_meet');
+
     const [description, setDescription] = useState('');
 
     const [editingTicket, setEditingTicket] = useState(false);
@@ -209,7 +169,13 @@ const EventCreate: React.FC = () => {
         return combined.toISOString();
     };
 
-    const isValid = !!(eventName.trim() && startDate && endDate && location.trim());
+    const isValid = !!(
+        eventName.trim() &&
+        startDate &&
+        endDate &&
+        (locationType === 'online' || location.trim()) &&
+        description.trim().length >= MIN_DESCRIPTION_LENGTH
+    );
 
     const handleCreate = () => {
         if (!isValid) return;
@@ -217,7 +183,16 @@ const EventCreate: React.FC = () => {
         const formData = new FormData();
         formData.append('title', eventName);
         formData.append('description', description);
-        formData.append('location', location);
+        formData.append('location_type', locationType);
+        formData.append('location', locationType === 'online' ? 'Google Meet' : location);
+        if (locationType === 'online') {
+            formData.append('meeting_platform', meetingPlatform);
+        }
+
+        // Explicit booleans for the backend, in addition to location_type
+        formData.append('online', String(locationType === 'online'));
+        formData.append('onsite', String(locationType === 'offline'));
+
         formData.append('start_date', toIso(startDate, startTime));
         formData.append('end_date', toIso(endDate, endTime));
         formData.append('ticket_price', ticketMode === 'paid' ? (price || '0') : '0');
@@ -341,25 +316,6 @@ const EventCreate: React.FC = () => {
 
                     {/* Right: form */}
                     <div className="flex-1 min-w-0">
-                        {/* Calendar + visibility */}
-                        <div className="flex items-center justify-between gap-3 mb-6">
-                            <button
-                                className="flex items-center gap-2 px-3.5 py-2 rounded-full text-sm cursor-pointer"
-                                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)' }}
-                            >
-                                Personal Calendar
-                                <FiChevronDown size={14} className="text-white/40" />
-                            </button>
-                            <button
-                                className="flex items-center gap-2 px-3.5 py-2 rounded-full text-sm cursor-pointer"
-                                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)' }}
-                            >
-                                <FiGlobe size={14} />
-                                Public
-                                <FiChevronDown size={14} className="text-white/40" />
-                            </button>
-                        </div>
-
                         {/* Event name */}
                         <input
                             value={eventName}
@@ -425,25 +381,132 @@ const EventCreate: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Location */}
+                        {/* Location: Offline / Online */}
                         <div className="mb-3">
-                            <IconInputRow
-                                icon={<FiMapPin size={17} />}
-                                value={location}
-                                onChange={setLocation}
-                                placeholder="Add Event Location"
-                                subtext="Offline location or virtual link"
-                            />
+                            <div
+                                className="w-full rounded-xl px-4 py-3.5"
+                                style={{ background: cardBg, border: cardBorder }}
+                            >
+                                <div className="flex items-center gap-3 mb-3">
+                                    <span className="text-white/40 shrink-0">
+                                        <FiMapPin size={17} />
+                                    </span>
+                                    <div
+                                        className="flex rounded-lg overflow-hidden shrink-0"
+                                        style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                                    >
+                                        {(['offline', 'online'] as LocationType[]).map((type) => (
+                                            <button
+                                                key={type}
+                                                onClick={() => setLocationType(type)}
+                                                className="px-3.5 py-1.5 text-xs font-semibold capitalize cursor-pointer"
+                                                style={{
+                                                    background: locationType === type ? '#a6ff00' : 'transparent',
+                                                    color: locationType === type ? '#000' : 'rgba(255,255,255,0.5)',
+                                                }}
+                                            >
+                                                {type}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {locationType === 'offline' ? (
+                                    <div className="">
+                                        <label className="block text-white/40 text-xs mb-1.5">Venue address or link</label>
+                                        <input
+                                            value={location}
+                                            onChange={(e) => setLocation(e.target.value)}
+                                            placeholder="e.g. 14 Aba Road, Port Harcourt"
+                                            className="w-full rounded-lg px-3.5 py-2.5 text-white text-sm placeholder-white/25 outline-none transition-colors focus:border-[#a6ff00]/50"
+                                            style={{
+                                                background: 'rgba(255,255,255,0.03)',
+                                                border: '1px solid rgba(255,255,255,0.07)',
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="">
+                                        <p className="text-white/30 text-xs mb-2">Choose a video platform</p>
+                                        <div className="flex flex-col gap-2">
+                                            <button
+                                                onClick={() => setMeetingPlatform('google_meet')}
+                                                className="flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
+
+                                            >
+                                                <span className="flex items-center gap-2 text-sm text-white/80">
+                                                    <SiGooglemeet size={16} color="#00AC47" />
+                                                    Google Meet
+                                                </span>
+                                                {meetingPlatform === 'google_meet' && (
+                                                    <span className="text-black text-[10px] rounded-full p-2 px-5 bg-white font-semibold">Selected</span>
+                                                )}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                disabled
+                                                className="flex items-center justify-between px-3 py-2.5 rounded-lg cursor-not-allowed opacity-70"
+                                                style={{ background: 'rgba(255,255,255,0.03)' }}
+                                            >
+                                                <span className="flex items-center gap-2 text-sm text-white/50">
+                                                    <SiZoom size={16} color="#2D8CFF" />
+                                                    Zoom
+                                                </span>
+                                                <span className="text-white/30 text-xs">Coming soon</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                disabled
+                                                className="flex items-center justify-between px-3 py-2.5 rounded-lg cursor-not-allowed opacity-70"
+                                                style={{ background: 'rgba(255,255,255,0.03)' }}
+                                            >
+                                                <span className="flex items-center gap-2 text-sm text-white/50">
+                                                    <BsMicrosoftTeams size={16} color="#6264A7" />
+                                                    Microsoft Teams
+                                                </span>
+                                                <span className="text-white/30 text-xs">Coming soon</span>
+                                            </button>
+                                        </div>
+                                        <p className="text-white/30 text-xs mt-2">
+                                            A Google Meet link will be generated automatically when the event is created.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Description */}
                         <div className="mb-8">
-                            <IconTextAreaRow
-                                icon={<FiAlignLeft size={17} />}
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="text-white/40 text-xs">Description</label>
+                                <span
+                                    className="text-xs"
+                                    style={{
+                                        color:
+                                            description.trim().length >= MIN_DESCRIPTION_LENGTH
+                                                ? '#a6ff00'
+                                                : 'rgba(255,255,255,0.3)',
+                                    }}
+                                >
+                                    {description.trim().length}/{MIN_DESCRIPTION_LENGTH} min
+                                </span>
+                            </div>
+                            <textarea
                                 value={description}
-                                onChange={setDescription}
-                                placeholder="Add Description"
+                                onChange={(e) => setDescription(e.target.value)}
+                                placeholder="What's this event about? Share the agenda, what to expect, who it's for, and anything guests should know before they show up."
+                                rows={6}
+                                className="w-full rounded-xl px-4 py-3.5 text-white text-sm placeholder-white/25 outline-none resize-none transition-colors focus:border-[#a6ff00]/50"
+                                style={{
+                                    background: 'rgba(255,255,255,0.03)',
+                                    border: '1px solid rgba(255,255,255,0.07)',
+                                }}
                             />
+                            <p className="text-white/30 text-xs mt-1.5">
+                                Write at least {MIN_DESCRIPTION_LENGTH} characters so guests know what to expect.
+                            </p>
                         </div>
 
                         {/* Event Options */}

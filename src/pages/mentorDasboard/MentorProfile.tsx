@@ -21,81 +21,35 @@ import { useUpdateMentorProfile } from "../../hooks/mutations/allMutation";
 import { useGetMyMentorProfile, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
 import { useGlobalContext } from "../../providers/GlobalContext";
 
-// Hardcoded category options for the button picker — no categories endpoint exists,
-// and the backend stores these as plain strings. Edit this list to match what you
-// actually want mentors to choose from.
 const CATEGORY_OPTIONS = [
-    "tech",
-    "finance",
-    "business",
-    "design",
-    "product",
-    "marketing",
-    "leadership",
-    "education",
-    "politics",
-    "media",
-    "health",
-    "lifestyle",
-    "sports",
-    "entertainment",
-    "science",
+    "tech", "finance", "business", "design", "product", "marketing",
+    "leadership", "education", "politics", "media", "health",
+    "lifestyle", "sports", "entertainment", "science",
 ];
 
-// Fixed expertise/skill options for the pill picker — same pattern as
-// categories, since there's no expertise endpoint either. Edit freely.
 const EXPERTISE_OPTIONS = [
-    "career coaching",
-    "resume review",
-    "interview prep",
-    "public speaking",
-    "leadership coaching",
-    "technical mentoring",
-    "startup advice",
-    "product strategy",
-    "ux design",
-    "data analysis",
-    "marketing strategy",
-    "financial planning",
-    "personal branding",
-    "networking",
-    "time management",
-    "fundraising",
+    "career coaching", "resume review", "interview prep", "public speaking",
+    "leadership coaching", "technical mentoring", "startup advice",
+    "product strategy", "ux design", "data analysis", "marketing strategy",
+    "financial planning", "personal branding", "networking",
+    "time management", "fundraising",
 ];
 
-// Major world languages for the language dropdown.
 const LANGUAGE_OPTIONS = [
-    "English",
-    "Spanish",
-    "French",
-    "Portuguese",
-    "German",
-    "Italian",
-    "Mandarin Chinese",
-    "Arabic",
-    "Hindi",
-    "Russian",
-    "Japanese",
-    "Korean",
-    "Swahili",
-    "Yoruba",
-    "Igbo",
-    "Hausa",
-    "Dutch",
-    "Turkish",
-    "Vietnamese",
-    "Indonesian",
+    "English", "Spanish", "French", "Portuguese", "German", "Italian",
+    "Mandarin Chinese", "Arabic", "Hindi", "Russian", "Japanese", "Korean",
+    "Swahili", "Yoruba", "Igbo", "Hausa", "Dutch", "Turkish",
+    "Vietnamese", "Indonesian",
 ];
 
-// Page-specific tint for the social-link input prefixes (linkedin.com/in/, x.com/@).
-// Not part of the shared MentorDashboardStyles set since it's only used here.
 const prefixBg = "rgba(255,255,255,0.03)";
 
-/* ─── Availability (same pattern as TutorProfile.tsx) ─────────────────── */
+/* ─── Availability (same robust pattern as TutorProfile) ─────────────── */
 interface TimeSlot {
     id: number;
-    startTime: string; // 24hr "HH:MM"
+    startTime: string;
     endTime: string;
+    isBooked?: boolean;
 }
 
 interface DayAvailability {
@@ -114,6 +68,35 @@ const DAYS_OF_WEEK = [
     { key: "sunday", label: "Sunday" },
 ];
 
+const DAY_TO_INDEX: Record<string, number> = {
+    sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+};
+const INDEX_TO_DAY: Record<number, string> = Object.fromEntries(
+    Object.entries(DAY_TO_INDEX).map(([day, idx]) => [idx, day])
+);
+
+const normalizeDayKey = (value: unknown): string | undefined => {
+    if (typeof value === "number") return INDEX_TO_DAY[value];
+    if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (normalized in DAY_TO_INDEX) return normalized;
+
+        const dayNameMap: Record<string, string> = {
+            sunday: "sunday", monday: "monday", tuesday: "tuesday",
+            wednesday: "wednesday", thursday: "thursday", friday: "friday", saturday: "saturday",
+        };
+        if (dayNameMap[normalized]) return dayNameMap[normalized];
+
+        const match = DAYS_OF_WEEK.find(d =>
+            d.key === normalized ||
+            d.label.toLowerCase() === normalized ||
+            normalized === d.key.slice(0, 3)
+        );
+        return match?.key;
+    }
+    return undefined;
+};
+
 const MAX_SLOTS_PER_DAY = 3;
 
 const defaultAvailability: DayAvailability[] = DAYS_OF_WEEK.map((d) => ({
@@ -122,51 +105,117 @@ const defaultAvailability: DayAvailability[] = DAYS_OF_WEEK.map((d) => ({
     slots: [],
 }));
 
-const emptyTimeSlot = (id: number): TimeSlot => ({ id, startTime: "09:00", endTime: "10:00" });
-
-// Backend expects an array of concrete { day_of_week, start_time, end_time }
-// slots — same shape TutorProfile.tsx already sends for tutors.
-const buildAvailabilityPayload = (availability: DayAvailability[]) =>
-    availability
-        .filter((d) => d.enabled)
-        .flatMap((d) =>
-            d.slots.map((s) => ({
-                day_of_week: d.day.charAt(0).toUpperCase() + d.day.slice(1),
-                start_time: `${s.startTime}:00`,
-                end_time: `${s.endTime}:00`,
-            }))
-        );
-
-const normalizeDayKey = (value: unknown): string | undefined => {
-    if (typeof value !== "string") return undefined;
-    const normalized = value.trim().toLowerCase();
-    return DAYS_OF_WEEK.find((d) => d.key === normalized)?.key;
-};
+const emptyTimeSlot = (id: number): TimeSlot => ({
+    id,
+    startTime: "09:00",
+    endTime: "10:00",
+    isBooked: false,
+});
 
 const toShortTime = (t: unknown, fallback: string) =>
     typeof t === "string" && t.length >= 5 ? t.slice(0, 5) : fallback;
 
-// Accepts either the array-of-slots shape from the backend, or nothing yet
-// (brand-new mentor profile) — always returns a full 7-day structure.
-function normalizeAvailability(value: unknown): DayAvailability[] {
-    if (!Array.isArray(value) || value.length === 0) return defaultAvailability;
+const buildAvailabilityPayload = (availability: DayAvailability[]) =>
+    availability
+        .filter((d) => d.enabled && d.slots.length > 0)
+        .flatMap((d) => {
+            const day = typeof d.day === "string" ? d.day.trim() : "";
+            if (!day) return [];
 
-    const grouped: Record<string, TimeSlot[]> = {};
-    value.forEach((item: any) => {
-        const dayKey = normalizeDayKey(item?.day_of_week ?? item?.day);
-        if (!dayKey) return;
-        if (!grouped[dayKey]) grouped[dayKey] = [];
-        if (grouped[dayKey].length >= MAX_SLOTS_PER_DAY) return;
-        grouped[dayKey].push({
-            id: grouped[dayKey].length + 1,
-            startTime: toShortTime(item?.start_time, "09:00"),
-            endTime: toShortTime(item?.end_time, "10:00"),
+            return d.slots
+                .map((s) => {
+                    const start = typeof s.startTime === "string" && s.startTime.length >= 5 ? s.startTime.slice(0, 5) : "";
+                    const end = typeof s.endTime === "string" && s.endTime.length >= 5 ? s.endTime.slice(0, 5) : "";
+
+                    if (!start || !end) return null;
+
+                    return {
+                        day_of_week: day.charAt(0).toUpperCase() + day.slice(1),
+                        start_time: `${start}:00`,
+                        end_time: `${end}:00`,
+                    };
+                })
+                .filter((slot): slot is NonNullable<typeof slot> => slot !== null);
         });
-    });
+
+const flattenErrorMessages = (data: unknown): string => {
+    if (!data) return "Something went wrong. Please try again.";
+
+    if (typeof data === "string") return data;
+
+    if (Array.isArray(data)) {
+        return data
+            .map((item) => flattenErrorMessages(item))
+            .filter(Boolean)
+            .join(" \n ");
+    }
+
+    if (typeof data === "object") {
+        const entries = Object.entries(data as Record<string, unknown>);
+        const messages = entries.flatMap(([key, value]) => {
+            if (key === "non_field_errors") return flattenErrorMessages(value).split("\n").filter(Boolean);
+            if (Array.isArray(value)) return flattenErrorMessages(value).split("\n").filter(Boolean);
+            if (typeof value === "object" && value !== null) {
+                return flattenErrorMessages(value).split("\n").filter(Boolean);
+            }
+            return typeof value === "string" ? [value] : [];
+        });
+
+        if (messages.length > 0) return messages.join(" \n");
+
+        return JSON.stringify(data);
+    }
+
+    return String(data);
+};
+
+function normalizeAvailability(value: unknown): DayAvailability[] {
+    let arr: any[] = [];
+    if (Array.isArray(value)) {
+        arr = value;
+    } else if (typeof value === "string" && value.trim()) {
+        try {
+            const parsed = JSON.parse(value);
+            arr = Array.isArray(parsed) ? parsed : [];
+        } catch {
+            arr = [];
+        }
+    }
+
+    if (arr.length === 0) return defaultAvailability;
+
+    if (typeof arr[0]?.day_of_week === "number" || typeof arr[0]?.day_of_week === "string") {
+        const grouped: Record<string, TimeSlot[]> = {};
+        arr.forEach((item: any) => {
+            const dayKey = normalizeDayKey(item?.day_of_week ?? item?.day ?? item?.day_name);
+            if (!dayKey) return;
+            if (!grouped[dayKey]) grouped[dayKey] = [];
+            if (grouped[dayKey].length >= MAX_SLOTS_PER_DAY) return;
+            grouped[dayKey].push({
+                id: grouped[dayKey].length + 1,
+                startTime: toShortTime(item?.start_time ?? item?.startTime, "09:00"),
+                endTime: toShortTime(item?.end_time ?? item?.endTime, "10:00"),
+                isBooked: !!(item?.is_booked ?? item?.isBooked),
+            });
+        });
+        return DAYS_OF_WEEK.map((d) => {
+            const slots = grouped[d.key] || [];
+            return { day: d.key, enabled: slots.length > 0, slots };
+        });
+    }
 
     return DAYS_OF_WEEK.map((d) => {
-        const slots = grouped[d.key] || [];
-        return { day: d.key, enabled: slots.length > 0, slots };
+        const found = arr.find((a: any) => a?.day === d.key);
+        if (!found) return { day: d.key, enabled: false, slots: [] };
+        const slots: TimeSlot[] = Array.isArray(found.slots)
+            ? found.slots.slice(0, MAX_SLOTS_PER_DAY).map((s: any, idx: number) => ({
+                id: typeof s?.id === "number" ? s.id : idx + 1,
+                startTime: toShortTime(s?.startTime ?? s?.start_time, "09:00"),
+                endTime: toShortTime(s?.endTime ?? s?.end_time, "10:00"),
+                isBooked: !!(s?.isBooked ?? s?.is_booked),
+            }))
+            : [];
+        return { day: d.key, enabled: !!found.enabled && slots.length > 0, slots };
     });
 }
 
@@ -215,9 +264,7 @@ const TimePickerInput: React.FC<{
                 aria-label="Hour"
             >
                 {HOURS_12.map((h) => (
-                    <option key={h} value={h} className="bg-[#0a0f08]">
-                        {h}
-                    </option>
+                    <option key={h} value={h} className="bg-[#0a0f08]">{h}</option>
                 ))}
             </select>
             <span className="text-xs text-white/30 shrink-0">:</span>
@@ -263,12 +310,21 @@ const AvailabilitySection: React.FC<{
     };
 
     const toggleDay = (dayKey: string) => {
+        const day = availability.find((d) => d.day === dayKey);
+        if (day?.enabled && day.slots.some((s) => s.isBooked)) {
+            // Don't allow silently dropping a day that has booked slots.
+            return;
+        }
         updateDay(dayKey, (d) => {
             const enabling = !d.enabled;
             return {
                 ...d,
                 enabled: enabling,
-                slots: enabling && d.slots.length === 0 ? [emptyTimeSlot(1)] : d.slots,
+                // On: seed a default slot if none exist.
+                // Off: clear slots so this day can never leak into the payload.
+                slots: enabling
+                    ? (d.slots.length === 0 ? [emptyTimeSlot(1)] : d.slots)
+                    : [],
             };
         });
     };
@@ -281,8 +337,16 @@ const AvailabilitySection: React.FC<{
         });
     };
 
+    // FIXED: when last slot is removed → automatically disable the day
     const removeSlot = (dayKey: string, slotId: number) => {
-        updateDay(dayKey, (d) => ({ ...d, slots: d.slots.filter((s) => s.id !== slotId) }));
+        updateDay(dayKey, (d) => {
+            const nextSlots = d.slots.filter((s) => s.id !== slotId);
+            return {
+                ...d,
+                slots: nextSlots,
+                enabled: nextSlots.length > 0 ? d.enabled : false,
+            };
+        });
     };
 
     const updateSlot = (dayKey: string, slotId: number, field: "startTime" | "endTime", value: string) => {
@@ -311,7 +375,11 @@ const AvailabilitySection: React.FC<{
                 const atMax = dayAv.slots.length >= MAX_SLOTS_PER_DAY;
 
                 return (
-                    <div key={dayAv.day} className="rounded-xl p-3.5 transition-all" style={{ background: cardBg, border: cardBorder }}>
+                    <div
+                        key={dayAv.day}
+                        className="rounded-xl p-3.5 transition-all"
+                        style={{ background: cardBg, border: cardBorder }}
+                    >
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-3">
                                 <button
@@ -360,26 +428,36 @@ const AvailabilitySection: React.FC<{
                                     <div key={slot.id} className="flex flex-wrap items-center gap-2">
                                         <TimePickerInput
                                             value={slot.startTime}
-                                            disabled={disabled}
+                                            disabled={disabled || !!slot.isBooked}
                                             onChange={(v) => updateSlot(dayAv.day, slot.id, "startTime", v)}
                                         />
                                         <span className="text-xs text-white/30 shrink-0">to</span>
                                         <TimePickerInput
                                             value={slot.endTime}
-                                            disabled={disabled}
+                                            disabled={disabled || !!slot.isBooked}
                                             onChange={(v) => updateSlot(dayAv.day, slot.id, "endTime", v)}
                                         />
-                                        <button
-                                            type="button"
-                                            disabled={disabled}
-                                            onClick={() => removeSlot(dayAv.day, slot.id)}
-                                            className="p-1.5 text-white/20 hover:text-red-400 transition-colors shrink-0"
-                                        >
-                                            <FiTrash2 size={13} />
-                                        </button>
+                                        {slot.isBooked ? (
+                                            <span className="text-[10px] font-semibold text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-full px-2 py-1 shrink-0">
+                                                Booked
+                                            </span>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                disabled={disabled}
+                                                onClick={() => removeSlot(dayAv.day, slot.id)}
+                                                className="p-1.5 text-white/20 hover:text-red-400 transition-colors shrink-0"
+                                            >
+                                                <FiTrash2 size={13} />
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
-                                {atMax && <p className="text-[11px] text-white/30 italic">Maximum {MAX_SLOTS_PER_DAY} slots reached for this day</p>}
+                                {atMax && (
+                                    <p className="text-[11px] text-white/30 italic">
+                                        Maximum {MAX_SLOTS_PER_DAY} slots reached for this day
+                                    </p>
+                                )}
                             </div>
                         )}
                     </div>
@@ -389,7 +467,6 @@ const AvailabilitySection: React.FC<{
     );
 };
 
-// Read-only display of the weekly schedule (view mode, not editing).
 const ViewAvailabilityRow: React.FC<{ availability: DayAvailability[] }> = ({ availability }) => {
     const activeDays = availability.filter((d) => d.enabled && d.slots.length > 0);
     return (
@@ -416,8 +493,7 @@ const ViewAvailabilityRow: React.FC<{ availability: DayAvailability[] }> = ({ av
     );
 };
 
-// ---------- Shared editable field components ----------
-
+/* ─── Shared fields ──────────────────────────────────────────────────── */
 const Field: React.FC<{
     label: string;
     value: string;
@@ -440,8 +516,6 @@ const Field: React.FC<{
     </div>
 );
 
-// Native <select> dropdown, styled to match the other inputs — used for
-// Language, where a pill picker would be too many options to scan.
 const SelectField: React.FC<{
     label: string;
     value: string;
@@ -458,13 +532,9 @@ const SelectField: React.FC<{
             className={fieldClass}
             style={{ background: cardBg, border: cardBorder }}
         >
-            <option value="" disabled>
-                {placeholder}
-            </option>
+            <option value="" disabled>{placeholder}</option>
             {options.map((opt) => (
-                <option key={opt} value={opt}>
-                    {opt}
-                </option>
+                <option key={opt} value={opt}>{opt}</option>
             ))}
         </select>
         {helper && <p className="mt-2 text-xs text-white/40">{helper}</p>}
@@ -523,7 +593,6 @@ const SocialField: React.FC<{
     </div>
 );
 
-// Multi-select pill group (used for expertise — same interaction as Category).
 const MultiPillSelect: React.FC<{
     label: string;
     values: string[];
@@ -556,12 +625,8 @@ const MultiPillSelect: React.FC<{
     </div>
 );
 
-// ---------- Read-only display components ----------
-
 const ViewRow: React.FC<{ label: string; value: string; placeholder?: string }> = ({
-    label,
-    value,
-    placeholder = "Not set",
+    label, value, placeholder = "Not set",
 }) => (
     <div className="rounded-xl px-4 py-3" style={{ background: cardBg, border: cardBorder }}>
         <p className="text-xs font-semibold uppercase tracking-wide text-white/40">{label}</p>
@@ -569,8 +634,6 @@ const ViewRow: React.FC<{ label: string; value: string; placeholder?: string }> 
     </div>
 );
 
-// Defensively guards against the API returning null instead of [] for
-// unset array fields (e.g. brand-new mentor profiles).
 const ViewChipsRow: React.FC<{ label: string; values: string[] | null | undefined }> = ({ label, values }) => {
     const safeValues = Array.isArray(values) ? values : [];
     return (
@@ -595,10 +658,7 @@ const ViewChipsRow: React.FC<{ label: string; values: string[] | null | undefine
 };
 
 const ViewSocialRow: React.FC<{ badge: string; label: string; url: string; handle: string }> = ({
-    badge,
-    label,
-    url,
-    handle,
+    badge, label, url, handle,
 }) => (
     <div className="flex items-center gap-3">
         <div
@@ -615,7 +675,6 @@ const ViewSocialRow: React.FC<{ badge: string; label: string; url: string; handl
         </div>
     </div>
 );
-
 
 const extractHandle = (url?: string) => {
     if (!url) return "";
@@ -659,15 +718,8 @@ const emptyDraft: Draft = {
     availability: defaultAvailability,
 };
 
-// NOTE: backend returns/expects the singular key "social_link" as a flat
-// object: { twitter, linkedin, website } — not an array of {platform, url}.
-// Several fields (hourly_rate, language, expertise) come back as `null` on a
-// fresh profile rather than "" or [] — every read below normalizes that
-// explicitly. `availability` is read from `availability_slots` if present,
-// falling back to `availability`, matching TutorProfile.tsx's pattern.
 const draftFromMentorProfile = (mentorProfile: any): Draft => {
     const socialLink = mentorProfile?.social_link ?? {};
-
     return {
         banner: mentorProfile?.cover_images ?? null,
         bannerFile: null,
@@ -685,8 +737,6 @@ const draftFromMentorProfile = (mentorProfile: any): Draft => {
         availability: normalizeAvailability(mentorProfile?.availability_slots ?? mentorProfile?.availability),
     };
 };
-
-// ---------- Not verified gate screen ----------
 
 const NotVerifiedScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => (
     <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
@@ -719,7 +769,6 @@ const MentorProfile = () => {
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
     const mentorProfile = myMentorProfile?.data;
     const userProfile = myProfile?.data;
-    console.log('Mentor Profile', mentorProfile)
 
     const { mutate: updateMentor, isPending } = useUpdateMentorProfile();
 
@@ -770,8 +819,6 @@ const MentorProfile = () => {
         const idx = stepOrder.indexOf(step);
         if (idx > 0) setStep(stepOrder[idx - 1]);
     };
-    // Used in view (non-editing) mode, where there's no tab bar to jump
-    // between sections — cycles forward, wrapping back to the first step.
     const goToNextStep = () => {
         const idx = stepOrder.indexOf(step);
         setStep(stepOrder[(idx + 1) % stepOrder.length]);
@@ -782,13 +829,32 @@ const MentorProfile = () => {
 
         setIsPreparingSave(true);
         try {
-            const formData = new FormData();
-            formData.append("occupation", draft.occupation);
-            formData.append("bio", draft.bio);
-            formData.append("nick_name", draft.nickname);
-            formData.append("years_of_experience", String(parseInt(draft.experience, 10) || 0));
-            formData.append("hourly_rate", draft.hourlyRate ? String(parseFloat(draft.hourlyRate)) : "");
-            formData.append("language", draft.language);
+            const socialLink = {
+                linkedin: draft.linkedin ? `https://linkedin.com/in/${draft.linkedin}` : "",
+                twitter: draft.xHandle ? `https://x.com/${draft.xHandle}` : "",
+                website: draft.website || "",
+            };
+
+            const availabilitySlots = buildAvailabilityPayload(draft.availability);
+            console.log("Availability payload being sent:", availabilitySlots);
+
+            if (availabilitySlots.length === 0) {
+                addToast("Please add at least one valid availability slot before saving.", "error");
+                return;
+            }
+
+            const payload = {
+                occupation: draft.occupation,
+                bio: draft.bio,
+                nick_name: draft.nickname,
+                years_of_experience: parseInt(draft.experience, 10) || 0,
+                hourly_rate: draft.hourlyRate ? parseFloat(draft.hourlyRate) : null,
+                language: draft.language,
+                categories: draft.categories,
+                expertise: draft.expertise,
+                social_link: socialLink,
+                availability_slots: availabilitySlots,
+            };
 
             let bannerFile = draft.bannerFile;
             if (!bannerFile && draft.banner) {
@@ -800,33 +866,38 @@ const MentorProfile = () => {
                     console.error("Could not re-fetch existing cover image", e);
                 }
             }
-            if (bannerFile) formData.append("cover_images", bannerFile);
+            let body: any = payload;
 
-            formData.append("categories", JSON.stringify(draft.categories));
-            formData.append("expertise", JSON.stringify(draft.expertise));
+            if (bannerFile) {
+                const formData = new FormData();
+                Object.entries(payload).forEach(([key, value]) => {
+                    if (value === undefined || value === null) return;
+                    if (key === "availability_slots") {
+                        formData.append(key, JSON.stringify(value));
+                        return;
+                    }
+                    formData.append(
+                        key,
+                        typeof value === "object" ? JSON.stringify(value) : String(value)
+                    );
+                });
+                formData.append("cover_images", bannerFile);
+                body = formData;
+            }
 
-            // Backend expects the singular key "social_link" as a flat object,
-            // e.g. { twitter, linkedin, website } — NOT "social_links" as an array.
-            const socialLink = {
-                linkedin: draft.linkedin ? `https://linkedin.com/in/${draft.linkedin}` : "",
-                twitter: draft.xHandle ? `https://x.com/${draft.xHandle}` : "",
-                website: draft.website || "",
-            };
-            formData.append("social_link", JSON.stringify(socialLink));
-
-            // Availability sent as concrete day/time slots — same shape
-            // TutorProfile.tsx sends for tutors.
-            formData.append("availability", JSON.stringify(buildAvailabilityPayload(draft.availability)));
-
-            updateMentor(formData, {
+            updateMentor(body, {
                 onSuccess: () => {
                     addToast("Profile updated", "success");
                     setIsEditing(false);
                 },
                 onError: (error: any) => {
+                    const backendData = error?.response?.data;
+                    console.error("Update mentor error:", backendData);
                     const message =
+                        flattenErrorMessages(backendData) ||
                         error?.response?.data?.message ||
                         error?.response?.data?.detail ||
+                        error?.response?.data?.non_field_errors?.[0] ||
                         "Something went wrong. Please try again.";
                     addToast(message, "error");
                 },
@@ -835,7 +906,6 @@ const MentorProfile = () => {
             setIsPreparingSave(false);
         }
     };
-
 
     const loading = mentorLoading || userLoading;
     const isSaving = isPending || isPreparingSave;
@@ -874,7 +944,6 @@ const MentorProfile = () => {
         );
     }
 
-    // Gate: mentor profile exists but hasn't been approved yet.
     if (!mentorProfile?.is_approved) {
         return <NotVerifiedScreen onBack={() => navigate("/dashboard/overview")} />;
     }
@@ -885,10 +954,12 @@ const MentorProfile = () => {
     const savedLinkedin = extractHandle(savedSocialLink.linkedin);
     const savedXHandle = extractHandle(savedSocialLink.twitter);
     const savedWebsite: string = savedSocialLink.website ?? "";
-    const savedAvailability = normalizeAvailability(mentorProfile?.availability_slots ?? mentorProfile?.availability);
+    const savedAvailability = normalizeAvailability(
+        mentorProfile?.availability_slots ?? mentorProfile?.availability
+    );
 
     return (
-        <div className="min-h-screen w-full text-white" >
+        <div className="min-h-screen w-full text-white">
             <LoadingOverlay visible={isSaving} />
             <div className="mx-auto max-w-4xl ">
                 {step === "professional" && (
@@ -935,9 +1006,7 @@ const MentorProfile = () => {
                                     )}
 
                                     <div className="absolute -bottom-10 left-4 sm:-bottom-12 sm:left-6">
-                                        <div
-                                            className="flex bg-white p-1 lg:h-20 lg:w-20 h-16 w-16 items-center justify-center overflow-hidden rounded-xl"
-                                        >
+                                        <div className="flex bg-white p-1 lg:h-20 lg:w-20 h-16 w-16 items-center justify-center overflow-hidden rounded-xl">
                                             {userProfile?.avatar ? (
                                                 <img
                                                     src={userProfile.avatar}
@@ -1034,7 +1103,11 @@ const MentorProfile = () => {
                                         />
                                         <ViewRow
                                             label="Hourly Rate"
-                                            value={mentorProfile?.hourly_rate != null ? `₦${mentorProfile.hourly_rate}` : ""}
+                                            value={
+                                                mentorProfile?.hourly_rate != null
+                                                    ? `₦${mentorProfile.hourly_rate}`
+                                                    : ""
+                                            }
                                         />
                                         <ViewRow label="Language" value={mentorProfile?.language ?? ""} />
                                     </div>
@@ -1044,7 +1117,6 @@ const MentorProfile = () => {
                     </div>
                 )}
 
-                {/* ---------------- Category & Socials ---------------- */}
                 {step === "social" && (
                     <div>
                         <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Category &amp; Social Links</h2>
@@ -1147,7 +1219,6 @@ const MentorProfile = () => {
                     </div>
                 )}
 
-                {/* ---------------- Availability ---------------- */}
                 {step === "availability" && (
                     <div>
                         <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Availability</h2>
@@ -1165,22 +1236,15 @@ const MentorProfile = () => {
                     </div>
                 )}
 
-                {/* ---------------- Footer controls ---------------- */}
                 <div className="mt-10 flex gap-3 sm:flex-row justify-between">
                     {isEditing ? (
                         <>
                             <Button variant="white" onClick={step === "professional" ? cancelEditing : goBack}>
                                 <span className="flex items-center justify-center gap-2">
                                     {step === "professional" ? (
-                                        <>
-                                            <FiX size={15} />
-                                            Cancel
-                                        </>
+                                        <><FiX size={15} /> Cancel</>
                                     ) : (
-                                        <>
-                                            <FiArrowLeft size={15} />
-                                            Previous
-                                        </>
+                                        <><FiArrowLeft size={15} /> Previous</>
                                     )}
                                 </span>
                             </Button>
@@ -1191,21 +1255,17 @@ const MentorProfile = () => {
                                     disabled={step === "professional" ? !professionalComplete : !socialComplete}
                                 >
                                     <span className="flex items-center justify-center gap-2">
-                                        Next
-                                        <FiArrowRight size={15} />
+                                        Next <FiArrowRight size={15} />
                                     </span>
                                 </Button>
                             ) : (
                                 <Button
                                     variant="green"
-                                    onClick={() => {
-                                        void saveProfile();
-                                    }}
+                                    onClick={() => { void saveProfile(); }}
                                     disabled={!availabilityComplete || isSaving}
                                 >
                                     <span className="flex items-center justify-center gap-2">
-                                        <FiCheck size={15} />
-                                        Save Changes
+                                        <FiCheck size={15} /> Save Changes
                                     </span>
                                 </Button>
                             )}
@@ -1214,14 +1274,12 @@ const MentorProfile = () => {
                         <div className="flex flex-wrap gap-3 justify-between">
                             <Button variant="white" onClick={goToNextStep}>
                                 <span className="flex items-center justify-center gap-2">
-                                    Next
-                                    <FiArrowRight size={15} />
+                                    Next <FiArrowRight size={15} />
                                 </span>
                             </Button>
                             <Button variant="green" onClick={startEditing}>
                                 <span className="flex items-center justify-center gap-2">
-                                    Edit Profile
-                                    <FiEdit2 size={14} />
+                                    Edit Profile <FiEdit2 size={14} />
                                 </span>
                             </Button>
                         </div>

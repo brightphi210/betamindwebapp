@@ -84,6 +84,7 @@ interface TimeSlot {
     id: number;
     startTime: string; // 24hr "HH:MM"
     endTime: string;
+    isBooked?: boolean;
 }
 
 interface DayAvailability {
@@ -110,9 +111,14 @@ const defaultAvailability: DayAvailability[] = DAYS_OF_WEEK.map((d) => ({
     slots: [],
 }));
 
-const emptyTimeSlot = (id: number): TimeSlot => ({ id, startTime: "09:00", endTime: "10:00" });
+const emptyTimeSlot = (id: number): TimeSlot => ({
+    id,
+    startTime: "09:00",
+    endTime: "10:00",
+    isBooked: false,
+});
 
-// Backend expects an array of concrete { day_of_week, start_time, end_time }
+// Backend expects an array of concrete { day_of_week, start_time, end_time, is_booked }
 // slots — same shape TutorProfile.tsx already sends for tutors.
 const buildAvailabilityPayload = (availability: DayAvailability[]) =>
     availability
@@ -122,6 +128,7 @@ const buildAvailabilityPayload = (availability: DayAvailability[]) =>
                 day_of_week: d.day.charAt(0).toUpperCase() + d.day.slice(1),
                 start_time: `${s.startTime}:00`,
                 end_time: `${s.endTime}:00`,
+                is_booked: !!s.isBooked,
             }))
         );
 
@@ -261,7 +268,11 @@ const AvailabilitySection: React.FC<{
                 const atMax = dayAv.slots.length >= MAX_SLOTS_PER_DAY;
 
                 return (
-                    <div key={dayAv.day} className="rounded-xl p-3.5 transition-all" style={{ background: cardBg, border: cardBorder }}>
+                    <div
+                        key={dayAv.day}
+                        className="rounded-xl p-3.5 transition-all"
+                        style={{ background: cardBg, border: cardBorder }}
+                    >
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div className="flex items-center gap-3">
                                 <button
@@ -310,26 +321,36 @@ const AvailabilitySection: React.FC<{
                                     <div key={slot.id} className="flex flex-wrap items-center gap-2">
                                         <TimePickerInput
                                             value={slot.startTime}
-                                            disabled={disabled}
+                                            disabled={disabled || !!slot.isBooked}
                                             onChange={(v) => updateSlot(dayAv.day, slot.id, "startTime", v)}
                                         />
                                         <span className="text-xs text-white/30 shrink-0">to</span>
                                         <TimePickerInput
                                             value={slot.endTime}
-                                            disabled={disabled}
+                                            disabled={disabled || !!slot.isBooked}
                                             onChange={(v) => updateSlot(dayAv.day, slot.id, "endTime", v)}
                                         />
-                                        <button
-                                            type="button"
-                                            disabled={disabled}
-                                            onClick={() => removeSlot(dayAv.day, slot.id)}
-                                            className="p-1.5 text-white/20 hover:text-red-400 transition-colors shrink-0"
-                                        >
-                                            <FiTrash2 size={13} />
-                                        </button>
+                                        {slot.isBooked ? (
+                                            <span className="text-[10px] font-semibold text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-full px-2 py-1 shrink-0">
+                                                Booked
+                                            </span>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                disabled={disabled}
+                                                onClick={() => removeSlot(dayAv.day, slot.id)}
+                                                className="p-1.5 text-white/20 hover:text-red-400 transition-colors shrink-0"
+                                            >
+                                                <FiTrash2 size={13} />
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
-                                {atMax && <p className="text-[11px] text-white/30 italic">Maximum {MAX_SLOTS_PER_DAY} slots reached for this day</p>}
+                                {atMax && (
+                                    <p className="text-[11px] text-white/30 italic">
+                                        Maximum {MAX_SLOTS_PER_DAY} slots reached for this day
+                                    </p>
+                                )}
                             </div>
                         )}
                     </div>
@@ -557,7 +578,7 @@ const MentorOnboarding = () => {
         formData.append("hourly_rate", hourlyRate ? String(parseFloat(hourlyRate)) : "");
         formData.append("language", language);
         // Link to the mentor's ~2-minute expertise walkthrough (YouTube/Loom/Vimeo).
-        formData.append("intro_video_url", videoLink);
+        formData.append("video_link", videoLink);
 
         if (bannerFile) formData.append("cover_images", bannerFile);
 
@@ -577,9 +598,8 @@ const MentorOnboarding = () => {
         formData.append("social_link", JSON.stringify(socialLink));
 
         // Availability now sent as concrete day/time slots — same shape
-        // TutorProfile.tsx sends for tutors — instead of a coarse
-        // "weekdays/weekends" + hours-per-day pair.
-        formData.append("availability", JSON.stringify(buildAvailabilityPayload(availability)));
+        // TutorProfile.tsx sends for tutors — under the key "availability_slots".
+        formData.append("availability_slots", JSON.stringify(buildAvailabilityPayload(availability)));
 
         mutate(formData, {
             onSuccess: () => {
@@ -639,8 +659,7 @@ const MentorOnboarding = () => {
                         <span
                             key={s}
                             className={`text-xs font-semibold transition-colors p-2.5 px-5 rounded-full 
-                                ${step === s ? " bg-white text-black" : "bg-white/10 text-white/25"
-                                }`}
+                                ${step === s ? " bg-white text-black" : "bg-white/10 text-white/25"}`}
                         >
                             {stepLabels[s]}
                         </span>
@@ -681,7 +700,6 @@ const MentorOnboarding = () => {
                                         className="hidden"
                                         onChange={handleBannerChange}
                                     />
-
                                 </div>
                             </div>
 
@@ -810,7 +828,8 @@ const MentorOnboarding = () => {
                     <div>
                         <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Availability</h2>
                         <p className="mb-6 -mt-3 text-sm text-white/40">
-                            Turn on the days you're available and add up to {MAX_SLOTS_PER_DAY} time slots per day so mentees know when to book you.
+                            Turn on the days you're available and add up to {MAX_SLOTS_PER_DAY} time slots per day so
+                            mentees know when to book you.
                         </p>
                         <AvailabilitySection
                             availability={availability}
@@ -820,7 +839,7 @@ const MentorOnboarding = () => {
                     </div>
                 )}
 
-                <div className="mt-10 flex  gap-3 sm:flex-row justify-between">
+                <div className="mt-10 flex gap-3 sm:flex-row justify-between">
                     <Button variant="white" onClick={goBack}>
                         <span className="flex items-center justify-center gap-2">
                             {step !== "professional" && <FiArrowLeft size={15} />}

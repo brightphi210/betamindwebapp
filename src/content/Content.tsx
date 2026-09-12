@@ -16,6 +16,7 @@ import Overview from '../pages/userDashboard/Overview'
 import Product from '../pages/userDashboard/Product'
 import SearchPage from '../pages/userDashboard/Search'
 import SettingsPage from '../pages/userDashboard/Settings'
+import UserBookings from '../pages/userDashboard/UserBookings'
 import Wallet from '../pages/userDashboard/Wallet'
 
 const Content = () => {
@@ -29,6 +30,7 @@ const Content = () => {
                 <Route path="/dashboard/search" element={<SearchPage />} />
                 <Route path='/dashboard/setting' element={<SettingsPage />} />
                 <Route path='/dashboard/wallet' element={<Wallet />} />
+                <Route path='/dashboard/bookings' element={<UserBookings />} />
                 <Route path='/dashboard/notifications' element={<Notifications />} />
                 <Route path='/dashboard/events/create' element={<EventCreate />} />
                 <Route path='/dashboard/mentor/success' element={<MentorOnboardingSuccess />} />

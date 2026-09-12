@@ -4,6 +4,7 @@ import {
     FiBookOpen,
     FiCheckCircle,
     FiCopy,
+    FiEdit2,
     FiExternalLink,
     FiImage,
     FiLink,
@@ -12,12 +13,16 @@ import {
     FiShare2,
     FiShoppingBag,
     FiTag,
+    FiTrash2,
     FiX,
 } from "react-icons/fi";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
 import { useGetMentorDigitalProduct } from "../../hooks/queries/allQueriess";
+// TODO: swap in your real delete mutation hook if the name/path differs,
+// e.g. useDeleteDigitalProduct from "../../hooks/mutations/allMutation".
+import { useDeleteDigitalProduct } from "../../hooks/mutations/allMutation";
 import { useGlobalContext } from "../../providers/GlobalContext";
 import { type MentorDashboardContext } from "./MentorDashboardLayout";
 
@@ -81,10 +86,22 @@ const STATUS_STYLES: Record<ProductStatus, { color: string; bg: string; label: s
     draft: { color: "#fbbf24", bg: "rgba(251,191,36,0.1)", label: "Draft" },
 };
 
-// ---------- Product card ----------
+// ---------- Product row ----------
 
-const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ product, onClick }) => {
+const ProductRow: React.FC<{
+    product: Product;
+    onClick: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
+    isDeleting: boolean;
+}> = ({ product, onClick, onEdit, onDelete, isDeleting }) => {
     const statusStyle = STATUS_STYLES[product.status];
+
+    const stop = (fn: () => void) => (e: React.MouseEvent | React.KeyboardEvent) => {
+        e.stopPropagation();
+        fn();
+    };
+
     return (
         <div
             role="button"
@@ -96,72 +113,95 @@ const ProductCard: React.FC<{ product: Product; onClick: () => void }> = ({ prod
                     onClick();
                 }
             }}
-            className="flex cursor-pointer flex-col overflow-hidden rounded-xl text-left transition-colors hover:bg-white/[0.03]"
+            className="flex cursor-pointer items-center gap-4 rounded-xl p-3 text-left transition-colors hover:bg-white/[0.03] sm:gap-5 sm:p-4"
             style={{ background: cardBg, border: cardBorder }}
         >
-            <div className="relative">
+            {/* Thumbnail */}
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg sm:h-20 sm:w-20">
                 {product.thumbnail ? (
-                    <img
-                        src={product.thumbnail}
-                        alt={product.title}
-                        className="h-40 w-full object-cover sm:h-48"
-                    />
+                    <img src={product.thumbnail} alt={product.title} className="h-full w-full object-cover" />
                 ) : (
                     <div
-                        className="flex h-40 w-full items-center justify-center sm:h-48"
+                        className="flex h-full w-full items-center justify-center"
                         style={{ background: "rgba(255,255,255,0.03)" }}
                     >
                         {product.type === "Course" ? (
-                            <FiPlayCircle size={28} className="text-white/15" />
+                            <FiPlayCircle size={20} className="text-white/15" />
                         ) : (
-                            <FiBookOpen size={28} className="text-white/15" />
+                            <FiBookOpen size={20} className="text-white/15" />
                         )}
                     </div>
                 )}
-                <span
-                    className="absolute left-3 top-3 flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold"
-                    style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
-                >
-                    {product.type === "Course" ? <FiPlayCircle size={13} /> : <FiBookOpen size={13} />}
-                    {product.type}
-                </span>
-                <span
-                    className="absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-semibold"
-                    style={{ background: statusStyle.bg, color: statusStyle.color, backdropFilter: "blur(4px)" }}
-                >
-                    {statusStyle.label}
-                </span>
             </div>
-            <div className="flex flex-1 flex-col p-4 sm:p-5">
-                <h3 className="mb-1 break-words text-base font-bold text-white">{product.title}</h3>
-                <p className="mb-3 text-sm text-white/40">{product.sold} sold</p>
-                <div className="mt-auto flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-xs text-white/60">
-                        {product.rating > 0 ? (
-                            <>
-                                <BsStarFill size={13} className="fill-amber-400 text-amber-400" />
-                                <p>{product.rating}</p>
-                            </>
-                        ) : (
-                            <p className="text-white/30">No ratings yet</p>
-                        )}
-                    </div>
-                    <span className="text-sm font-bold text-white">${product.price}</span>
+
+            {/* Info */}
+            <div className="min-w-0 flex-1">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <span
+                        className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold text-white/70"
+                        style={{ background: "rgba(255,255,255,0.06)" }}
+                    >
+                        {product.type === "Course" ? <FiPlayCircle size={11} /> : <FiBookOpen size={11} />}
+                        {product.type}
+                    </span>
+                    <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{ background: statusStyle.bg, color: statusStyle.color }}
+                    >
+                        {statusStyle.label}
+                    </span>
                 </div>
+                <h3 className="truncate text-sm font-bold text-white sm:text-base">{product.title}</h3>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/40">
+                    <span className="font-semibold text-white/70">${product.price}</span>
+                    <span>{product.sold} sold</span>
+                    {product.rating > 0 ? (
+                        <span className="flex items-center gap-1">
+                            <BsStarFill size={11} className="fill-amber-400 text-amber-400" />
+                            {product.rating}
+                        </span>
+                    ) : (
+                        <span className="text-white/25">No ratings yet</span>
+                    )}
+                </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex shrink-0 items-center gap-2">
+                <button
+                    type="button"
+                    onClick={stop(onEdit)}
+                    aria-label="Edit product"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/50 transition-colors hover:text-white sm:h-9 sm:w-9"
+                    style={{ background: "rgba(255,255,255,0.06)" }}
+                >
+                    <FiEdit2 size={14} />
+                </button>
+                <button
+                    type="button"
+                    onClick={stop(onDelete)}
+                    disabled={isDeleting}
+                    aria-label="Delete product"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400/70 transition-colors hover:text-red-400 disabled:opacity-40 sm:h-9 sm:w-9"
+                    style={{ background: "rgba(248,113,113,0.08)" }}
+                >
+                    <FiTrash2 size={14} />
+                </button>
             </div>
         </div>
     );
 };
 
-const ProductCardSkeleton: React.FC = () => (
+const ProductRowSkeleton: React.FC = () => (
     <div
-        className="flex flex-col overflow-hidden rounded-xl animate-pulse"
+        className="flex animate-pulse items-center gap-4 rounded-xl p-3 sm:gap-5 sm:p-4"
         style={{ background: cardBg, border: cardBorder }}
     >
-        <div className="h-40 w-full bg-white/5 sm:h-48" />
-        <div className="flex flex-col gap-2.5 p-4 sm:p-5">
-            <div className="h-4 w-3/4 rounded bg-white/5" />
-            <div className="h-3 w-1/2 rounded bg-white/5" />
+        <div className="h-16 w-16 shrink-0 rounded-lg bg-white/5 sm:h-20 sm:w-20" />
+        <div className="flex-1 space-y-2.5">
+            <div className="h-3 w-24 rounded bg-white/5" />
+            <div className="h-4 w-1/2 rounded bg-white/5" />
+            <div className="h-3 w-1/3 rounded bg-white/5" />
         </div>
     </div>
 );
@@ -188,7 +228,10 @@ const EmptyState: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
 const ProductDrawer: React.FC<{
     product: Product;
     onClose: () => void;
-}> = ({ product, onClose }) => {
+    onEdit: () => void;
+    onDelete: () => void;
+    isDeleting: boolean;
+}> = ({ product, onClose, onEdit, onDelete, isDeleting }) => {
     const { addToast } = useGlobalContext();
     const [copied, setCopied] = useState(false);
     const statusStyle = STATUS_STYLES[product.status];
@@ -227,14 +270,35 @@ const ProductDrawer: React.FC<{
             >
                 <div className="flex items-center justify-between px-5 pt-5">
                     <h3 className="text-lg font-bold text-white">Product Details</h3>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-white/50 hover:text-white"
-                        style={{ background: "rgba(255,255,255,0.06)" }}
-                    >
-                        <FiX size={16} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={onEdit}
+                            aria-label="Edit product"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/50 hover:text-white"
+                            style={{ background: "rgba(255,255,255,0.06)" }}
+                        >
+                            <FiEdit2 size={14} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onDelete}
+                            disabled={isDeleting}
+                            aria-label="Delete product"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400/70 hover:text-red-400 disabled:opacity-40"
+                            style={{ background: "rgba(248,113,113,0.08)" }}
+                        >
+                            <FiTrash2 size={14} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/50 hover:text-white"
+                            style={{ background: "rgba(255,255,255,0.06)" }}
+                        >
+                            <FiX size={16} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="px-5 pb-6 pt-4">
@@ -361,7 +425,7 @@ const ProductDrawer: React.FC<{
                     to { transform: translateX(0); }
                 }
             `}</style>
-        </div>
+        </div >
     );
 };
 
@@ -369,7 +433,10 @@ const ProductDrawer: React.FC<{
 
 const MentorProducts = () => {
     useOutletContext<MentorDashboardContext>();
-    const { digitalProduct, isLoading } = useGetMentorDigitalProduct();
+    const navigate = useNavigate();
+    const { addToast } = useGlobalContext();
+    const { digitalProduct, isLoading, refetch } = useGetMentorDigitalProduct();
+    const { mutate: deleteProduct, isPending: isDeleting, variables: deletingId } = useDeleteDigitalProduct({});
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
     const rawProducts: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data)
@@ -379,6 +446,31 @@ const MentorProducts = () => {
     const myRawProducts = rawProducts;
 
     const products: Product[] = myRawProducts.map(mapApiProductToMentorProduct);
+
+    const handleEdit = (product: Product) => {
+        navigate(`/dashboard/mentor/product/edit/${product.id}`);
+    };
+
+    const handleDelete = (product: Product) => {
+        const confirmed = window.confirm(`Delete "${product.title}"? This can't be undone.`);
+        if (!confirmed) return;
+
+        // cast to any to satisfy mutate type when id is passed as variable
+        deleteProduct(product.id as any, {
+            onSuccess: () => {
+                addToast("Product deleted", "success");
+                setSelectedProduct(null);
+                refetch?.();
+            },
+            onError: (error: any) => {
+                const message =
+                    error?.response?.data?.message ||
+                    error?.response?.data?.detail ||
+                    "Could not delete product. Please try again.";
+                addToast(message, "error");
+            },
+        });
+    };
 
     return (
         <div>
@@ -399,12 +491,19 @@ const MentorProducts = () => {
                 )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="flex flex-col gap-3">
                 {isLoading ? (
-                    Array.from({ length: 3 }).map((_, i) => <ProductCardSkeleton key={i} />)
+                    Array.from({ length: 3 }).map((_, i) => <ProductRowSkeleton key={i} />)
                 ) : products.length > 0 ? (
                     products.map((product) => (
-                        <ProductCard key={product.id} product={product} onClick={() => setSelectedProduct(product)} />
+                        <ProductRow
+                            key={product.id}
+                            product={product}
+                            onClick={() => setSelectedProduct(product)}
+                            onEdit={() => handleEdit(product)}
+                            onDelete={() => handleDelete(product)}
+                            isDeleting={isDeleting && (deletingId as unknown as string) === product.id}
+                        />
                     ))
                 ) : (
                     <EmptyState onCreate={() => { }} />
@@ -412,7 +511,13 @@ const MentorProducts = () => {
             </div>
 
             {selectedProduct && (
-                <ProductDrawer product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+                <ProductDrawer
+                    product={selectedProduct}
+                    onClose={() => setSelectedProduct(null)}
+                    onEdit={() => handleEdit(selectedProduct)}
+                    onDelete={() => handleDelete(selectedProduct)}
+                    isDeleting={isDeleting}
+                />
             )}
         </div>
     );

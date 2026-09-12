@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { post_request_with_image, post_requests, put_request_with_image } from "../helper/AxioHelper";
+import { delete_requests, post_request_with_image, post_requests, put_request_with_image, put_request_with_image_new } from "../helper/AxioHelper";
 
 
 export const useCreateMentor = () => {
@@ -25,7 +25,7 @@ export const useUpdateMentorProfile = () => {
   const updateMentorProfile = useMutation({
     mutationFn: async (data: any) => {
       const token = (await localStorage.getItem("betamindToken")) || ""
-      return put_request_with_image('mentors/me/', data, token)
+      return put_request_with_image_new('mentors/me/', data, token)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["myMentorProfile"] })
@@ -34,6 +34,8 @@ export const useUpdateMentorProfile = () => {
 
   return updateMentorProfile
 }
+
+
 
 
 
@@ -72,6 +74,42 @@ export const useCreateEvents = () => {
 
   return createEvent
 }
+
+
+export const useDeleteEvent = () => {
+  const queryClient = useQueryClient()
+
+  const deleteEvent = useMutation({
+    mutationFn: async () => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return delete_requests(`events/`, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] })
+    },
+  })
+
+  return deleteEvent
+}
+
+
+export const useDeleteDigitalProduct = (id: any) => {
+  const queryClient = useQueryClient()
+
+  const deleteDigitalProduct = useMutation({
+    mutationFn: async () => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return delete_requests(`digital-products/${id}/`, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["digital-products"] })
+    },
+  })
+
+  return deleteDigitalProduct
+}
+
+
 
 
 export const useRegisterEvents = () => {

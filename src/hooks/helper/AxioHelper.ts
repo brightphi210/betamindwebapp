@@ -77,18 +77,43 @@ export const put_requests = async (url: string, data: any, token = "") => {
 
 export const put_request_with_image = async (
   url: string,
-  data: FormData,
+  data: FormData | Record<string, any>,
   token = ""
 ) => {
-  const headers: any = {
-    "Content-Type": "multipart/form-data",
-  };
+  const isFormData = data instanceof FormData;
+  const headers: any = {};
+
+  if (isFormData) {
+    headers["Content-Type"] = "multipart/form-data";
+  }
 
   if (token !== "") {
     headers.Authorization = `Bearer ${token}`;
   }
 
   const response = await axiosInstance.put(url, data, { headers });
+  return response;
+};
+
+
+// helper.ts
+export const put_request_with_image_new = async (
+  url: string,
+  data: FormData | Record<string, any>,
+  token = ""
+) => {
+  const headers: any = {};
+  if (token !== "") {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  if (data instanceof FormData) {
+    const response = await axiosInstance.put(url, data, { headers });
+    return response;
+  }
+
+  const response = await axiosInstance.put(url, data, {
+    headers: { ...headers, "Content-Type": "application/json" },
+  });
   return response;
 };
 
