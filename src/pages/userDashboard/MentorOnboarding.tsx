@@ -577,29 +577,19 @@ const MentorOnboarding = () => {
         formData.append("years_of_experience", String(parseInt(experience, 10) || 0));
         formData.append("hourly_rate", hourlyRate ? String(parseFloat(hourlyRate)) : "");
         formData.append("language", language);
-        // Link to the mentor's ~2-minute expertise walkthrough (YouTube/Loom/Vimeo).
         formData.append("video_link", videoLink);
 
         if (bannerFile) formData.append("cover_images", bannerFile);
-
-        // Categories/Expertise as JSON-stringified arrays — the backend expects a
-        // single field it can json.loads() itself, not repeated plain-string fields.
         formData.append("categories", JSON.stringify(categories));
         formData.append("expertise", JSON.stringify(expertise));
-
-        // Backend expects the singular key "social_link" as a flat object:
-        // { twitter, linkedin, website } — NOT "social_links" as an array of
-        // {platform, url} dicts, and NOT bracket notation.
         const socialLink = {
             linkedin: linkedin ? `https://linkedin.com/in/${linkedin}` : "",
             twitter: xHandle ? `https://x.com/${xHandle}` : "",
             website: website || "",
         };
         formData.append("social_link", JSON.stringify(socialLink));
-
-        // Availability now sent as concrete day/time slots — same shape
-        // TutorProfile.tsx sends for tutors — under the key "availability_slots".
         formData.append("availability_slots", JSON.stringify(buildAvailabilityPayload(availability)));
+
 
         mutate(formData, {
             onSuccess: () => {

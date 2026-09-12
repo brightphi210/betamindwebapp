@@ -43,6 +43,7 @@ const DashNavbar = () => {
 
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
     const userProfile = myProfile?.data;
+    console.log("userProfile", userProfile);
 
 
     useEffect(() => {

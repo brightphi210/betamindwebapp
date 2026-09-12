@@ -45,6 +45,23 @@ export const post_request_with_image = async (
   return response;
 };
 
+
+// export const post_request_with_image_new = async (
+//   url: string,
+//   data: any,
+//   token = ""
+// ) => {
+//   let headers = {};
+//   if (token !== "") {
+//     headers = { Authorization: `Bearer ${token}` };
+//   }
+
+//   const response = await axiosInstance.post(url, data, {
+//     headers: { ...headers, "Content-Type": "application/json" },
+//   });
+//   return response;
+// };
+
 export const get_requests = async (url: string, token = "") => {
   let headers = {};
   if (token !== "") {

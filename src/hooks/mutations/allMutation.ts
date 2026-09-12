@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { delete_requests, post_request_with_image, post_requests, put_request_with_image, put_request_with_image_new } from "../helper/AxioHelper";
+import { delete_requests, patch_requests, post_request_with_image, post_requests, put_request_with_image } from "../helper/AxioHelper";
 
 
 export const useCreateMentor = () => {
@@ -25,7 +25,7 @@ export const useUpdateMentorProfile = () => {
   const updateMentorProfile = useMutation({
     mutationFn: async (data: any) => {
       const token = (await localStorage.getItem("betamindToken")) || ""
-      return put_request_with_image_new('mentors/me/', data, token)
+      return patch_requests('mentors/me/', data, token)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["myMentorProfile"] })

@@ -769,6 +769,7 @@ const MentorProfile = () => {
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
     const mentorProfile = myMentorProfile?.data;
     const userProfile = myProfile?.data;
+    console.log("mentorProfile", mentorProfile);
 
     const { mutate: updateMentor, isPending } = useUpdateMentorProfile();
 
@@ -836,8 +837,6 @@ const MentorProfile = () => {
             };
 
             const availabilitySlots = buildAvailabilityPayload(draft.availability);
-            console.log("Availability payload being sent:", availabilitySlots);
-
             if (availabilitySlots.length === 0) {
                 addToast("Please add at least one valid availability slot before saving.", "error");
                 return;
@@ -853,55 +852,36 @@ const MentorProfile = () => {
                 categories: draft.categories,
                 expertise: draft.expertise,
                 social_link: socialLink,
-                availability_slots: availabilitySlots,
+                availability_slots: availabilitySlots, // stays a real array — sent as JSON
             };
 
-            let bannerFile = draft.bannerFile;
-            if (!bannerFile && draft.banner) {
-                try {
-                    const res = await fetch(draft.banner);
-                    const blob = await res.blob();
-                    bannerFile = new File([blob], "cover.jpg", { type: blob.type || "image/jpeg" });
-                } catch (e) {
-                    console.error("Could not re-fetch existing cover image", e);
-                }
-            }
-            let body: any = payload;
+            const onDone = () => {
+                addToast("Profile updated", "success");
+                setIsEditing(false);
+            };
+            const onFail = (error: any) => {
+                const backendData = error?.response?.data;
+                const message =
+                    flattenErrorMessages(backendData) ||
+                    error?.response?.data?.message ||
+                    error?.response?.data?.detail ||
+                    "Something went wrong. Please try again.";
+                addToast(message, "error");
+            };
 
-            if (bannerFile) {
-                const formData = new FormData();
-                Object.entries(payload).forEach(([key, value]) => {
-                    if (value === undefined || value === null) return;
-                    if (key === "availability_slots") {
-                        formData.append(key, JSON.stringify(value));
-                        return;
-                    }
-                    formData.append(
-                        key,
-                        typeof value === "object" ? JSON.stringify(value) : String(value)
-                    );
+            // Only the file goes through multipart; only `draft.bannerFile` (a fresh
+            // user selection) needs uploading — no need to re-fetch/re-post an
+            // unchanged existing cover image.
+            if (draft.bannerFile) {
+                const imageForm = new FormData();
+                imageForm.append("cover_images", draft.bannerFile);
+                updateMentor(imageForm, {
+                    onSuccess: () => updateMentor(payload, { onSuccess: onDone, onError: onFail }),
+                    onError: onFail,
                 });
-                formData.append("cover_images", bannerFile);
-                body = formData;
+            } else {
+                updateMentor(payload, { onSuccess: onDone, onError: onFail });
             }
-
-            updateMentor(body, {
-                onSuccess: () => {
-                    addToast("Profile updated", "success");
-                    setIsEditing(false);
-                },
-                onError: (error: any) => {
-                    const backendData = error?.response?.data;
-                    console.error("Update mentor error:", backendData);
-                    const message =
-                        flattenErrorMessages(backendData) ||
-                        error?.response?.data?.message ||
-                        error?.response?.data?.detail ||
-                        error?.response?.data?.non_field_errors?.[0] ||
-                        "Something went wrong. Please try again.";
-                    addToast(message, "error");
-                },
-            });
         } finally {
             setIsPreparingSave(false);
         }
