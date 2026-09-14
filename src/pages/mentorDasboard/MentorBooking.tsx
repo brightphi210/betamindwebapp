@@ -1,13 +1,19 @@
 import { useState } from "react";
 import {
+    FiCalendar,
     FiCheck,
+    FiCheckCircle,
     FiClock,
     FiEdit2,
+    FiExternalLink,
     FiInfo,
+    FiLock,
+    FiMessageSquare,
     FiPlus,
     FiTrash2,
     FiUser,
     FiUsers,
+    FiVideo,
     FiX
 } from "react-icons/fi";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
@@ -17,6 +23,16 @@ import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 // ─────────────────────────────────────────────
 type Availability = "weekdays" | "weekends";
 type ResponseTime = "immediate" | number;
+type BookingStatus = "pending_confirmation" | "confirmed";
+
+interface Booking {
+    id: string;
+    menteeName: string;
+    menteeAvatar: string;
+    meetingLink: string;
+    status: BookingStatus;
+    bookedFor: string; // display date/time string
+}
 
 interface OneOnOneSession {
     id: string;
@@ -28,6 +44,7 @@ interface OneOnOneSession {
     durationMinutes: number;
     daysDuration: number;
     mentorAvatar: string;
+    booking: Booking | null;
 }
 
 interface Registrant {
@@ -63,6 +80,7 @@ const DUMMY_ONE_ON_ONE: OneOnOneSession = {
     durationMinutes: 30,
     daysDuration: 7,
     mentorAvatar: "https://i.pravatar.cc/150?img=68",
+    booking: null,
 };
 
 const DUMMY_GROUPS: GroupSession[] = [
@@ -107,6 +125,14 @@ const DUMMY_GROUPS: GroupSession[] = [
     },
 ];
 
+const SUGGESTED_NOTES = [
+    "Great session! Mentee is making good progress toward their goals.",
+    "Covered the key concepts today — mentee should practice before the next call.",
+    "Productive discussion on career direction and next steps.",
+    "Mentee came prepared with clear questions; gave actionable feedback.",
+    "Follow-up needed on action items discussed during the call.",
+];
+
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
@@ -120,6 +146,13 @@ const formatTime = (t: string) => {
     return `${hour}:${m.toString().padStart(2, "0")} ${ampm}`;
 };
 const formatPrice = (amount: number) => `₦${amount.toLocaleString()}`;
+
+const formatDuration = (mins: number) => {
+    if (mins < 60) return `${mins} mins`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m === 0 ? `${h} hr${h > 1 ? "s" : ""}` : `${h}h ${m}m`;
+};
 
 const EmptyState = ({ label, onCreate }: { label: string; onCreate?: () => void }) => (
     <div
@@ -141,15 +174,84 @@ const EmptyState = ({ label, onCreate }: { label: string; onCreate?: () => void 
     </div>
 );
 
+/* ── Booking status button for 1-1 card ── */
+const BookingStatusButton = ({
+    booking,
+    onConfirm,
+    onJoin,
+    onSimulateBooking,
+}: {
+    booking: Booking | null;
+    onConfirm: () => void;
+    onJoin: () => void;
+    onSimulateBooking: () => void;
+}) => {
+    if (!booking) {
+        return (
+            <div className="flex flex-col items-end gap-1">
+                <button
+                    type="button"
+                    disabled
+                    className="flex w-full cursor-not-allowed items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold text-white/35"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                    <FiLock size={12} />
+                    Not Booked Yet
+                </button>
+                {/* Demo-only helper to simulate a mentee booking this slot */}
+                <button
+                    type="button"
+                    onClick={onSimulateBooking}
+                    className="text-[10px] w-full text-white/25 underline decoration-dotted hover:text-white/50"
+                >
+                    Simulate mentee booking (demo)
+                </button>
+            </div>
+        );
+    }
+
+    if (booking.status === "pending_confirmation") {
+        return (
+            <button
+                type="button"
+                onClick={onConfirm}
+                className="flex items-center gap-1.5 rounded px-3.5 py-2 text-xs font-bold text-black"
+                style={{ background: "#a6ff00" }}
+            >
+                <FiCheckCircle size={13} />
+                Confirm Booking
+            </button>
+        );
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={onJoin}
+            className="flex items-center gap-1.5 rounded px-3.5 py-2 text-xs font-bold text-black"
+            style={{ background: "#ffffff" }}
+        >
+            <FiVideo size={13} />
+            Join Class
+        </button>
+    );
+};
+
 /* ── One-on-One Card ── */
 const OneOnOneCard = ({
     session,
     onEdit,
     onDelete,
+    onConfirmBooking,
+    onJoinClass,
+    onSimulateBooking,
 }: {
     session: OneOnOneSession;
     onEdit: () => void;
     onDelete: () => void;
+    onConfirmBooking: () => void;
+    onJoinClass: () => void;
+    onSimulateBooking: () => void;
 }) => (
     <div className="overflow-hidden rounded-2xl" style={{ background: cardBg, border: cardBorder }}>
         <div className="p-4 sm:p-5">
@@ -180,15 +282,28 @@ const OneOnOneCard = ({
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
                     <span className="flex items-center gap-1.5 text-white/50">
                         <FiClock size={13} />
-                        {session.durationMinutes} mins
+                        {formatDuration(session.durationMinutes)}
                     </span>
-                    <span className="rounded px-2 py-0.5 text-[11px] font-semibold bg-white text-black"
-                    >
+                    <span className="rounded px-2 py-0.5 text-[11px] font-semibold bg-white text-black">
                         1-1 Session
                     </span>
                     <span className="text-white/40">· {session.daysDuration} days</span>
                 </div>
                 <p className="text-base font-bold text-white sm:text-lg">{formatPrice(session.price)}</p>
+            </div>
+
+            <div className="mt-4 flex flex-wrap lg:items-center justify-between gap-3 border-t border-white/5 pt-4">
+                <span className="text-[11px] text-white/40">
+                    {!session.booking && "No mentee has booked this slot yet"}
+                    {session.booking?.status === "pending_confirmation" && `${session.booking.menteeName} requested a booking`}
+                    {session.booking?.status === "confirmed" && `Confirmed with ${session.booking.menteeName}`}
+                </span>
+                <BookingStatusButton
+                    booking={session.booking}
+                    onConfirm={onConfirmBooking}
+                    onJoin={onJoinClass}
+                    onSimulateBooking={onSimulateBooking}
+                />
             </div>
         </div>
     </div>
@@ -199,10 +314,12 @@ const GroupCard = ({
     session,
     onEdit,
     onDelete,
+    onView,
 }: {
     session: GroupSession;
     onEdit: () => void;
     onDelete: () => void;
+    onView: () => void;
 }) => {
     const total = session.registrants.length;
     const visibleAvatars = session.registrants.slice(0, 4);
@@ -210,7 +327,11 @@ const GroupCard = ({
     const spotsLeft = Math.max(0, session.capacity - total);
 
     return (
-        <div className="overflow-hidden rounded-2xl" style={{ background: cardBg, border: cardBorder }}>
+        <div
+            className="cursor-pointer overflow-hidden rounded-2xl transition-colors hover:border-white/20"
+            style={{ background: cardBg, border: cardBorder }}
+            onClick={onView}
+        >
             <div className="p-4 sm:p-5">
                 {/* Top row: image + title/description + actions */}
                 <div className="flex gap-4">
@@ -227,7 +348,7 @@ const GroupCard = ({
                             <div className="flex shrink-0 gap-1.5">
                                 <button
                                     type="button"
-                                    onClick={onEdit}
+                                    onClick={(e) => { e.stopPropagation(); onEdit(); }}
                                     className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white"
                                     style={{ background: "rgba(255,255,255,0.05)" }}
                                 >
@@ -235,7 +356,7 @@ const GroupCard = ({
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={onDelete}
+                                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
                                     className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400/80 hover:bg-red-500/10 hover:text-red-400"
                                     style={{ background: "rgba(255,255,255,0.05)" }}
                                 >
@@ -256,9 +377,7 @@ const GroupCard = ({
                         <p className="text-white/40">
                             {formatDate(session.startDate)} – {formatDate(session.endDate)}
                         </p>
-                        <p
-                            className="rounded px-2  bg-white text-black py-0.5 text-[11px] font-semibold"
-                        >
+                        <p className="rounded px-2  bg-white text-black py-0.5 text-[11px] font-semibold">
                             Group Session
                         </p>
                     </div>
@@ -293,7 +412,6 @@ const GroupCard = ({
                     </div>
 
                     <p className="text-base font-bold text-white sm:text-lg">{formatPrice(session.price)}</p>
-
                 </div>
             </div>
         </div>
@@ -344,6 +462,16 @@ const AnimatedModal = ({
 );
 
 // ─────────────────────────────────────────────
+// Shared modal button styles (white accent inside modals)
+// ─────────────────────────────────────────────
+const modalPrimaryBtn = "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold text-black";
+const modalPrimaryBtnStyle = { background: "#ffffff" };
+const modalSecondaryBtn = "flex-1 rounded-lg py-2.5 text-sm font-semibold text-white/70";
+const modalSecondaryBtnStyle = { background: "rgba(255,255,255,0.06)" };
+
+const RADIO_DURATIONS = [30, 45, 60, 90, 120, 150, 180];
+
+// ─────────────────────────────────────────────
 // Forms
 // ─────────────────────────────────────────────
 const OneOnOneFormModal = ({
@@ -353,7 +481,7 @@ const OneOnOneFormModal = ({
 }: {
     initial?: OneOnOneSession | null;
     onClose: () => void;
-    onSave: (data: Omit<OneOnOneSession, "id" | "type" | "daysDuration" | "mentorAvatar">) => void;
+    onSave: (data: Omit<OneOnOneSession, "id" | "type" | "mentorAvatar" | "booking">) => void;
 }) => {
     const [note, setNote] = useState(initial?.note ?? "");
     const [price, setPrice] = useState(initial?.price?.toString() ?? "");
@@ -365,6 +493,7 @@ const OneOnOneFormModal = ({
         typeof initial?.responseTime === "number" ? initial.responseTime.toString() : "2"
     );
     const [durationMinutes, setDurationMinutes] = useState(initial?.durationMinutes?.toString() ?? "30");
+    const [daysDuration] = useState(initial?.daysDuration ?? 7);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -375,6 +504,7 @@ const OneOnOneFormModal = ({
             availability,
             responseTime: responseMode === "immediate" ? "immediate" : Number(hours) || 1,
             durationMinutes: Number(durationMinutes),
+            daysDuration,
         });
     };
 
@@ -431,50 +561,82 @@ const OneOnOneFormModal = ({
                             className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none"
                             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                         >
-                            <option value="15">15 mins</option>
-                            <option value="30">30 mins</option>
-                            <option value="45">45 mins</option>
-                            <option value="60">60 mins</option>
+                            {RADIO_DURATIONS.map((d) => (
+                                <option key={d} value={d}>{formatDuration(d)}</option>
+                            ))}
                         </select>
                     </div>
                 </div>
 
                 <div>
+                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
+                        <FiCalendar size={13} /> Days Duration
+                    </label>
+                    <input
+                        type="text"
+                        value={`${daysDuration} days`}
+                        disabled
+                        readOnly
+                        className="w-full cursor-not-allowed rounded-xl px-3.5 py-2.5 text-sm text-white/50 outline-none"
+                        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+                    />
+                    <p className="mt-1 text-[11px] text-white/35">This is fixed and can't be changed.</p>
+                </div>
+
+                <div>
                     <label className="mb-1.5 block text-xs font-semibold text-white/70">Availability</label>
-                    <div className="flex gap-2">
+                    <div className="flex gap-4">
                         {(["weekdays", "weekends"] as const).map((opt) => (
-                            <button
+                            <label
                                 key={opt}
-                                type="button"
-                                onClick={() => setAvailability(opt)}
-                                className={`flex-1 rounded-lg py-2.5 text-sm font-semibold capitalize transition-colors ${availability === opt ? "bg-[#a6ff00] text-black" : "text-white/70"}`}
-                                style={availability === opt ? undefined : { background: "rgba(255,255,255,0.06)" }}
+                                className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold capitalize text-white/80"
+                                style={{ background: "rgba(255,255,255,0.05)", border: availability === opt ? "1px solid #ffffff" : "1px solid rgba(255,255,255,0.08)" }}
                             >
+                                <input
+                                    type="radio"
+                                    name="availability"
+                                    value={opt}
+                                    checked={availability === opt}
+                                    onChange={() => setAvailability(opt)}
+                                    className="h-3.5 w-3.5 accent-white"
+                                />
                                 {opt}
-                            </button>
+                            </label>
                         ))}
                     </div>
                 </div>
 
                 <div>
                     <label className="mb-1.5 block text-xs font-semibold text-white/70">Response Time</label>
-                    <div className="mb-2 flex gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setResponseMode("immediate")}
-                            className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors ${responseMode === "immediate" ? "bg-[#a6ff00] text-black" : "text-white/70"}`}
-                            style={responseMode === "immediate" ? undefined : { background: "rgba(255,255,255,0.06)" }}
+                    <div className="mb-2 flex gap-4">
+                        <label
+                            className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-white/80"
+                            style={{ background: "rgba(255,255,255,0.05)", border: responseMode === "immediate" ? "1px solid #ffffff" : "1px solid rgba(255,255,255,0.08)" }}
                         >
+                            <input
+                                type="radio"
+                                name="responseTime"
+                                value="immediate"
+                                checked={responseMode === "immediate"}
+                                onChange={() => setResponseMode("immediate")}
+                                className="h-3.5 w-3.5 accent-white"
+                            />
                             Immediately
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setResponseMode("hours")}
-                            className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors ${responseMode === "hours" ? "bg-[#a6ff00] text-black" : "text-white/70"}`}
-                            style={responseMode === "hours" ? undefined : { background: "rgba(255,255,255,0.06)" }}
+                        </label>
+                        <label
+                            className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-white/80"
+                            style={{ background: "rgba(255,255,255,0.05)", border: responseMode === "hours" ? "1px solid #ffffff" : "1px solid rgba(255,255,255,0.08)" }}
                         >
+                            <input
+                                type="radio"
+                                name="responseTime"
+                                value="hours"
+                                checked={responseMode === "hours"}
+                                onChange={() => setResponseMode("hours")}
+                                className="h-3.5 w-3.5 accent-white"
+                            />
                             After X hours
-                        </button>
+                        </label>
                     </div>
                     {responseMode === "hours" && (
                         <input
@@ -489,13 +651,11 @@ const OneOnOneFormModal = ({
                     )}
                 </div>
 
-                <p className="text-[11px] text-white/35">Days duration is fixed at 7 days.</p>
-
                 <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={onClose} className="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white/70" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <button type="button" onClick={onClose} className={modalSecondaryBtn} style={modalSecondaryBtnStyle}>
                         Cancel
                     </button>
-                    <button type="submit" className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold text-black" style={{ background: "#a6ff00" }}>
+                    <button type="submit" className={modalPrimaryBtn} style={modalPrimaryBtnStyle}>
                         <FiCheck size={14} />
                         {initial ? "Save changes" : "Create session"}
                     </button>
@@ -660,15 +820,209 @@ const GroupFormModal = ({
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={onClose} className="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white/70" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <button type="button" onClick={onClose} className={modalSecondaryBtn} style={modalSecondaryBtnStyle}>
                         Cancel
                     </button>
-                    <button type="submit" className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold text-black" style={{ background: "#a6ff00" }}>
+                    <button type="submit" className={modalPrimaryBtn} style={modalPrimaryBtnStyle}>
                         <FiCheck size={14} />
                         {initial ? "Save changes" : "Create session"}
                     </button>
                 </div>
             </form>
+        </AnimatedModal>
+    );
+};
+
+// ─────────────────────────────────────────────
+// Join Class Modal
+// ─────────────────────────────────────────────
+const JoinClassModal = ({
+    booking,
+    onClose,
+    onDone,
+}: {
+    booking: Booking;
+    onClose: () => void;
+    onDone: () => void;
+}) => (
+    <AnimatedModal onClose={onClose}>
+        <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-white">Session Details</h3>
+            <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <FiX size={16} />
+            </button>
+        </div>
+
+        <div className="flex flex-col items-center rounded-xl px-4 py-6" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <img
+                src={booking.menteeAvatar}
+                alt={booking.menteeName}
+                className="h-16 w-16 rounded-full object-cover"
+                style={{ border: "2px solid rgba(255,255,255,0.15)" }}
+            />
+            <p className="mt-3 text-base font-bold text-white">{booking.menteeName}</p>
+            <p className="text-xs text-white/40">{booking.bookedFor}</p>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3">
+            <a
+                href={booking.meetingLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${modalPrimaryBtn} no-underline`}
+                style={modalPrimaryBtnStyle}
+            >
+                <FiExternalLink size={14} />
+                Open Meeting Link
+            </a>
+            <button type="button" onClick={onDone} className={modalSecondaryBtn} style={modalSecondaryBtnStyle}>
+                Done with Session
+            </button>
+        </div>
+    </AnimatedModal>
+);
+
+// ─────────────────────────────────────────────
+// Done With Session Modal (add a note)
+// ─────────────────────────────────────────────
+const DoneSessionModal = ({
+    menteeName,
+    onClose,
+    onSubmit,
+}: {
+    menteeName: string;
+    onClose: () => void;
+    onSubmit: (note: string) => void;
+}) => {
+    const [note, setNote] = useState("");
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!note.trim()) return;
+        onSubmit(note.trim());
+    };
+
+    return (
+        <AnimatedModal onClose={onClose}>
+            <div className="mb-5 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">Add Session Note</h3>
+                <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <FiX size={16} />
+                </button>
+            </div>
+
+            <p className="mb-3 text-xs text-white/40">
+                Leave a quick note about your session with <span className="text-white/70">{menteeName}</span>. This helps you track progress over time.
+            </p>
+
+            <div className="mb-4 flex flex-wrap gap-2">
+                {SUGGESTED_NOTES.map((s, i) => (
+                    <button
+                        key={i}
+                        type="button"
+                        onClick={() => setNote(s)}
+                        className="flex items-center gap-1 rounded-full px-3 py-1.5 text-left text-[11px] text-white/60 hover:text-white"
+                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
+                        <FiMessageSquare size={10} />
+                        {s.length > 42 ? `${s.slice(0, 42)}…` : s}
+                    </button>
+                ))}
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Write your note here..."
+                    rows={4}
+                    required
+                    className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                />
+
+                <div className="flex gap-3 pt-1">
+                    <button type="button" onClick={onClose} className={modalSecondaryBtn} style={modalSecondaryBtnStyle}>
+                        Skip
+                    </button>
+                    <button type="submit" className={modalPrimaryBtn} style={modalPrimaryBtnStyle}>
+                        <FiCheck size={14} />
+                        Save Note
+                    </button>
+                </div>
+            </form>
+        </AnimatedModal>
+    );
+};
+
+// ─────────────────────────────────────────────
+// Group Details Modal
+// ─────────────────────────────────────────────
+const GroupDetailsModal = ({
+    session,
+    onClose,
+}: {
+    session: GroupSession;
+    onClose: () => void;
+}) => {
+    const total = session.registrants.length;
+    const spotsLeft = Math.max(0, session.capacity - total);
+
+    return (
+        <AnimatedModal onClose={onClose}>
+            <div className="mb-5 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">Group Session Details</h3>
+                <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <FiX size={16} />
+                </button>
+            </div>
+
+            <div className="mb-4 h-36 w-full overflow-hidden rounded-xl">
+                <img src={session.image} alt={session.name} className="h-full w-full object-cover" />
+            </div>
+
+            <h4 className="text-base font-bold text-white">{session.name}</h4>
+            <p className="mt-1.5 text-sm leading-relaxed text-white/55">{session.description}</p>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="flex items-center gap-1.5 text-white/40"><FiCalendar size={12} /> Dates</p>
+                    <p className="mt-1 font-semibold text-white/85">{formatDate(session.startDate)} – {formatDate(session.endDate)}</p>
+                </div>
+                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="flex items-center gap-1.5 text-white/40"><FiClock size={12} /> Daily Time</p>
+                    <p className="mt-1 font-semibold text-white/85">{formatTime(session.dailyTime)}</p>
+                </div>
+                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-white/40">Price</p>
+                    <p className="mt-1 font-semibold text-white/85">{formatPrice(session.price)}</p>
+                </div>
+                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-white/40">Capacity</p>
+                    <p className="mt-1 font-semibold text-white/85">{total}/{session.capacity} · {spotsLeft > 0 ? `${spotsLeft} left` : "Full"}</p>
+                </div>
+            </div>
+
+            <div className="mt-4">
+                <p className="mb-2 text-xs font-semibold text-white/70">Registrants ({total})</p>
+                <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
+                    {session.registrants.length === 0 && (
+                        <p className="text-xs text-white/35">No one has registered yet.</p>
+                    )}
+                    {session.registrants.map((r) => (
+                        <div key={r.id} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2" style={{ background: "rgba(255,255,255,0.03)" }}>
+                            <img src={r.avatar} alt={r.name} className="h-8 w-8 rounded-full object-cover" />
+                            <p className="text-sm text-white/80">{r.name}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="mt-5">
+                <button type="button" onClick={onClose} className={modalSecondaryBtn} style={{ ...modalSecondaryBtnStyle, width: "100%" }}>
+                    Close
+                </button>
+            </div>
         </AnimatedModal>
     );
 };
@@ -686,18 +1040,23 @@ const MentorSessions = () => {
     const [showGroupForm, setShowGroupForm] = useState(false);
     const [editingGroup, setEditingGroup] = useState<GroupSession | null>(null);
 
+    const [viewingGroup, setViewingGroup] = useState<GroupSession | null>(null);
+
+    const [showJoinClass, setShowJoinClass] = useState(false);
+    const [showDoneSession, setShowDoneSession] = useState(false);
+
     const canCreateOneOnOne = !oneOnOne;
     const canCreateGroup = groups.length < 3;
 
-    const handleSaveOneOnOne = (data: Omit<OneOnOneSession, "id" | "type" | "daysDuration" | "mentorAvatar">) => {
+    const handleSaveOneOnOne = (data: Omit<OneOnOneSession, "id" | "type" | "mentorAvatar" | "booking">) => {
         if (editingOneOnOne) {
             setOneOnOne({ ...editingOneOnOne, ...data });
         } else {
             setOneOnOne({
                 id: `oo-${Date.now()}`,
                 type: "one-on-one",
-                daysDuration: 7,
                 mentorAvatar: "https://i.pravatar.cc/150?img=68",
+                booking: null,
                 ...data,
             });
         }
@@ -726,6 +1085,45 @@ const MentorSessions = () => {
         if (window.confirm("Delete this Group session?")) {
             setGroups((prev) => prev.filter((g) => g.id !== id));
         }
+    };
+
+    // ── Booking flow handlers ──
+    const handleSimulateBooking = () => {
+        if (!oneOnOne) return;
+        setOneOnOne({
+            ...oneOnOne,
+            booking: {
+                id: `bk-${Date.now()}`,
+                menteeName: "Zainab Musa",
+                menteeAvatar: "https://i.pravatar.cc/150?img=44",
+                meetingLink: "https://meet.google.com/demo-link",
+                status: "pending_confirmation",
+                bookedFor: "Today, 3:00 PM",
+            },
+        });
+    };
+
+    const handleConfirmBooking = () => {
+        if (!oneOnOne?.booking) return;
+        setOneOnOne({
+            ...oneOnOne,
+            booking: { ...oneOnOne.booking, status: "confirmed" },
+        });
+    };
+
+    const handleJoinClass = () => setShowJoinClass(true);
+
+    const handleDoneWithSession = () => {
+        setShowJoinClass(false);
+        setShowDoneSession(true);
+    };
+
+    const handleSubmitNote = (_note: string) => {
+        // In a real app this note would be persisted against the booking/session record.
+        if (oneOnOne) {
+            setOneOnOne({ ...oneOnOne, booking: null });
+        }
+        setShowDoneSession(false);
     };
 
     return (
@@ -764,6 +1162,9 @@ const MentorSessions = () => {
                         session={oneOnOne}
                         onEdit={() => { setEditingOneOnOne(oneOnOne); setShowOneOnOneForm(true); }}
                         onDelete={handleDeleteOneOnOne}
+                        onConfirmBooking={handleConfirmBooking}
+                        onJoinClass={handleJoinClass}
+                        onSimulateBooking={handleSimulateBooking}
                     />
                 ) : (
                     <EmptyState
@@ -808,6 +1209,7 @@ const MentorSessions = () => {
                                 session={g}
                                 onEdit={() => { setEditingGroup(g); setShowGroupForm(true); }}
                                 onDelete={() => handleDeleteGroup(g.id)}
+                                onView={() => setViewingGroup(g)}
                             />
                         ))}
                     </div>
@@ -833,6 +1235,26 @@ const MentorSessions = () => {
                     initial={editingGroup}
                     onClose={() => { setShowGroupForm(false); setEditingGroup(null); }}
                     onSave={handleSaveGroup}
+                />
+            )}
+            {viewingGroup && (
+                <GroupDetailsModal
+                    session={viewingGroup}
+                    onClose={() => setViewingGroup(null)}
+                />
+            )}
+            {showJoinClass && oneOnOne?.booking && (
+                <JoinClassModal
+                    booking={oneOnOne.booking}
+                    onClose={() => setShowJoinClass(false)}
+                    onDone={handleDoneWithSession}
+                />
+            )}
+            {showDoneSession && oneOnOne?.booking && (
+                <DoneSessionModal
+                    menteeName={oneOnOne.booking.menteeName}
+                    onClose={() => setShowDoneSession(false)}
+                    onSubmit={handleSubmitNote}
                 />
             )}
         </div>
