@@ -464,7 +464,7 @@ const AnimatedModal = ({
 // ─────────────────────────────────────────────
 // Shared modal button styles (white accent inside modals)
 // ─────────────────────────────────────────────
-const modalPrimaryBtn = "flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold text-black";
+const modalPrimaryBtn = "flex flex-1 items-center justify-center gap-2 rounded py-2.5 text-sm font-bold text-black";
 const modalPrimaryBtnStyle = { background: "#ffffff" };
 const modalSecondaryBtn = "flex-1 rounded-lg py-2.5 text-sm font-semibold text-white/70";
 const modalSecondaryBtnStyle = { background: "rgba(255,255,255,0.06)" };
@@ -1188,7 +1188,7 @@ const MentorSessions = () => {
                         <button
                             type="button"
                             onClick={() => { setEditingGroup(null); setShowGroupForm(true); }}
-                            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-black"
+                            className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-bold text-black"
                             style={{ background: "#a6ff00" }}
                         >
                             <FiPlus size={13} /> Create
