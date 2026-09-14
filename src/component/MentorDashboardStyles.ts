@@ -2,7 +2,7 @@
 // Keeping these in one place means every sub-page stays visually consistent
 // with the dark glassmorphism / lime accent system used across Betamind.
 
-export const cardBg = "rgba(255,255,255,0.02)";
+export const cardBg = "rgba(255,255,255,0.03)";
 export const cardBorder = "1px solid rgba(205,220,57,.08)";
 export const prefixBg = "rgba(255,255,255,0.03)";
 

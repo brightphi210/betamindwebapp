@@ -1,559 +1,842 @@
 import { useState } from "react";
 import {
-    FiAlertCircle,
-    FiCalendar,
     FiCheck,
-    FiCheckCircle,
-    FiChevronRight,
     FiClock,
-    FiDollarSign,
+    FiEdit2,
     FiInfo,
-    FiLoader,
-    FiRepeat,
+    FiPlus,
+    FiTrash2,
     FiUser,
-    FiVideo,
-    FiX,
+    FiUsers,
+    FiX
 } from "react-icons/fi";
-import { toast, ToastContainer } from "react-toastify";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
-import { useAcceptBooking, useRejectBooking } from "../../hooks/mutations/allMutation";
-import { useGetMentorSession } from "../../hooks/queries/allQueriess";
-import type { ApiBooking, ApiBookingsResponse } from "../../types/bookingShare";
-import {
-    flattenErrorMessages,
-    formatDayLabel,
-    formatRecurringSummary,
-    formatSessionDateLabel,
-    formatTime,
-    getRecurringSessionDates,
-    menteeDisplayName,
-    normalizeStatus,
-} from "../../types/bookingShare";
 
-const TABS = [
-    { key: "pending", label: "Incoming" },
-    { key: "upcoming", label: "Upcoming" },
-    { key: "completed", label: "Completed" },
-    { key: "declined", label: "Declined" },
-] as const;
+// ─────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────
+type Availability = "weekdays" | "weekends";
+type ResponseTime = "immediate" | number;
 
-type TabKey = (typeof TABS)[number]["key"];
+interface OneOnOneSession {
+    id: string;
+    type: "one-on-one";
+    note: string;
+    price: number;
+    availability: Availability;
+    responseTime: ResponseTime;
+    durationMinutes: number;
+    daysDuration: number;
+    mentorAvatar: string;
+}
 
-const STATUS_STYLE: Record<TabKey, { color: string; bg: string; icon: React.ReactNode }> = {
-    pending: { color: "#fbbf24", bg: "rgba(251,191,36,0.1)", icon: <FiClock size={12} /> },
-    upcoming: { color: "#a6ff00", bg: "rgba(166,255,0,0.1)", icon: <FiVideo size={12} /> },
-    completed: { color: "#7dd3fc", bg: "rgba(125,211,252,0.1)", icon: <FiCheckCircle size={12} /> },
-    declined: { color: "#f87171", bg: "rgba(248,113,113,0.1)", icon: <FiX size={12} /> },
+interface Registrant {
+    id: string;
+    name: string;
+    avatar: string;
+}
+
+interface GroupSession {
+    id: string;
+    type: "group";
+    name: string;
+    description: string;
+    price: number;
+    startDate: string;
+    endDate: string;
+    dailyTime: string;
+    image: string;
+    capacity: number;
+    registrants: Registrant[];
+}
+
+// ─────────────────────────────────────────────
+// Dummy data
+// ─────────────────────────────────────────────
+const DUMMY_ONE_ON_ONE: OneOnOneSession = {
+    id: "oo1",
+    type: "one-on-one",
+    note: "Let's review your application strategy, identify the gaps that could weaken your case, and give you a clear action plan.",
+    price: 40000,
+    availability: "weekdays",
+    responseTime: 4,
+    durationMinutes: 30,
+    daysDuration: 7,
+    mentorAvatar: "https://i.pravatar.cc/150?img=68",
 };
 
-const BookingRow: React.FC<{ booking: ApiBooking; onClick: () => void }> = ({ booking, onClick }) => {
-    const tabKey = normalizeStatus(booking.status);
-    const statusStyle = STATUS_STYLE[tabKey];
-    const mentee = booking.mentee;
+const DUMMY_GROUPS: GroupSession[] = [
+    {
+        id: "g1",
+        type: "group",
+        name: "Product Design Critique Circle",
+        description: "Weekly group feedback sessions for mid-level product designers. Bring your latest work and get actionable feedback.",
+        price: 15000,
+        startDate: "2026-09-22",
+        endDate: "2026-11-10",
+        dailyTime: "18:00",
+        image: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=200&q=80",
+        capacity: 12,
+        registrants: [
+            { id: "r1", name: "Aisha Bello", avatar: "https://i.pravatar.cc/150?img=5" },
+            { id: "r2", name: "David Okoro", avatar: "https://i.pravatar.cc/150?img=12" },
+            { id: "r3", name: "Fatima Yusuf", avatar: "https://i.pravatar.cc/150?img=9" },
+            { id: "r4", name: "Chidi Nwosu", avatar: "https://i.pravatar.cc/150?img=15" },
+            { id: "r5", name: "Ngozi Eze", avatar: "https://i.pravatar.cc/150?img=20" },
+            { id: "r6", name: "Tunde Ade", avatar: "https://i.pravatar.cc/150?img=33" },
+            { id: "r7", name: "Amaka Joy", avatar: "https://i.pravatar.cc/150?img=47" },
+        ],
+    },
+    {
+        id: "g2",
+        type: "group",
+        name: "Frontend Performance Masterclass",
+        description: "Deep dives into Core Web Vitals, bundle optimization and real-world case studies.",
+        price: 25000,
+        startDate: "2026-10-01",
+        endDate: "2026-10-29",
+        dailyTime: "16:30",
+        image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&q=80",
+        capacity: 20,
+        registrants: [
+            { id: "r8", name: "Ibrahim Sule", avatar: "https://i.pravatar.cc/150?img=11" },
+            { id: "r9", name: "Blessing Okeke", avatar: "https://i.pravatar.cc/150?img=25" },
+            { id: "r10", name: "Emeka Uche", avatar: "https://i.pravatar.cc/150?img=32" },
+            { id: "r11", name: "Zainab Musa", avatar: "https://i.pravatar.cc/150?img=44" },
+        ],
+    },
+];
 
-    return (
-        <div className="overflow-hidden rounded-xl transition-colors hover:bg-white/[0.02]" style={{ background: cardBg, border: cardBorder }}>
-            {/* Status is always flagged at the top of the card */}
-            <div
-                className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-semibold sm:px-5"
-                style={{ background: statusStyle.bg, color: statusStyle.color, borderBottom: `1px solid ${statusStyle.color}22` }}
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+const formatDate = (iso: string) =>
+    new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+const formatTime = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const hour = h % 12 || 12;
+    return `${hour}:${m.toString().padStart(2, "0")} ${ampm}`;
+};
+const formatPrice = (amount: number) => `₦${amount.toLocaleString()}`;
+
+const EmptyState = ({ label, onCreate }: { label: string; onCreate?: () => void }) => (
+    <div
+        className="flex flex-col items-center justify-center rounded-xl px-4 py-12 text-center"
+        style={{ background: cardBg, border: "1px dashed rgba(255,255,255,0.12)" }}
+    >
+        <p className="mb-4 text-sm text-white/40">{label}</p>
+        {onCreate && (
+            <button
+                type="button"
+                onClick={onCreate}
+                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-black"
+                style={{ background: "#a6ff00" }}
             >
-                {statusStyle.icon}
-                {booking.status_display}
-                {tabKey === "pending" && <span className="ml-auto text-[11px] font-medium text-[#a6ff00]">Needs response</span>}
-            </div>
+                <FiPlus size={14} />
+                Create session
+            </button>
+        )}
+    </div>
+);
 
-            <div className="flex items-center gap-4 p-3 sm:gap-5 sm:p-4">
-                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg sm:h-20 sm:w-20">
-                    {mentee?.avatar ? (
-                        <img src={mentee.avatar} alt={menteeDisplayName(mentee)} className="h-full w-full object-cover" />
-                    ) : (
-                        <div className="flex h-full w-full items-center justify-center" style={{ background: "rgba(255,255,255,0.03)" }}>
-                            <FiUser size={20} className="text-white/15" />
-                        </div>
-                    )}
+/* ── One-on-One Card ── */
+const OneOnOneCard = ({
+    session,
+    onEdit,
+    onDelete,
+}: {
+    session: OneOnOneSession;
+    onEdit: () => void;
+    onDelete: () => void;
+}) => (
+    <div className="overflow-hidden rounded-2xl" style={{ background: cardBg, border: cardBorder }}>
+        <div className="p-4 sm:p-5">
+            <div className="flex gap-4">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl sm:h-20 sm:w-20">
+                    <img src={session.mentorAvatar} alt="Mentor" className="h-full w-full object-cover" />
                 </div>
 
                 <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-sm font-bold text-white sm:text-base">{menteeDisplayName(mentee)}</h3>
-                    <p className="truncate text-xs text-white/60 sm:text-sm">{booking.title}</p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/40">
-                        <span className="flex items-center gap-1.5">
-                            <FiCalendar size={12} />
-                            {formatDayLabel(booking.scheduled_date)}
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                            <FiClock size={12} />
-                            {formatTime(booking.start_time)} – {formatTime(booking.end_time)}
-                        </span>
+                    <div className="flex items-start justify-between gap-2">
+                        <div>
+                            <h3 className="text-base font-bold text-white sm:text-lg line-clamp-1">BOOK A CALL</h3>
+                            <p className="mt-1 text-sm leading-relaxed text-white/55 line-clamp-2">{session.note}</p>
+                        </div>
+                        <div className="flex shrink-0 gap-1.5">
+                            <button type="button" onClick={onEdit} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white" style={{ background: "rgba(255,255,255,0.05)" }}>
+                                <FiEdit2 size={14} />
+                            </button>
+                            <button type="button" onClick={onDelete} className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400/80 hover:bg-red-500/10 hover:text-red-400" style={{ background: "rgba(255,255,255,0.05)" }}>
+                                <FiTrash2 size={14} />
+                            </button>
+                        </div>
                     </div>
-                </div>
-
-                <button
-                    type="button"
-                    onClick={onClick}
-                    className="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-3 py-2 text-xs font-bold text-white/80 transition-colors hover:bg-[#a6ff00] hover:text-black"
-                    style={{ background: "rgba(255,255,255,0.06)" }}
-                >
-                    View
-                    <FiChevronRight size={13} />
-                </button>
-            </div>
-        </div>
-    );
-};
-
-const EmptyState: React.FC<{ label: string }> = ({ label }) => (
-    <div className="flex flex-col items-center justify-center rounded-xl px-4 py-12 text-center" style={{ background: cardBg, border: "1px dashed rgba(255,255,255,0.1)" }}>
-        <p className="text-sm text-white/40">{label}</p>
-    </div>
-);
-
-const RowSkeleton: React.FC = () => (
-    <div className="flex animate-pulse items-center gap-4 rounded-xl p-3 sm:gap-5 sm:p-4" style={{ background: cardBg, border: cardBorder }}>
-        <div className="h-16 w-16 shrink-0 rounded-lg bg-white/5 sm:h-20 sm:w-20" />
-        <div className="flex-1 space-y-2.5">
-            <div className="h-3 w-24 rounded bg-white/5" />
-            <div className="h-4 w-1/2 rounded bg-white/5" />
-            <div className="h-3 w-1/3 rounded bg-white/5" />
-        </div>
-    </div>
-);
-
-const DetailRow: React.FC<{ icon: React.ReactNode; label: string; value: React.ReactNode }> = ({ icon, label, value }) => (
-    <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: "rgba(255,255,255,0.05)" }}>
-            {icon}
-        </div>
-        <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-white/35">{label}</p>
-            <div className="text-sm text-white/85 break-words">{value}</div>
-        </div>
-    </div>
-);
-
-const ScheduleCard: React.FC<{ booking: ApiBooking }> = ({ booking }) => {
-    const recurs = booking.duration && booking.duration > 1;
-    return (
-        <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-            <p className="mb-3 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/35">
-                <FiCalendar size={12} />
-                Schedule
-            </p>
-            <div className="space-y-2 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                    <span className="shrink-0 text-white/40">Proposed Start Date</span>
-                    <span className="text-right font-medium text-white/85">{formatDayLabel(booking.scheduled_date)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                    <span className="text-white/40">Start Time</span>
-                    <span className="font-medium text-white/85">{formatTime(booking.start_time)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                    <span className="text-white/40">End Time</span>
-                    <span className="font-medium text-white/85">{formatTime(booking.end_time)}</span>
                 </div>
             </div>
 
-            {recurs && (
-                <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[#a6ff00]">
-                        <FiRepeat size={12} />
-                        {formatRecurringSummary(booking.scheduled_date, booking.duration)}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                        {getRecurringSessionDates(booking.scheduled_date, booking.duration).map((d, i) => (
-                            <span key={i} className="rounded-md px-2 py-1 text-[11px] text-white/60" style={{ background: "rgba(255,255,255,0.05)" }}>
-                                {formatSessionDateLabel(d)}
-                            </span>
-                        ))}
-                    </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+                    <span className="flex items-center gap-1.5 text-white/50">
+                        <FiClock size={13} />
+                        {session.durationMinutes} mins
+                    </span>
+                    <span className="rounded px-2 py-0.5 text-[11px] font-semibold bg-white text-black"
+                    >
+                        1-1 Session
+                    </span>
+                    <span className="text-white/40">· {session.daysDuration} days</span>
                 </div>
-            )}
+                <p className="text-base font-bold text-white sm:text-lg">{formatPrice(session.price)}</p>
+            </div>
         </div>
-    );
-};
+    </div>
+);
 
-/** Confirm Accept modal — shown after mentor clicks Accept */
-const ConfirmAcceptModal: React.FC<{
-    booking: ApiBooking;
-    onClose: () => void;
-    onConfirm: (notes?: string) => void;
-    isAccepting: boolean;
-}> = ({ booking, onClose, onConfirm, isAccepting }) => {
-    const [notes, setNotes] = useState("");
-    const mentee = booking.mentee;
+/* ── Group Card (styled like the uploaded image) ── */
+const GroupCard = ({
+    session,
+    onEdit,
+    onDelete,
+}: {
+    session: GroupSession;
+    onEdit: () => void;
+    onDelete: () => void;
+}) => {
+    const total = session.registrants.length;
+    const visibleAvatars = session.registrants.slice(0, 4);
+    const remaining = total - visibleAvatars.length;
+    const spotsLeft = Math.max(0, session.capacity - total);
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm" onClick={isAccepting ? undefined : onClose}>
-            <div
-                className="w-full max-w-md rounded-2xl p-6 shadow-2xl"
-                style={{
-                    background: "rgba(10,13,9,0.9)",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    backdropFilter: "blur(24px)",
-                    WebkitBackdropFilter: "blur(24px)",
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                        <h3 className="text-lg font-bold text-white">Confirm accept</h3>
-                        <p className="mt-1 text-sm text-white/50">
-                            Accept session with {menteeDisplayName(mentee)}?
+        <div className="overflow-hidden rounded-2xl" style={{ background: cardBg, border: cardBorder }}>
+            <div className="p-4 sm:p-5">
+                {/* Top row: image + title/description + actions */}
+                <div className="flex gap-4">
+                    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md sm:h-20 sm:w-20">
+                        <img src={session.image} alt={session.name} className="h-full w-full object-cover" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                            <div>
+                                <h3 className="text-base font-bold text-white sm:text-lg line-clamp-1">{session.name}</h3>
+                                <p className="mt-1 text-sm leading-relaxed text-white/55 line-clamp-2">{session.description}</p>
+                            </div>
+                            <div className="flex shrink-0 gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={onEdit}
+                                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white"
+                                    style={{ background: "rgba(255,255,255,0.05)" }}
+                                >
+                                    <FiEdit2 size={14} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={onDelete}
+                                    className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400/80 hover:bg-red-500/10 hover:text-red-400"
+                                    style={{ background: "rgba(255,255,255,0.05)" }}
+                                >
+                                    <FiTrash2 size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Meta row */}
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs w-full">
+                        <p className="flex  items-center gap-1.5 text-white/50">
+                            <FiClock size={13} />
+                            {formatTime(session.dailyTime)}
+                        </p>
+                        <p className="text-white/40">
+                            {formatDate(session.startDate)} – {formatDate(session.endDate)}
+                        </p>
+                        <p
+                            className="rounded px-2  bg-white text-black py-0.5 text-[11px] font-semibold"
+                        >
+                            Group Session
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={isAccepting}
-                        aria-label="Close"
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 hover:text-white disabled:opacity-40"
-                        style={{ background: "rgba(255,255,255,0.06)" }}
-                    >
-                        <FiX size={16} />
-                    </button>
                 </div>
 
-                <div className="mb-4 rounded-xl p-3 text-sm" style={{ background: "rgba(255,255,255,0.04)" }}>
-                    <p className="font-medium text-white/90">{booking.title}</p>
-                    <p className="mt-1 text-white/50">
-                        {formatDayLabel(booking.scheduled_date)} · {formatTime(booking.start_time)} – {formatTime(booking.end_time)}
-                    </p>
-                </div>
-
-                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
-                    <FiInfo size={13} />
-                    Notes for mentee (optional)
-                </label>
-                <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add a short note for the mentee…"
-                    rows={3}
-                    disabled={isAccepting}
-                    className="mb-5 w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25 disabled:opacity-60"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                />
-
-                <div className="flex gap-3">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={isAccepting}
-                        className="flex-1 cursor-pointer rounded-lg px-4 py-2.5 text-sm font-semibold text-white/70 transition-colors disabled:opacity-40"
-                        style={{ background: "rgba(255,255,255,0.06)" }}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => onConfirm(notes.trim() || undefined)}
-                        disabled={isAccepting}
-                        className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold text-black transition-transform enabled:hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-40"
-                        style={{ background: "#a6ff00" }}
-                    >
-                        {isAccepting ? <FiLoader size={14} className="animate-spin" /> : <FiCheck size={14} />}
-                        {isAccepting ? "Accepting…" : "Confirm accept"}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const BookingDetailModal: React.FC<{
-    booking: ApiBooking;
-    onClose: () => void;
-    onAcceptClick: () => void;
-    onReject: (reason?: string) => void;
-    isAccepting: boolean;
-    isRejecting: boolean;
-}> = ({ booking, onClose, onAcceptClick, onReject, isAccepting, isRejecting }) => {
-    const [showRejectReason, setShowRejectReason] = useState(false);
-    const [reason, setReason] = useState("");
-
-    const mentee = booking.mentee;
-    const tabKey = normalizeStatus(booking.status);
-    const statusStyle = STATUS_STYLE[tabKey];
-    const isBusy = isAccepting || isRejecting;
-    const canDecide = booking.status?.toLowerCase() === "pending";
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm" onClick={isBusy ? undefined : onClose}>
-            <div
-                className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl"
-                style={{
-                    background: "rgba(10,13,9,0.55)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backdropFilter: "blur(24px)",
-                    WebkitBackdropFilter: "blur(24px)",
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="mb-5 flex items-center justify-between">
-                    <div className="flex min-w-0 items-center gap-3">
-                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
-                            {mentee?.avatar ? (
-                                <img src={mentee.avatar} alt={menteeDisplayName(mentee)} className="h-full w-full object-cover" />
-                            ) : (
-                                <div className="flex h-full w-full items-center justify-center" style={{ background: "rgba(255,255,255,0.05)" }}>
-                                    <FiUser size={18} className="text-white/25" />
+                {/* Registrants + capacity */}
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
+                    <div className="flex items-center gap-2">
+                        <div className="flex -space-x-2">
+                            {visibleAvatars.map((r) => (
+                                <img
+                                    key={r.id}
+                                    src={r.avatar}
+                                    alt={r.name}
+                                    title={r.name}
+                                    className="h-7 w-7 rounded-full border-2 object-cover"
+                                    style={{ borderColor: "rgba(10,13,9,0.95)" }}
+                                />
+                            ))}
+                            {remaining > 0 && (
+                                <div
+                                    className="flex h-7 w-7 items-center justify-center rounded-full border-2 text-[9px] font-bold text-white/80"
+                                    style={{ background: "rgba(255,255,255,0.1)", borderColor: "rgba(10,13,9,0.95)" }}
+                                >
+                                    +{remaining}
                                 </div>
                             )}
                         </div>
-                        <div className="min-w-0">
-                            <h3 className="truncate text-lg font-bold leading-tight text-white">{menteeDisplayName(mentee)}</h3>
-                            <p className="truncate text-xs text-white/40">{mentee?.email}</p>
-                        </div>
+                        <span className="text-[11px] text-white/40">
+                            {total}/{session.capacity} · {spotsLeft > 0 ? `${spotsLeft} left` : "Full"}
+                        </span>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={isBusy}
-                        aria-label="Close"
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                        style={{ background: "rgba(255,255,255,0.06)" }}
-                    >
-                        <FiX size={16} />
-                    </button>
+
+                    <p className="text-base font-bold text-white sm:text-lg">{formatPrice(session.price)}</p>
+
                 </div>
-
-                {/* Status is always flagged at the top of the modal */}
-                <span
-                    className="mb-5 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
-                    style={{ background: statusStyle.bg, color: statusStyle.color }}
-                >
-                    {statusStyle.icon}
-                    {booking.status_display}
-                </span>
-
-                <h4 className="mb-1 text-base font-bold text-white">{booking.title}</h4>
-                {booking.subject && <p className="mb-5 text-sm text-white/50">{booking.subject}</p>}
-
-                <div className="mb-5 space-y-4">
-                    <ScheduleCard booking={booking} />
-                    <DetailRow icon={<FiVideo size={14} className="text-white/60" />} label="Session type" value={booking.session_type_display} />
-                    {booking.total_amount && (
-                        <DetailRow icon={<FiDollarSign size={14} className="text-white/60" />} label="Total" value={`$${booking.total_amount}`} />
-                    )}
-                </div>
-
-                {/* Notes only — no description, no left border, overflow fixed */}
-                {booking.notes && (
-                    <div className="mb-6 overflow-hidden rounded-xl bg-white/5 p-4">
-                        <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/40">
-                            <FiInfo size={12} />
-                            Notes
-                        </p>
-                        <p className="break-words text-sm leading-relaxed text-white/70 whitespace-pre-wrap">
-                            {booking.notes}
-                        </p>
-                    </div>
-                )}
-
-                {tabKey === "upcoming" && booking.session_link && (
-                    <a
-                        href={booking.session_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mb-6 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold text-black transition-transform hover:scale-[1.02]"
-                        style={{ background: "#a6ff00" }}
-                    >
-                        <FiVideo size={14} />
-                        Join session
-                    </a>
-                )}
-
-                {canDecide && (
-                    <div className="pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                        {!showRejectReason ? (
-                            <div className="flex gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowRejectReason(true)}
-                                    disabled={isBusy}
-                                    className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                                    style={{ background: "rgba(248,113,113,0.1)", color: "#f87171", border: "1px solid rgba(248,113,113,0.25)" }}
-                                >
-                                    <FiX size={14} />
-                                    Reject
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={onAcceptClick}
-                                    disabled={isBusy}
-                                    className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold text-black transition-transform enabled:hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-40"
-                                    style={{ background: "#fff" }}
-                                >
-                                    <FiCheck size={14} />
-                                    Accept
-                                </button>
-                            </div>
-                        ) : (
-                            <div>
-                                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
-                                    <FiAlertCircle size={13} />
-                                    Reason (optional)
-                                </label>
-                                <textarea
-                                    value={reason}
-                                    onChange={(e) => setReason(e.target.value)}
-                                    placeholder="Let the mentee know why, if you'd like..."
-                                    rows={2}
-                                    disabled={isBusy}
-                                    className="mb-3 w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25 disabled:opacity-60"
-                                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                                />
-                                <div className="flex gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowRejectReason(false)}
-                                        disabled={isBusy}
-                                        className="flex-1 cursor-pointer rounded-lg px-4 py-2.5 text-sm font-semibold text-white/70 transition-colors disabled:opacity-40"
-                                        style={{ background: "rgba(255,255,255,0.06)" }}
-                                    >
-                                        Back
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => onReject(reason.trim() || undefined)}
-                                        disabled={isBusy}
-                                        className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                                        style={{ background: "#f87171" }}
-                                    >
-                                        {isRejecting ? <FiLoader size={14} className="animate-spin" /> : <FiX size={14} />}
-                                        {isRejecting ? "Rejecting..." : "Confirm reject"}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
             </div>
         </div>
     );
 };
 
-const MentorBookings = () => {
-    const [tab, setTab] = useState<TabKey>("pending");
-    const [selectedBooking, setSelectedBooking] = useState<ApiBooking | null>(null);
-    const [showConfirmAccept, setShowConfirmAccept] = useState(false);
+// ─────────────────────────────────────────────
+// Animated Modal (better opacity + smooth transition)
+// ─────────────────────────────────────────────
+const AnimatedModal = ({
+    children,
+    onClose,
+}: {
+    children: React.ReactNode;
+    onClose: () => void;
+}) => (
+    <div
+        className="fixed inset-0 z-50 flex items-center justify-center px-4"
+        style={{ background: "rgba(0,0,0,0.82)" }}
+        onClick={onClose}
+    >
+        <div
+            className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl"
+            style={{
+                background: "rgb(12, 15, 11)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                animation: "modalIn 0.22s ease-out forwards",
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            {children}
+        </div>
 
-    const { mentorSession, isLoading, isError, refetch } = useGetMentorSession();
-    const payload: ApiBookingsResponse | undefined = mentorSession?.data;
-    const bookings: ApiBooking[] = payload?.results ?? [];
+        {/* Keyframes (inject once) */}
+        <style>{`
+            @keyframes modalIn {
+                from {
+                    opacity: 0;
+                    transform: scale(0.94) translateY(12px);
+                }
+                to {
+                    opacity: 1;
+                    transform: scale(1) translateY(0);
+                }
+            }
+        `}</style>
+    </div>
+);
 
-    const filtered = bookings.filter((b) => normalizeStatus(b.status) === tab);
+// ─────────────────────────────────────────────
+// Forms
+// ─────────────────────────────────────────────
+const OneOnOneFormModal = ({
+    initial,
+    onClose,
+    onSave,
+}: {
+    initial?: OneOnOneSession | null;
+    onClose: () => void;
+    onSave: (data: Omit<OneOnOneSession, "id" | "type" | "daysDuration" | "mentorAvatar">) => void;
+}) => {
+    const [note, setNote] = useState(initial?.note ?? "");
+    const [price, setPrice] = useState(initial?.price?.toString() ?? "");
+    const [availability, setAvailability] = useState<Availability>(initial?.availability ?? "weekdays");
+    const [responseMode, setResponseMode] = useState<"immediate" | "hours">(
+        initial?.responseTime === "immediate" ? "immediate" : "hours"
+    );
+    const [hours, setHours] = useState(
+        typeof initial?.responseTime === "number" ? initial.responseTime.toString() : "2"
+    );
+    const [durationMinutes, setDurationMinutes] = useState(initial?.durationMinutes?.toString() ?? "30");
 
-    const { mutate: acceptBooking, isPending: isAccepting } = useAcceptBooking();
-    const { mutate: rejectBooking, isPending: isRejecting } = useRejectBooking();
-
-    const handleAcceptConfirm = (notes?: string) => {
-        if (!selectedBooking) return;
-        // If your accept mutation supports a notes/payload field, pass it here.
-        // Current signature is acceptBooking(id, options) — extend the mutation if the API accepts notes.
-        acceptBooking(selectedBooking.id, {
-            onSuccess: () => {
-                toast("Booking accepted.", { type: "success" });
-                setShowConfirmAccept(false);
-                setSelectedBooking(null);
-                refetch();
-            },
-            onError: (error: any) => {
-                toast(flattenErrorMessages(error?.response?.data), { type: "error" });
-            },
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!note.trim() || !price || !durationMinutes) return;
+        onSave({
+            note: note.trim(),
+            price: Number(price),
+            availability,
+            responseTime: responseMode === "immediate" ? "immediate" : Number(hours) || 1,
+            durationMinutes: Number(durationMinutes),
         });
-        // notes is available if you later wire it into the mutation payload
-        void notes;
     };
 
-    const handleReject = (reason?: string) => {
-        if (!selectedBooking) return;
-        rejectBooking(
-            { bookingId: selectedBooking.id, reason },
-            {
-                onSuccess: () => {
-                    toast("Booking rejected.", { type: "success" });
-                    setSelectedBooking(null);
-                    refetch();
-                },
-                onError: (error: any) => {
-                    toast(flattenErrorMessages(error?.response?.data), { type: "error" });
-                },
-            }
-        );
+    return (
+        <AnimatedModal onClose={onClose}>
+            <div className="mb-5 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">
+                    {initial ? "Edit" : "Create"} 1-1 Session
+                </h3>
+                <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <FiX size={16} />
+                </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
+                        <FiInfo size={13} /> Note for mentees
+                    </label>
+                    <textarea
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        placeholder="What should mentees know before booking you?"
+                        rows={3}
+                        required
+                        className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
+                            Price (₦)
+                        </label>
+                        <input
+                            type="number"
+                            min="1"
+                            value={price}
+                            onChange={(e) => setPrice(e.target.value)}
+                            placeholder="40000"
+                            required
+                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
+                            <FiClock size={13} /> Duration
+                        </label>
+                        <select
+                            value={durationMinutes}
+                            onChange={(e) => setDurationMinutes(e.target.value)}
+                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        >
+                            <option value="15">15 mins</option>
+                            <option value="30">30 mins</option>
+                            <option value="45">45 mins</option>
+                            <option value="60">60 mins</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-white/70">Availability</label>
+                    <div className="flex gap-2">
+                        {(["weekdays", "weekends"] as const).map((opt) => (
+                            <button
+                                key={opt}
+                                type="button"
+                                onClick={() => setAvailability(opt)}
+                                className={`flex-1 rounded-lg py-2.5 text-sm font-semibold capitalize transition-colors ${availability === opt ? "bg-[#a6ff00] text-black" : "text-white/70"}`}
+                                style={availability === opt ? undefined : { background: "rgba(255,255,255,0.06)" }}
+                            >
+                                {opt}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-white/70">Response Time</label>
+                    <div className="mb-2 flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setResponseMode("immediate")}
+                            className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors ${responseMode === "immediate" ? "bg-[#a6ff00] text-black" : "text-white/70"}`}
+                            style={responseMode === "immediate" ? undefined : { background: "rgba(255,255,255,0.06)" }}
+                        >
+                            Immediately
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setResponseMode("hours")}
+                            className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors ${responseMode === "hours" ? "bg-[#a6ff00] text-black" : "text-white/70"}`}
+                            style={responseMode === "hours" ? undefined : { background: "rgba(255,255,255,0.06)" }}
+                        >
+                            After X hours
+                        </button>
+                    </div>
+                    {responseMode === "hours" && (
+                        <input
+                            type="number"
+                            min="1"
+                            max="72"
+                            value={hours}
+                            onChange={(e) => setHours(e.target.value)}
+                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        />
+                    )}
+                </div>
+
+                <p className="text-[11px] text-white/35">Days duration is fixed at 7 days.</p>
+
+                <div className="flex gap-3 pt-2">
+                    <button type="button" onClick={onClose} className="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white/70" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        Cancel
+                    </button>
+                    <button type="submit" className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold text-black" style={{ background: "#a6ff00" }}>
+                        <FiCheck size={14} />
+                        {initial ? "Save changes" : "Create session"}
+                    </button>
+                </div>
+            </form>
+        </AnimatedModal>
+    );
+};
+
+const GroupFormModal = ({
+    initial,
+    onClose,
+    onSave,
+}: {
+    initial?: GroupSession | null;
+    onClose: () => void;
+    onSave: (data: Omit<GroupSession, "id" | "type" | "registrants">) => void;
+}) => {
+    const [name, setName] = useState(initial?.name ?? "");
+    const [description, setDescription] = useState(initial?.description ?? "");
+    const [price, setPrice] = useState(initial?.price?.toString() ?? "");
+    const [startDate, setStartDate] = useState(initial?.startDate ?? "");
+    const [endDate, setEndDate] = useState(initial?.endDate ?? "");
+    const [dailyTime, setDailyTime] = useState(initial?.dailyTime ?? "14:00");
+    const [image, setImage] = useState(initial?.image ?? "");
+    const [capacity, setCapacity] = useState(initial?.capacity?.toString() ?? "15");
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!name.trim() || !description.trim() || !price || !startDate || !endDate || !dailyTime || !capacity) return;
+        onSave({
+            name: name.trim(),
+            description: description.trim(),
+            price: Number(price),
+            startDate,
+            endDate,
+            dailyTime,
+            image: image.trim() || "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=200&q=80",
+            capacity: Number(capacity),
+        });
+    };
+
+    return (
+        <AnimatedModal onClose={onClose}>
+            <div className="mb-5 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">
+                    {initial ? "Edit" : "Create"} Group Session
+                </h3>
+                <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <FiX size={16} />
+                </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-white/70">Session Name</label>
+                    <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g. Product Design Critique Circle"
+                        required
+                        className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    />
+                </div>
+
+                <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-white/70">Description</label>
+                    <textarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="What will participants learn or do?"
+                        rows={3}
+                        required
+                        className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    />
+                </div>
+
+                <div>
+                    <label className="mb-1.5 block text-xs font-semibold text-white/70">Session Image URL</label>
+                    <input
+                        type="url"
+                        value={image}
+                        onChange={(e) => setImage(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="mb-1.5 text-xs font-semibold text-white/70">Price (₦)</label>
+                        <input
+                            type="number"
+                            min="1"
+                            value={price}
+                            onChange={(e) => setPrice(e.target.value)}
+                            placeholder="15000"
+                            required
+                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
+                            <FiUsers size={13} /> Capacity
+                        </label>
+                        <input
+                            type="number"
+                            min="2"
+                            max="100"
+                            value={capacity}
+                            onChange={(e) => setCapacity(e.target.value)}
+                            placeholder="15"
+                            required
+                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-white/70">Start Date</label>
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            required
+                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-white/70">End Date</label>
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            required
+                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
+                        <FiClock size={13} /> Daily Time
+                    </label>
+                    <input
+                        type="time"
+                        value={dailyTime}
+                        onChange={(e) => setDailyTime(e.target.value)}
+                        required
+                        className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                    <button type="button" onClick={onClose} className="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white/70" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        Cancel
+                    </button>
+                    <button type="submit" className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold text-black" style={{ background: "#a6ff00" }}>
+                        <FiCheck size={14} />
+                        {initial ? "Save changes" : "Create session"}
+                    </button>
+                </div>
+            </form>
+        </AnimatedModal>
+    );
+};
+
+// ─────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────
+const MentorSessions = () => {
+    const [oneOnOne, setOneOnOne] = useState<OneOnOneSession | null>(DUMMY_ONE_ON_ONE);
+    const [groups, setGroups] = useState<GroupSession[]>(DUMMY_GROUPS);
+
+    const [showOneOnOneForm, setShowOneOnOneForm] = useState(false);
+    const [editingOneOnOne, setEditingOneOnOne] = useState<OneOnOneSession | null>(null);
+
+    const [showGroupForm, setShowGroupForm] = useState(false);
+    const [editingGroup, setEditingGroup] = useState<GroupSession | null>(null);
+
+    const canCreateOneOnOne = !oneOnOne;
+    const canCreateGroup = groups.length < 3;
+
+    const handleSaveOneOnOne = (data: Omit<OneOnOneSession, "id" | "type" | "daysDuration" | "mentorAvatar">) => {
+        if (editingOneOnOne) {
+            setOneOnOne({ ...editingOneOnOne, ...data });
+        } else {
+            setOneOnOne({
+                id: `oo-${Date.now()}`,
+                type: "one-on-one",
+                daysDuration: 7,
+                mentorAvatar: "https://i.pravatar.cc/150?img=68",
+                ...data,
+            });
+        }
+        setShowOneOnOneForm(false);
+        setEditingOneOnOne(null);
+    };
+
+    const handleSaveGroup = (data: Omit<GroupSession, "id" | "type" | "registrants">) => {
+        if (editingGroup) {
+            setGroups((prev) => prev.map((g) => (g.id === editingGroup.id ? { ...g, ...data } : g)));
+        } else {
+            setGroups((prev) => [
+                ...prev,
+                { id: `g-${Date.now()}`, type: "group", registrants: [], ...data },
+            ]);
+        }
+        setShowGroupForm(false);
+        setEditingGroup(null);
+    };
+
+    const handleDeleteOneOnOne = () => {
+        if (window.confirm("Delete your 1-1 session?")) setOneOnOne(null);
+    };
+
+    const handleDeleteGroup = (id: string) => {
+        if (window.confirm("Delete this Group session?")) {
+            setGroups((prev) => prev.filter((g) => g.id !== id));
+        }
     };
 
     return (
         <div>
-            <ToastContainer theme="dark" />
-            <h2 className="mb-1 text-xl font-bold text-white sm:text-2xl">Bookings</h2>
-            <p className="mb-6 text-sm text-white/40">Manage your incoming, upcoming, and past sessions.</p>
-
-            <div className="mb-6 flex flex-wrap gap-2">
-                {TABS.map((t) => {
-                    const active = tab === t.key;
-                    return (
-                        <button
-                            key={t.key}
-                            type="button"
-                            onClick={() => setTab(t.key)}
-                            className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${active ? "bg-[#a6ff00] text-black" : "text-white/60 hover:text-white"
-                                }`}
-                            style={active ? undefined : { background: cardBg, border: cardBorder }}
-                        >
-                            {t.label}
-                        </button>
-                    );
-                })}
+            <div className="mb-6">
+                <h2 className="text-xl font-bold text-white sm:text-2xl">My Sessions</h2>
+                <p className="text-sm text-white/40">
+                    Create & manage your 1-1 and Group mentoring sessions.
+                </p>
             </div>
 
-            <div className="flex flex-col gap-3">
-                {isLoading ? (
-                    Array.from({ length: 3 }).map((_, i) => <RowSkeleton key={i} />)
-                ) : isError ? (
-                    <div className="flex flex-col items-center justify-center rounded-xl px-4 py-12 text-center" style={{ background: cardBg, border: cardBorder }}>
-                        <p className="mb-3 text-sm text-white/40">Couldn't load your bookings.</p>
+            {/* One-on-One */}
+            <section className="mb-10">
+                <div className="mb-3 flex items-center justify-between">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white/80">
+                        <FiUser size={15} className="text-[#a6ff00]" />
+                        1-1 Session
+                        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white/50" style={{ background: "rgba(255,255,255,0.06)" }}>
+                            {oneOnOne ? "1 / 1" : "0 / 1"}
+                        </span>
+                    </h3>
+                    {canCreateOneOnOne && (
                         <button
                             type="button"
-                            onClick={() => refetch()}
-                            className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
-                            style={{ background: "rgba(255,255,255,0.08)" }}
+                            onClick={() => { setEditingOneOnOne(null); setShowOneOnOneForm(true); }}
+                            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-black"
+                            style={{ background: "#a6ff00" }}
                         >
-                            Retry
+                            <FiPlus size={13} /> Create
                         </button>
-                    </div>
-                ) : filtered.length === 0 ? (
-                    <EmptyState label={`No ${tab} sessions right now.`} />
+                    )}
+                </div>
+
+                {oneOnOne ? (
+                    <OneOnOneCard
+                        session={oneOnOne}
+                        onEdit={() => { setEditingOneOnOne(oneOnOne); setShowOneOnOneForm(true); }}
+                        onDelete={handleDeleteOneOnOne}
+                    />
                 ) : (
-                    filtered.map((booking) => (
-                        <BookingRow key={booking.id} booking={booking} onClick={() => setSelectedBooking(booking)} />
-                    ))
+                    <EmptyState
+                        label="You haven't created a One-on-One session yet. Mentors can only have one."
+                        onCreate={() => { setEditingOneOnOne(null); setShowOneOnOneForm(true); }}
+                    />
                 )}
-            </div>
+            </section>
 
-            {selectedBooking && !showConfirmAccept && (
-                <BookingDetailModal
-                    booking={selectedBooking}
-                    onClose={() => setSelectedBooking(null)}
-                    onAcceptClick={() => setShowConfirmAccept(true)}
-                    onReject={handleReject}
-                    isAccepting={isAccepting}
-                    isRejecting={isRejecting}
+            {/* Group Sessions */}
+            <section>
+                <div className="mb-3 flex items-center justify-between">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white/80">
+                        <FiUsers size={15} className="text-[#a6ff00]" />
+                        Group Sessions
+                        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white/50" style={{ background: "rgba(255,255,255,0.06)" }}>
+                            {groups.length} / 3
+                        </span>
+                    </h3>
+                    {canCreateGroup && (
+                        <button
+                            type="button"
+                            onClick={() => { setEditingGroup(null); setShowGroupForm(true); }}
+                            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-black"
+                            style={{ background: "#a6ff00" }}
+                        >
+                            <FiPlus size={13} /> Create
+                        </button>
+                    )}
+                </div>
+
+                {groups.length === 0 ? (
+                    <EmptyState
+                        label="No group sessions yet. You can create up to 3."
+                        onCreate={() => { setEditingGroup(null); setShowGroupForm(true); }}
+                    />
+                ) : (
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        {groups.map((g) => (
+                            <GroupCard
+                                key={g.id}
+                                session={g}
+                                onEdit={() => { setEditingGroup(g); setShowGroupForm(true); }}
+                                onDelete={() => handleDeleteGroup(g.id)}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {!canCreateGroup && groups.length > 0 && (
+                    <p className="mt-3 text-center text-xs text-white/30">
+                        Maximum of 3 group sessions reached.
+                    </p>
+                )}
+            </section>
+
+            {/* Modals */}
+            {showOneOnOneForm && (
+                <OneOnOneFormModal
+                    initial={editingOneOnOne}
+                    onClose={() => { setShowOneOnOneForm(false); setEditingOneOnOne(null); }}
+                    onSave={handleSaveOneOnOne}
                 />
             )}
-
-            {selectedBooking && showConfirmAccept && (
-                <ConfirmAcceptModal
-                    booking={selectedBooking}
-                    onClose={() => setShowConfirmAccept(false)}
-                    onConfirm={handleAcceptConfirm}
-                    isAccepting={isAccepting}
+            {showGroupForm && (
+                <GroupFormModal
+                    initial={editingGroup}
+                    onClose={() => { setShowGroupForm(false); setEditingGroup(null); }}
+                    onSave={handleSaveGroup}
                 />
             )}
         </div>
     );
 };
 
-export default MentorBookings;
+export default MentorSessions;
