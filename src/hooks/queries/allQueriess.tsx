@@ -255,18 +255,18 @@ export const useGetMentorStatistics = () => {
 
 
 // ======================= MentorSession ======================
-
-export const useGetMentorSession = () => {
+// /api/v1/individual-sessions/
+export const useGetMentorIndividualSession = () => {
     const { data, isLoading, isError, isFetched, refetch } = useQuery({
-        queryKey: ["session"],
+        queryKey: ["individualSessions"],
         queryFn: async () => {
             const token = (await localStorage.getItem("betamindToken")) || "";
-            return get_requests(`bookings/`, token);
+            return get_requests(`individual-sessions/`, token);
         },
     });
 
     return {
-        mentorSession: data,
+        mentorIndividualSession: data,
         isLoading,
         isError,
         isFetched,

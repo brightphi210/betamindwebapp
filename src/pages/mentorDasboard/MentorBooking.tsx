@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     FiCalendar,
     FiCheck,
@@ -7,6 +7,7 @@ import {
     FiEdit2,
     FiExternalLink,
     FiInfo,
+    FiLink,
     FiLock,
     FiMessageSquare,
     FiPlus,
@@ -16,7 +17,10 @@ import {
     FiVideo,
     FiX
 } from "react-icons/fi";
+import LoadingOverlay from "../../component/LoadingOverlay";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
+import { useCreateIndividualSession } from "../../hooks/mutations/allMutation";
+import { useGetMentorIndividualSession } from "../../hooks/queries/allQueriess";
 
 // ─────────────────────────────────────────────
 // Types
@@ -44,6 +48,7 @@ interface OneOnOneSession {
     durationMinutes: number;
     daysDuration: number;
     mentorAvatar: string;
+    meetingLink: string;
     booking: Booking | null;
 }
 
@@ -68,21 +73,88 @@ interface GroupSession {
 }
 
 // ─────────────────────────────────────────────
-// Dummy data
+// API shape (matches the /individual-sessions payload you shared)
 // ─────────────────────────────────────────────
-const DUMMY_ONE_ON_ONE: OneOnOneSession = {
-    id: "oo1",
-    type: "one-on-one",
-    note: "Let's review your application strategy, identify the gaps that could weaken your case, and give you a clear action plan.",
-    price: 40000,
-    availability: "weekdays",
-    responseTime: 4,
-    durationMinutes: 30,
-    daysDuration: 7,
-    mentorAvatar: "https://i.pravatar.cc/150?img=68",
-    booking: null,
+interface IndividualSessionApiResponse {
+    id: number;
+    mentor: string;
+    mentor_name: string;
+    mentee: string | null;
+    mentee_name: string | null;
+    duration_days: number;
+    duration_minutes: number;
+    price: string;
+    response_time: "immediate" | number | string;
+    status: "pending" | "confirmed" | "cancelled" | string;
+    availability: Availability;
+    meeting_link: string;
+    notes: string;
+    created_at: string;
+    updated_at: string;
+}
+
+/**
+ * The backend seems to return either a single object or a list (a mentor can
+ * only ever have one individual session, so we defensively unwrap a list too).
+ */
+const unwrapIndividualSession = (
+    raw: IndividualSessionApiResponse | IndividualSessionApiResponse[] | null | undefined
+): IndividualSessionApiResponse | null => {
+    if (!raw) return null;
+    if (Array.isArray(raw)) return raw[0] ?? null;
+    return raw;
 };
 
+const mapApiSessionToLocal = (api: IndividualSessionApiResponse): OneOnOneSession => {
+    const parsedPrice = Number(api.price);
+
+    const booking: Booking | null = api.mentee
+        ? {
+            id: String(api.id),
+            menteeName: api.mentee_name ?? "Mentee",
+            // No avatar comes back from the API — derive a stable placeholder from the mentee id.
+            menteeAvatar: `https://i.pravatar.cc/150?u=${api.mentee}`,
+            meetingLink: api.meeting_link,
+            status: api.status === "confirmed" ? "confirmed" : "pending_confirmation",
+            bookedFor: new Date(api.created_at).toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+            }),
+        }
+        : null;
+
+    return {
+        id: String(api.id),
+        type: "one-on-one",
+        note: api.notes ?? "",
+        price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
+        availability: api.availability,
+        responseTime: api.response_time === "immediate" ? "immediate" : Number(api.response_time),
+        durationMinutes: api.duration_minutes,
+        daysDuration: api.duration_days,
+        mentorAvatar: `https://i.pravatar.cc/150?u=${api.mentor}`,
+        meetingLink: api.meeting_link ?? "",
+        booking,
+    };
+};
+
+const mapLocalToCreatePayload = (
+    data: Omit<OneOnOneSession, "id" | "type" | "mentorAvatar" | "booking">
+) => ({
+    duration_days: data.daysDuration,
+    duration_minutes: data.durationMinutes,
+    price: data.price.toString(),
+    response_time: data.responseTime,
+    availability: data.availability,
+    meeting_link: data.meetingLink,
+    notes: data.note,
+});
+
+// ─────────────────────────────────────────────
+// Dummy data (group sessions are out of scope for this pass, left as-is)
+// ─────────────────────────────────────────────
 const DUMMY_GROUPS: GroupSession[] = [
     {
         id: "g1",
@@ -288,6 +360,17 @@ const OneOnOneCard = ({
                         1-1 Session
                     </span>
                     <span className="text-white/40">· {session.daysDuration} days</span>
+                    {session.meetingLink && (
+                        <a
+                            href={session.meetingLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-white/40 hover:text-white/70"
+                        >
+                            <FiLink size={13} />
+                            Meeting link
+                        </a>
+                    )}
                 </div>
                 <p className="text-base font-bold text-white sm:text-lg">{formatPrice(session.price)}</p>
             </div>
@@ -478,10 +561,12 @@ const OneOnOneFormModal = ({
     initial,
     onClose,
     onSave,
+    isSaving,
 }: {
     initial?: OneOnOneSession | null;
     onClose: () => void;
     onSave: (data: Omit<OneOnOneSession, "id" | "type" | "mentorAvatar" | "booking">) => void;
+    isSaving?: boolean;
 }) => {
     const [note, setNote] = useState(initial?.note ?? "");
     const [price, setPrice] = useState(initial?.price?.toString() ?? "");
@@ -494,6 +579,7 @@ const OneOnOneFormModal = ({
     );
     const [durationMinutes, setDurationMinutes] = useState(initial?.durationMinutes?.toString() ?? "30");
     const [daysDuration] = useState(initial?.daysDuration ?? 7);
+    const [meetingLink, setMeetingLink] = useState(initial?.meetingLink ?? "");
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -505,6 +591,7 @@ const OneOnOneFormModal = ({
             responseTime: responseMode === "immediate" ? "immediate" : Number(hours) || 1,
             durationMinutes: Number(durationMinutes),
             daysDuration,
+            meetingLink: meetingLink.trim(),
         });
     };
 
@@ -584,6 +671,20 @@ const OneOnOneFormModal = ({
                 </div>
 
                 <div>
+                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
+                        <FiLink size={13} /> Meeting link
+                    </label>
+                    <input
+                        type="url"
+                        value={meetingLink}
+                        onChange={(e) => setMeetingLink(e.target.value)}
+                        placeholder="https://meet.google.com/your-room"
+                        className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    />
+                </div>
+
+                <div>
                     <label className="mb-1.5 block text-xs font-semibold text-white/70">Availability</label>
                     <div className="flex gap-4">
                         {(["weekdays", "weekends"] as const).map((opt) => (
@@ -655,9 +756,9 @@ const OneOnOneFormModal = ({
                     <button type="button" onClick={onClose} className={modalSecondaryBtn} style={modalSecondaryBtnStyle}>
                         Cancel
                     </button>
-                    <button type="submit" className={modalPrimaryBtn} style={modalPrimaryBtnStyle}>
+                    <button type="submit" disabled={isSaving} className={`${modalPrimaryBtn} disabled:opacity-60`} style={modalPrimaryBtnStyle}>
                         <FiCheck size={14} />
-                        {initial ? "Save changes" : "Create session"}
+                        {isSaving ? "Saving..." : initial ? "Save changes" : "Create session"}
                     </button>
                 </div>
             </form>
@@ -1031,7 +1132,8 @@ const GroupDetailsModal = ({
 // Main Component
 // ─────────────────────────────────────────────
 const MentorSessions = () => {
-    const [oneOnOne, setOneOnOne] = useState<OneOnOneSession | null>(DUMMY_ONE_ON_ONE);
+    // Individual (1-1) session now comes from the API instead of dummy data.
+    const [oneOnOne, setOneOnOne] = useState<OneOnOneSession | null>(null);
     const [groups, setGroups] = useState<GroupSession[]>(DUMMY_GROUPS);
 
     const [showOneOnOneForm, setShowOneOnOneForm] = useState(false);
@@ -1048,20 +1150,36 @@ const MentorSessions = () => {
     const canCreateOneOnOne = !oneOnOne;
     const canCreateGroup = groups.length < 3;
 
+    const { mutate: createIndividualSession, isPending: isCreatingIndividualSession } = useCreateIndividualSession();
+    const { mentorIndividualSession, isLoading: isloadingMentorIndividualSession } = useGetMentorIndividualSession();
+
+    // Sync fetched individual session into local UI state whenever the query resolves/refetches.
+    useEffect(() => {
+        if (isloadingMentorIndividualSession) return;
+        const record = unwrapIndividualSession(
+            mentorIndividualSession as IndividualSessionApiResponse | IndividualSessionApiResponse[] | null | undefined
+        );
+        setOneOnOne(record ? mapApiSessionToLocal(record) : null);
+    }, [mentorIndividualSession, isloadingMentorIndividualSession]);
+
     const handleSaveOneOnOne = (data: Omit<OneOnOneSession, "id" | "type" | "mentorAvatar" | "booking">) => {
         if (editingOneOnOne) {
             setOneOnOne({ ...editingOneOnOne, ...data });
-        } else {
-            setOneOnOne({
-                id: `oo-${Date.now()}`,
-                type: "one-on-one",
-                mentorAvatar: "https://i.pravatar.cc/150?img=68",
-                booking: null,
-                ...data,
-            });
+            setShowOneOnOneForm(false);
+            setEditingOneOnOne(null);
+            return;
         }
-        setShowOneOnOneForm(false);
-        setEditingOneOnOne(null);
+
+        createIndividualSession(mapLocalToCreatePayload(data), {
+            onSuccess: (response: any) => {
+                setOneOnOne(mapApiSessionToLocal(response));
+                setShowOneOnOneForm(false);
+                setEditingOneOnOne(null);
+            },
+            onError: (error: unknown) => {
+                console.error("Failed to create individual session:", error);
+            },
+        });
     };
 
     const handleSaveGroup = (data: Omit<GroupSession, "id" | "type" | "registrants">) => {
@@ -1096,7 +1214,7 @@ const MentorSessions = () => {
                 id: `bk-${Date.now()}`,
                 menteeName: "Zainab Musa",
                 menteeAvatar: "https://i.pravatar.cc/150?img=44",
-                meetingLink: "https://meet.google.com/demo-link",
+                meetingLink: oneOnOne.meetingLink || "https://meet.google.com/demo-link",
                 status: "pending_confirmation",
                 bookedFor: "Today, 3:00 PM",
             },
@@ -1128,6 +1246,7 @@ const MentorSessions = () => {
 
     return (
         <div>
+            <LoadingOverlay visible={isCreatingIndividualSession || isloadingMentorIndividualSession} />
             <div className="mb-6">
                 <h2 className="text-xl font-bold text-white sm:text-2xl">My Sessions</h2>
                 <p className="text-sm text-white/40">
@@ -1168,8 +1287,16 @@ const MentorSessions = () => {
                     />
                 ) : (
                     <EmptyState
-                        label="You haven't created a One-on-One session yet. Mentors can only have one."
-                        onCreate={() => { setEditingOneOnOne(null); setShowOneOnOneForm(true); }}
+                        label={
+                            isloadingMentorIndividualSession
+                                ? "Loading your 1-1 session..."
+                                : "You haven't created a One-on-One session yet. Mentors can only have one."
+                        }
+                        onCreate={
+                            isloadingMentorIndividualSession
+                                ? undefined
+                                : () => { setEditingOneOnOne(null); setShowOneOnOneForm(true); }
+                        }
                     />
                 )}
             </section>
@@ -1228,6 +1355,7 @@ const MentorSessions = () => {
                     initial={editingOneOnOne}
                     onClose={() => { setShowOneOnOneForm(false); setEditingOneOnOne(null); }}
                     onSave={handleSaveOneOnOne}
+                    isSaving={isCreatingIndividualSession}
                 />
             )}
             {showGroupForm && (

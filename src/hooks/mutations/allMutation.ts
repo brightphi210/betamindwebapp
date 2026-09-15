@@ -149,6 +149,24 @@ export const useCreateDigitalProduct = () => {
 }
 
 
+export const useCreateIndividualSession = () => {
+  const queryClient = useQueryClient()
+
+  const createIndividualSession = useMutation({
+    mutationFn: async (data: any) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return post_request_with_image('individual-sessions/', data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["individualSessions"] })
+    },
+  })
+
+  return createIndividualSession
+}
+
+
+
 // ============== Book Mentor Session ============
 export const useBookMentorship = () => {
   const queryClient = useQueryClient()
