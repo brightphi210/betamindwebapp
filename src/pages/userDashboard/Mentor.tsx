@@ -23,9 +23,10 @@ import {
     FiUsers,
     FiX
 } from 'react-icons/fi';
-import { Link, useParams } from 'react-router-dom';
-import { ToastContainer } from 'react-toastify';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { toast, ToastContainer } from 'react-toastify';
 import Button from '../../component/ui/Button';
+import { useBookMentorship } from '../../hooks/mutations/allMutation';
 import { useGetMentorProfile } from '../../hooks/queries/allQueriess';
 
 type MentorReview = {
@@ -45,8 +46,9 @@ type MentorProduct = {
     price: string;
 };
 
-// ─── Dummy data ───────────────────────────────────────────────────────────
-const DUMMY_INTRO_VIDEO = 'https://youtu.be/BD8fDugktAE';
+const PLACEHOLDER_IMAGE = 'https://placehold.co/1200x800/111/ffffff?text=Session';
+const PLACEHOLDER_PROFILE_IMAGE = 'https://placehold.co/400x400/1a1a1a/ffffff?text=Profile';
+
 const getYouTubeEmbedUrl = (url: string): string | null => {
     const patterns = [
         /youtu\.be\/([a-zA-Z0-9_-]{6,})/,
@@ -60,41 +62,6 @@ const getYouTubeEmbedUrl = (url: string): string | null => {
     }
     return null;
 };
-
-const DUMMY_SESSIONS_COMPLETED = 48;
-const DUMMY_RATING = 5;
-
-const DUMMY_REVIEWS: MentorReview[] = [
-    {
-        id: 1,
-        reviewer_name: 'Sarah K.',
-        rating: 5,
-        created_at: 'Jul 23, 2026',
-        comment:
-            'Really helped me organize my thoughts and communicate more clearly. Sessions are practical and easy to follow, and always tailored to what I actually needed that week.',
-    },
-    {
-        id: 2,
-        reviewer_name: 'Daniel O.',
-        rating: 5,
-        created_at: 'Jul 18, 2026',
-        comment: 'Patient, encouraging, and always prepared. I noticed real improvement after just a few sessions.',
-    },
-    {
-        id: 3,
-        reviewer_name: 'Amara N.',
-        rating: 5,
-        created_at: 'Jul 11, 2026',
-        comment: 'Great mentor, gives honest feedback and genuinely wants you to improve.',
-    },
-    {
-        id: 4,
-        reviewer_name: 'James T.',
-        rating: 4,
-        created_at: 'Jul 5, 2026',
-        comment: 'Solid sessions overall, learned a lot about presenting my work with more confidence.',
-    },
-];
 
 type MentorPublicSession = {
     id: string;
@@ -136,7 +103,7 @@ const mapGroupSessionToPublicSession = (session: any, fallbackImage?: string): M
     startDate: session?.start_date || '',
     endDate: session?.end_date || session?.start_date || '',
     dailyTime: session?.daily_time || '',
-    image: session?.banner || session?.banner_url || fallbackImage || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
+    image: session?.banner || session?.banner_url || fallbackImage || PLACEHOLDER_IMAGE,
     capacity: Number(session?.max_participants) || 1,
     spotsLeft: Number(session?.spots_left ?? session?.max_participants ?? 1) || 0,
     status: session?.status || 'open',
@@ -153,7 +120,7 @@ const mapIndividualSessionToPublicSession = (session: any, fallbackImage?: strin
     startDate: '',
     endDate: '',
     dailyTime: session?.availability || 'Flexible',
-    image: fallbackImage || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
+    image: session?.mentor_avatar || session?.mentor_profile_image || session?.profile_image || session?.avatar || fallbackImage || PLACEHOLDER_PROFILE_IMAGE,
     capacity: 1,
     spotsLeft: 1,
     status: session?.status || 'open',
@@ -162,7 +129,7 @@ const mapIndividualSessionToPublicSession = (session: any, fallbackImage?: strin
     daysDuration: Number(session?.duration_days) || 7,
     availability: session?.availability || 'weekdays',
     responseTime: session?.response_time === 'immediate' ? 'immediate' : Number(session?.response_time) || 2,
-    mentorAvatar: fallbackImage || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
+    mentorAvatar: session?.mentor_avatar || session?.mentor_profile_image || session?.profile_image || session?.avatar || fallbackImage || PLACEHOLDER_PROFILE_IMAGE,
     meetingLink: session?.meeting_link || '',
     booking: session?.mentee
         ? {
@@ -358,7 +325,7 @@ const MentorSessionCard: React.FC<{ session: MentorPublicSession; onSelect: (ses
                     <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                                <h3 className="line-clamp-1 text-base font-bold text-white">SESSION IS LIVE</h3>
+                                <h3 className="line-clamp-1 text-sm font-bold text-white">1-1 Session with Mentor</h3>
                                 <p className="line-clamp-2 text-xs leading-relaxed text-white/55">{session.note || session.description}</p>
                             </div>
                         </div>
@@ -371,20 +338,15 @@ const MentorSessionCard: React.FC<{ session: MentorPublicSession; onSelect: (ses
                             <FiClock size={13} />
                             {session.durationMinutes ? `${session.durationMinutes} mins` : session.durationLabel}
                         </span>
-                        <span className="rounded bg-white px-2 py-0.5 text-[11px] font-semibold capitalize text-black">
+                        <span className="rounded bg-white/10 text-yellow-500 px-2 py-0.5 text-[11px] font-semibold capitalize">
                             1-1 Session
                         </span>
                         <span className="text-white/40">· {session.daysDuration ?? 7} days</span>
-                        {session.meetingLink && (
-                            <a href={session.meetingLink} target="_blank" rel="noreferrer" className="text-white/40 underline decoration-dotted underline-offset-2 hover:text-white/70">
-                                Meeting link
-                            </a>
-                        )}
                     </div>
                     <p className="text-base font-bold text-white sm:text-lg">{formatCurrency(session.price)}</p>
                 </div>
 
-                <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
+                <div className="mt-4 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-4">
                     <span className="text-[11px] text-white/40">
                         {!session.booking && 'No mentee has booked this slot yet'}
                         {session.booking?.status === 'pending_confirmation' && `${session.booking.menteeName} requested a booking`}
@@ -393,7 +355,7 @@ const MentorSessionCard: React.FC<{ session: MentorPublicSession; onSelect: (ses
                     <button
                         type="button"
                         onClick={() => onSelect(session)}
-                        className="rounded-md bg-white px-4 py-2 text-[11px] font-bold text-black"
+                        className="rounded-md bg-white px-4 py-2 text-[11px] w-full font-bold text-black"
                     >
                         View Session
                     </button>
@@ -412,7 +374,7 @@ const MentorSessionCard: React.FC<{ session: MentorPublicSession; onSelect: (ses
                 <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                            <h3 className="text-base font-bold text-white line-clamp-1">{session.title}</h3>
+                            <h3 className="text-sm font-bold text-white line-clamp-1">{session.title}</h3>
                             <p className="text-xs leading-relaxed text-white/55 line-clamp-2">{session.description}</p>
                         </div>
                     </div>
@@ -425,7 +387,7 @@ const MentorSessionCard: React.FC<{ session: MentorPublicSession; onSelect: (ses
                     {session.dailyTime ? formatTimeDisplay(session.dailyTime) : 'Flexible'}
                 </span>
                 <span className="text-white/40">{formatDayDate(session.startDate)} – {formatDayDate(session.endDate)}</span>
-                <span className="rounded bg-white px-2 py-0.5 text-[10px] font-semibold capitalize text-black">
+                <span className="rounded bg-white/10 text-[#a6ff00] px-2 py-0.5 text-[10px] font-semibold capitalize">
                     Group Session
                 </span>
             </div>
@@ -450,18 +412,20 @@ const MentorSessionCard: React.FC<{ session: MentorPublicSession; onSelect: (ses
     );
 };
 
-const SessionDetailsModal: React.FC<{ session: MentorPublicSession; onClose: () => void; onBook: () => void }> = ({ session, onClose, onBook }) => (
+const SessionDetailsModal: React.FC<{ session: MentorPublicSession; isClosing?: boolean; onClose: () => void; onBook: () => void }> = ({ session, isClosing = false, onClose, onBook }) => (
     <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
+        className={`fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm transition-opacity duration-300 ${isClosing ? 'opacity-0' : 'opacity-100'}`}
         onClick={onClose}
+        style={{ animation: isClosing ? 'modalFadeOut 0.22s ease-out forwards' : 'modalFadeIn 0.22s ease-out forwards' }}
     >
         <div
-            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-5 shadow-2xl"
+            className={`w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-5 shadow-2xl transition-all duration-300 ${isClosing ? 'translate-y-3 scale-[0.98] opacity-0' : 'translate-y-0 scale-100 opacity-100'}`}
             style={{
                 background: 'rgba(10,13,9,0.9)',
                 border: '1px solid rgba(255,255,255,0.1)',
                 backdropFilter: 'blur(24px)',
                 WebkitBackdropFilter: 'blur(24px)',
+                animation: isClosing ? 'modalPanelOut 0.22s ease-out forwards' : 'modalPanelIn 0.22s ease-out forwards',
             }}
             onClick={(e) => e.stopPropagation()}
         >
@@ -479,7 +443,11 @@ const SessionDetailsModal: React.FC<{ session: MentorPublicSession; onClose: () 
             </div>
 
             <div className="mb-4 overflow-hidden rounded-xl">
-                <img src={session.image} alt={session.title} className="h-44 w-full object-cover" />
+                <img
+                    src={session.type === 'one-on-one' ? (session.mentorAvatar || session.image) : session.image}
+                    alt={session.title}
+                    className="h-44 w-full object-cover"
+                />
             </div>
 
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -575,8 +543,9 @@ const ShareModal: React.FC<{
     rating: number | null;
     reviewCount: number;
     isApproved?: boolean;
+    isClosing?: boolean;
     onClose: () => void;
-}> = ({ mentorName, mentorAvatar, rating, reviewCount, isApproved, onClose }) => {
+}> = ({ mentorName, mentorAvatar, rating, reviewCount, isApproved, isClosing = false, onClose }) => {
     const [copied, setCopied] = useState(false);
     const shareUrl = window.location.href;
     const shareTitle = mentorName ? `${mentorName} on Betamind` : 'Mentor profile';
@@ -632,16 +601,18 @@ const ShareModal: React.FC<{
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
+            className={`fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm transition-opacity duration-300 ${isClosing ? 'opacity-0' : 'opacity-100'}`}
             onClick={onClose}
+            style={{ animation: isClosing ? 'modalFadeOut 0.22s ease-out forwards' : 'modalFadeIn 0.22s ease-out forwards' }}
         >
             <div
-                className="w-full max-w-md overflow-y-auto rounded-2xl p-6 shadow-2xl"
+                className={`w-full max-w-md overflow-y-auto rounded-2xl p-6 shadow-2xl transition-all duration-300 ${isClosing ? 'translate-y-3 scale-[0.98] opacity-0' : 'translate-y-0 scale-100 opacity-100'}`}
                 style={{
                     background: 'rgba(10,13,9,0.55)',
                     border: '1px solid rgba(255,255,255,0.1)',
                     backdropFilter: 'blur(24px)',
                     WebkitBackdropFilter: 'blur(24px)',
+                    animation: isClosing ? 'modalPanelOut 0.22s ease-out forwards' : 'modalPanelIn 0.22s ease-out forwards',
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
@@ -807,6 +778,7 @@ const MentorSkeleton: React.FC = () => (
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 const Mentor: React.FC = () => {
+    const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
     const { aMentor, isLoading } = useGetMentorProfile(id);
     const mentor = aMentor?.data;
@@ -814,7 +786,7 @@ const Mentor: React.FC = () => {
 
     const mentorName = [mentor?.first_name, mentor?.last_name].filter(Boolean)
         .join(' ') || mentor?.nick_name || 'Mentor';
-    const mentorAvatar: string | undefined = mentor?.avatar;
+    const mentorAvatar: string | undefined = mentor?.avatar || PLACEHOLDER_PROFILE_IMAGE;
 
     const socialLink: SocialLink = mentor?.social_link ?? {};
     const activeSocials = (Object.keys(socialLink) as (keyof SocialLink)[]).filter(
@@ -826,15 +798,13 @@ const Mentor: React.FC = () => {
     const expertise: string[] = mentor?.expertise ?? [];
 
     // The intro video lives in `video_link` (e.g. a youtube.com/shorts/ URL).
-    const introVideo: string | null = mentor?.video_link ?? DUMMY_INTRO_VIDEO;
+    const introVideo: string | null = mentor?.video_link ?? null;
     const introVideoEmbedUrl = introVideo ? getYouTubeEmbedUrl(introVideo) : null;
 
-    const reviews: MentorReview[] = mentor?.reviews ?? DUMMY_REVIEWS;
+    const reviews: MentorReview[] = mentor?.reviews ?? [];
     const reviewCount: number = mentor?.review_count ?? reviews.length;
-    const averageRating: number | null =
-        typeof mentor?.rating === 'number' ? mentor.rating : reviews.length > 0 ? DUMMY_RATING : null;
-    const sessionsCompleted: number | null =
-        typeof mentor?.sessions_completed === 'number' ? mentor.sessions_completed : DUMMY_SESSIONS_COMPLETED;
+    const averageRating: number | null = typeof mentor?.rating === 'number' ? mentor.rating : null;
+    const sessionsCompleted: number | null = typeof mentor?.sessions_completed === 'number' ? mentor.sessions_completed : null;
 
     const products: MentorProduct[] =
         Array.isArray(mentor?.digital_products) && mentor.digital_products.length > 0
@@ -852,6 +822,14 @@ const Mentor: React.FC = () => {
     const [showShareModal, setShowShareModal] = useState(false);
     const [showFullBio, setShowFullBio] = useState(false);
     const [selectedSession, setSelectedSession] = useState<MentorPublicSession | null>(null);
+    const [showBookingNoteModal, setShowBookingNoteModal] = useState(false);
+    const [bookingSession, setBookingSession] = useState<MentorPublicSession | null>(null);
+    const [bookingNote, setBookingNote] = useState('');
+    const [bookingError, setBookingError] = useState<string | null>(null);
+    const [shareModalClosing, setShareModalClosing] = useState(false);
+    const [sessionModalClosing, setSessionModalClosing] = useState(false);
+    const [bookingModalClosing, setBookingModalClosing] = useState(false);
+    const { mutate: bookMentorship, isPending: isBookingPayment } = useBookMentorship();
 
     const maxBioLength = 180;
     const bio = mentor?.bio || '';
@@ -861,6 +839,81 @@ const Mentor: React.FC = () => {
         showFullBio || !isLongBio
             ? bio
             : `${bio.slice(0, maxBioLength).trim()}...`;
+
+    const closeShareModal = () => {
+        if (shareModalClosing) return;
+        setShareModalClosing(true);
+        window.setTimeout(() => {
+            setShowShareModal(false);
+            setShareModalClosing(false);
+        }, 220);
+    };
+
+    const closeSessionModal = () => {
+        if (sessionModalClosing) return;
+        setSessionModalClosing(true);
+        window.setTimeout(() => {
+            setSelectedSession(null);
+            setSessionModalClosing(false);
+        }, 220);
+    };
+
+    const closeBookingModal = () => {
+        if (bookingModalClosing) return;
+        setBookingModalClosing(true);
+        window.setTimeout(() => {
+            setShowBookingNoteModal(false);
+            setBookingSession(null);
+            setBookingNote('');
+            setBookingError(null);
+            setBookingModalClosing(false);
+        }, 220);
+    };
+
+    const submitSessionBooking = () => {
+        if (!bookingSession) {
+            setBookingError('Please select a session to continue.');
+            return;
+        }
+
+        const trimmedNote = bookingNote.trim();
+        const payload: Record<string, any> = {
+            session_type: bookingSession.type === 'group' ? 'group' : 'individual',
+            note: trimmedNote,
+            gateway: 'paystack',
+        };
+
+        if (bookingSession.type === 'group') {
+            payload.group_session = Number(bookingSession.id);
+        } else {
+            payload.individual_session = Number(bookingSession.id);
+        }
+
+        setBookingError(null);
+        bookMentorship(payload, {
+            onSuccess: (response: any) => {
+                const authUrl = response?.data?.authorization_url || response?.authorization_url;
+                if (authUrl) {
+                    window.location.href = authUrl;
+                    return;
+                }
+
+                setShowBookingNoteModal(false);
+                setBookingSession(null);
+                setBookingNote('');
+                navigate('/dashboard/session-booked-success');
+            },
+            onError: (error: any) => {
+                const message =
+                    error?.response?.data?.message ||
+                    error?.response?.data?.detail ||
+                    error?.response?.detail ||
+                    'Something went wrong while creating this booking.';
+                setBookingError(message);
+                toast.error(message);
+            },
+        });
+    };
 
     return (
         <div
@@ -874,7 +927,7 @@ const Mentor: React.FC = () => {
             {isLoading ? (
                 <MentorSkeleton />
             ) : (
-                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                     {/* Back link */}
                     <Link
                         to="/dashboard/explore"
@@ -1066,7 +1119,7 @@ const Mentor: React.FC = () => {
                                         {categories.map((cat) => (
                                             <span
                                                 key={cat}
-                                                className="px-3 py-1.5 bg-white text-black rounded-md text-xs font-semibold capitalize"
+                                                className="px-3 py-1.5 bg-white/10 text-white rounded-md text-xs font-medium capitalize"
                                             >
                                                 {cat}
                                             </span>
@@ -1084,7 +1137,7 @@ const Mentor: React.FC = () => {
                                         {expertise.map((skill) => (
                                             <span
                                                 key={skill}
-                                                className="px-3 py-1.5 bg-white text-black rounded-md text-xs font-semibold bg"
+                                                className="px-3 py-1.5 bg-white/10 text-white rounded-md text-xs font-medium bg capitalize"
                                             >
                                                 {skill}
                                             </span>
@@ -1185,20 +1238,95 @@ const Mentor: React.FC = () => {
                     rating={averageRating}
                     reviewCount={reviewCount}
                     isApproved={mentor?.is_approved}
-                    onClose={() => setShowShareModal(false)}
+                    isClosing={shareModalClosing}
+                    onClose={closeShareModal}
                 />
             )}
 
             {selectedSession && (
                 <SessionDetailsModal
                     session={selectedSession}
-                    onClose={() => setSelectedSession(null)}
+                    isClosing={sessionModalClosing}
+                    onClose={closeSessionModal}
                     onBook={() => {
+                        setBookingSession(selectedSession);
+                        setBookingNote('');
+                        setBookingError(null);
                         setSelectedSession(null);
-                        // TODO: wire to real booking flow when the session API is connected.
+                        setShowBookingNoteModal(true);
                     }}
                 />
             )}
+
+            {showBookingNoteModal && (
+                <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm transition-opacity duration-300 ${bookingModalClosing ? 'opacity-0' : 'opacity-100'}`} onClick={closeBookingModal} style={{ animation: bookingModalClosing ? 'modalFadeOut 0.22s ease-out forwards' : 'modalFadeIn 0.22s ease-out forwards' }}>
+                    <div
+                        className={`w-full max-w-lg rounded-2xl p-5 shadow-2xl transition-all duration-300 ${bookingModalClosing ? 'translate-y-3 scale-[0.98] opacity-0' : 'translate-y-0 scale-100 opacity-100'}`}
+                        style={{
+                            background: 'rgba(10,13,9,0.9)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            backdropFilter: 'blur(24px)',
+                            WebkitBackdropFilter: 'blur(24px)',
+                            animation: bookingModalClosing ? 'modalPanelOut 0.22s ease-out forwards' : 'modalPanelIn 0.22s ease-out forwards',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-white">Complete booking</h3>
+                            <button
+                                type="button"
+                                onClick={closeBookingModal}
+                                aria-label="Close"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:text-white"
+                                style={{ background: 'rgba(255,255,255,0.06)' }}
+                            >
+                                <FiX size={16} />
+                            </button>
+                        </div>
+
+                        <div className="mb-4 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white/75">
+                            <p className="font-semibold text-white">{bookingSession?.title || 'Session booking'}</p>
+                            <p className="mt-1 text-xs text-white/55">
+                                {bookingSession?.type === 'one-on-one' ? '1:1 session' : 'Group session'} · {formatCurrency(bookingSession?.price || 0)}
+                            </p>
+                        </div>
+
+                        {bookingError && (
+                            <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                                {bookingError}
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="mb-2 block text-sm font-semibold text-white">Note / description</label>
+                            <textarea
+                                rows={5}
+                                value={bookingNote}
+                                onChange={(e) => setBookingNote(e.target.value)}
+                                placeholder="Tell the mentor what you need help with..."
+                                className="w-full resize-none rounded-xl bg-transparent px-4 py-3 text-sm text-white/90 outline-none placeholder:text-white/25"
+                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                            />
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={submitSessionBooking}
+                            disabled={isBookingPayment}
+                            className="mt-5 w-full rounded-lg bg-white px-4 py-3 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {isBookingPayment ? 'Processing...' : 'Continue to Paystack'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <style>{`
+                @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes modalFadeOut { from { opacity: 1; } to { opacity: 0; } }
+                @keyframes modalPanelIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+                @keyframes modalPanelOut { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(14px) scale(0.98); } }
+            `}</style>
 
         </div>
     );

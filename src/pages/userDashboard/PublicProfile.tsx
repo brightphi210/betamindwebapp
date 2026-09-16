@@ -24,7 +24,7 @@ import {
     FiUsers,
     FiX
 } from "react-icons/fi";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import { cardBg, cardBorder, pageBackground } from "../../component/MentorDashboardStyles";
@@ -89,11 +89,6 @@ type SocialLink = {
     linkedin?: string;
     twitter?: string;
     website?: string;
-};
-
-type BookMentorshipPayload = {
-    goal: string;
-    message: string;
 };
 
 const DUMMY_INTRO_VIDEO = "https://youtu.be/BD8fDugktAE";
@@ -206,15 +201,6 @@ const formatTimeDisplay = (value: string) => {
     const normalizedHour = hours % 12 || 12;
     return `${normalizedHour}:${String(minutes).padStart(2, "0")} ${suffix}`;
 };
-
-const MENTORSHIP_GOALS = [
-    "Career guidance",
-    "Skill development",
-    "Interview preparation",
-    "Resume / portfolio review",
-    "Business or startup advice",
-    "Something else",
-] as const;
 
 const SOCIAL_ICON_MAP: Record<keyof SocialLink, React.ReactNode> = {
     linkedin: <FiLinkedin size={16} />,
@@ -383,9 +369,9 @@ const MentorSessionCard: React.FC<{ session: MentorPublicSession; onSelect: (ses
     </div>
 );
 
-const SessionDetailsModal: React.FC<{ session: MentorPublicSession; onClose: () => void; onBook: () => void }> = ({ session, onClose, onBook }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm" onClick={onClose}>
-        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl p-5 shadow-2xl" style={{ background: "rgba(10,13,9,0.9)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }} onClick={(e) => e.stopPropagation()}>
+const SessionDetailsModal: React.FC<{ session: MentorPublicSession; isClosing?: boolean; onClose: () => void; onBook: () => void }> = ({ session, isClosing = false, onClose, onBook }) => (
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm transition-opacity duration-300 ${isClosing ? 'opacity-0' : 'opacity-100'}`} onClick={onClose} style={{ animation: isClosing ? 'modalFadeOut 0.22s ease-out forwards' : 'modalFadeIn 0.22s ease-out forwards' }}>
+        <div className={`max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl p-5 shadow-2xl transition-all duration-300 ${isClosing ? 'translate-y-3 scale-[0.98] opacity-0' : 'translate-y-0 scale-100 opacity-100'}`} style={{ background: "rgba(10,13,9,0.9)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", animation: isClosing ? 'modalPanelOut 0.22s ease-out forwards' : 'modalPanelIn 0.22s ease-out forwards' }} onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-white">Session Details</h3>
                 <button type="button" onClick={onClose} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
@@ -444,7 +430,7 @@ const SessionDetailsModal: React.FC<{ session: MentorPublicSession; onClose: () 
     </div>
 );
 
-const ShareModal: React.FC<{ mentorName: string; mentorAvatar?: string; rating: number | null; reviewCount: number; isApproved?: boolean; onClose: () => void }> = ({ mentorName, mentorAvatar, rating, reviewCount, isApproved, onClose }) => {
+const ShareModal: React.FC<{ mentorName: string; mentorAvatar?: string; rating: number | null; reviewCount: number; isApproved?: boolean; isClosing?: boolean; onClose: () => void }> = ({ mentorName, mentorAvatar, rating, reviewCount, isApproved, isClosing = false, onClose }) => {
     const [copied, setCopied] = useState(false);
     const shareUrl = window.location.href;
     const shareTitle = mentorName ? `${mentorName} on Betamind` : "Mentor profile";
@@ -469,8 +455,8 @@ const ShareModal: React.FC<{ mentorName: string; mentorAvatar?: string; rating: 
     ];
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm" onClick={onClose}>
-            <div className="w-full max-w-md overflow-y-auto rounded-2xl p-6 shadow-2xl" style={{ background: "rgba(10,13,9,0.55)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }} onClick={(e) => e.stopPropagation()}>
+        <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm transition-opacity duration-300 ${isClosing ? 'opacity-0' : 'opacity-100'}`} onClick={onClose} style={{ animation: isClosing ? 'modalFadeOut 0.22s ease-out forwards' : 'modalFadeIn 0.22s ease-out forwards' }}>
+            <div className={`w-full max-w-md overflow-y-auto rounded-2xl p-6 shadow-2xl transition-all duration-300 ${isClosing ? 'translate-y-3 scale-[0.98] opacity-0' : 'translate-y-0 scale-100 opacity-100'}`} style={{ background: "rgba(10,13,9,0.55)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", animation: isClosing ? 'modalPanelOut 0.22s ease-out forwards' : 'modalPanelIn 0.22s ease-out forwards' }} onClick={(e) => e.stopPropagation()}>
                 <div className="mb-5 flex items-center justify-between">
                     <div>
                         <h3 className="text-lg font-bold text-white">Share this mentor</h3>
@@ -535,6 +521,7 @@ const ShareModal: React.FC<{ mentorName: string; mentorAvatar?: string; rating: 
 };
 
 const PublicProfile = () => {
+    const navigate = useNavigate();
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
     const { myMentorProfile, isLoading: mentorLoading } = useGetMyMentorProfile();
     const { digitalProduct } = useGetMentorDigitalProduct();
@@ -542,19 +529,21 @@ const PublicProfile = () => {
 
     const [showShareModal, setShowShareModal] = useState(false);
     const [showBookModal, setShowBookModal] = useState(false);
+    const [showFullBio, setShowFullBio] = useState(false);
     const [bookingError, setBookingError] = useState<string | null>(null);
     const [selectedSession, setSelectedSession] = useState<MentorPublicSession | null>(null);
-    const [showFullBio, setShowFullBio] = useState(false);
-
-    const userProfile = myProfile?.data;
-    const mentorProfile = myMentorProfile?.data;
+    const [bookingNote, setBookingNote] = useState('');
+    const [shareModalClosing, setShareModalClosing] = useState(false);
+    const [bookModalClosing, setBookModalClosing] = useState(false);
+    const [sessionModalClosing, setSessionModalClosing] = useState(false);
     const rawProducts: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data) ? digitalProduct.data : digitalProduct?.data?.results ?? [];
     const publishedProducts = rawProducts.filter((p) => p.is_published);
     const products: Product[] = publishedProducts.map(mapApiProductToProduct);
 
+    const mentorProfile = myMentorProfile?.data;
+    const userProfile = myProfile?.data;
     const mentorName = [mentorProfile?.nick_name, userProfile?.first_name, userProfile?.last_name].filter(Boolean).join(" ") || "Mentor";
     const mentorAvatar = userProfile?.avatar || mentorProfile?.cover_images;
-    const mentorId = mentorProfile?.id;
     const mentorSessions: MentorPublicSession[] = DUMMY_MENTOR_SESSIONS;
     const location = [mentorProfile?.state, mentorProfile?.country].filter(Boolean).join(", ") || "Location not added yet";
     const categories: string[] = Array.isArray(mentorProfile?.categories) ? mentorProfile.categories : [];
@@ -573,41 +562,96 @@ const PublicProfile = () => {
     const isLongBio = bio.length > maxBioLength;
     const displayedBio = showFullBio || !isLongBio ? bio : `${bio.slice(0, maxBioLength).trim()}...`;
 
-    const handleBookMentorship = () => {
+    const handleBookMentorship = (session?: MentorPublicSession) => {
         setBookingError(null);
-        setShowBookModal(true);
+        setSelectedSession(session ?? null);
+        setBookingNote('');
+        setShowBookModal(Boolean(session));
+    };
+
+    const closeShareModal = () => {
+        if (shareModalClosing) return;
+        setShareModalClosing(true);
+        window.setTimeout(() => {
+            setShowShareModal(false);
+            setShareModalClosing(false);
+        }, 220);
+    };
+
+    const closeSessionModal = () => {
+        if (sessionModalClosing) return;
+        setSessionModalClosing(true);
+        window.setTimeout(() => {
+            setSelectedSession(null);
+            setSessionModalClosing(false);
+        }, 220);
     };
 
     const handleCloseBookModal = () => {
         if (isBooking) return;
-        setShowBookModal(false);
-        setBookingError(null);
+        if (bookModalClosing) return;
+        setBookModalClosing(true);
+        window.setTimeout(() => {
+            setShowBookModal(false);
+            setSelectedSession(null);
+            setBookingError(null);
+            setBookingNote('');
+            setBookModalClosing(false);
+        }, 220);
     };
 
-    const handleBookingSubmit = (payload: BookMentorshipPayload) => {
-        if (!mentorId) {
-            setBookingError("Missing mentor reference. Please refresh and try again.");
+    const handleBookingSubmit = () => {
+        const sessionToBook = selectedSession;
+        if (!sessionToBook) {
+            setBookingError("Please select a session before continuing.");
+            return;
+        }
+
+        const trimmedNote = bookingNote.trim();
+        const payload: Record<string, any> = {
+            session_type: sessionToBook.type === "group" ? "group" : "individual",
+            note: trimmedNote,
+            gateway: "paystack",
+        };
+
+        if (sessionToBook.type === "group") {
+            payload.group_session = Number(sessionToBook.id);
+        } else {
+            payload.individual_session = Number(sessionToBook.id);
+        }
+
+        if (!trimmedNote) {
+            setBookingError("Please add a short note or description before continuing.");
             return;
         }
 
         setBookingError(null);
-        bookMentorship(
-            { mentor_id: mentorId, goal: payload.goal, description: payload.message },
-            {
-                onSuccess: () => {
+        bookMentorship(payload, {
+            onSuccess: (response: any) => {
+                const authorizationUrl = response?.data?.authorization_url || response?.authorization_url;
+                if (authorizationUrl) {
                     setShowBookModal(false);
-                    toast(`Your request was sent to ${mentorName}.`, { type: "success" });
-                },
-                onError: (error: any) => {
-                    const message =
-                        error?.response?.data?.message ||
-                        error?.response?.detail ||
-                        error?.response?.data?.detail ||
-                        "Something went wrong while sending your request. Please try again.";
-                    toast(message, { type: "error" });
-                },
-            }
-        );
+                    setSelectedSession(null);
+                    setBookingNote('');
+                    window.location.href = authorizationUrl;
+                    return;
+                }
+
+                setShowBookModal(false);
+                setSelectedSession(null);
+                setBookingNote('');
+                navigate('/dashboard/session-booked-success');
+            },
+            onError: (error: any) => {
+                const message =
+                    error?.response?.data?.message ||
+                    error?.response?.detail ||
+                    error?.response?.data?.detail ||
+                    "Something went wrong while sending your request. Please try again.";
+                setBookingError(message);
+                toast(message, { type: "error" });
+            },
+        });
     };
 
     const loading = userLoading || mentorLoading;
@@ -844,28 +888,30 @@ const PublicProfile = () => {
                     rating={averageRating}
                     reviewCount={reviewCount}
                     isApproved={mentorProfile?.is_approved}
-                    onClose={() => setShowShareModal(false)}
+                    isClosing={shareModalClosing}
+                    onClose={closeShareModal}
                 />
             )}
 
             {selectedSession && (
                 <SessionDetailsModal
                     session={selectedSession}
-                    onClose={() => setSelectedSession(null)}
+                    isClosing={sessionModalClosing}
+                    onClose={closeSessionModal}
                     onBook={() => {
+                        handleBookMentorship(selectedSession);
                         setSelectedSession(null);
-                        handleBookMentorship();
                     }}
                 />
             )}
 
-            {showBookModal && (
+            {showBookModal && selectedSession && (
                 <div>
-                    <div className="fixed inset-0 z-40 bg-black/50" onClick={handleCloseBookModal} />
+                    <div className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ${bookModalClosing ? 'opacity-0' : 'opacity-100'}`} onClick={handleCloseBookModal} style={{ animation: bookModalClosing ? 'modalFadeOut 0.22s ease-out forwards' : 'modalFadeIn 0.22s ease-out forwards' }} />
                     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-                        <div className="w-full max-w-lg rounded-2xl bg-[#0a0f08] p-6 shadow-2xl" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+                        <div className={`w-full max-w-lg rounded-2xl bg-[#0a0f08] p-6 shadow-2xl transition-all duration-300 ${bookModalClosing ? 'translate-y-3 scale-[0.98] opacity-0' : 'translate-y-0 scale-100 opacity-100'}`} style={{ border: "1px solid rgba(255,255,255,0.1)", animation: bookModalClosing ? 'modalPanelOut 0.22s ease-out forwards' : 'modalPanelIn 0.22s ease-out forwards' }}>
                             <div className="mb-4 flex items-center justify-between">
-                                <h3 className="text-lg font-bold text-white">Book mentorship</h3>
+                                <h3 className="text-lg font-bold text-white">{selectedSession.type === "group" ? "Book group session" : "Book 1:1 session"}</h3>
                                 <button type="button" onClick={handleCloseBookModal} className="rounded-lg p-2 text-white/70 hover:text-white" aria-label="Close">
                                     <FiX size={16} />
                                 </button>
@@ -873,52 +919,42 @@ const PublicProfile = () => {
 
                             {bookingError && <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{bookingError}</div>}
 
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="mb-2 block text-sm font-semibold text-white">What best describes your goal?</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {MENTORSHIP_GOALS.map((goal) => (
-                                            <button
-                                                key={goal}
-                                                type="button"
-                                                onClick={() => setBookingError(null)}
-                                                className="rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-white/80"
-                                            >
-                                                {goal}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="mb-2 block text-sm font-semibold text-white">Message</label>
-                                    <textarea
-                                        rows={5}
-                                        placeholder={`Hi ${mentorName}, I'd love your help with...`}
-                                        className="w-full resize-none rounded-xl bg-transparent px-4 py-3 text-sm text-white/90 outline-none placeholder:text-white/25"
-                                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                                    />
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const message = (document.querySelector("textarea[placeholder^='Hi']") as HTMLTextAreaElement | null)?.value?.trim();
-                                        if (!message) {
-                                            setBookingError("Please write a short message before sending your request.");
-                                            return;
-                                        }
-                                        handleBookingSubmit({ goal: "Career guidance", message });
-                                    }}
-                                    className="w-full rounded-lg bg-white px-4 py-3 text-sm font-bold text-black"
-                                >
-                                    Send request
-                                </button>
+                            <div className="mb-4 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white/75">
+                                <p className="font-semibold text-white">{selectedSession.title}</p>
+                                <p className="mt-1 text-xs text-white/55">{selectedSession.type === "group" ? "Group session" : "1:1 session"} · {formatCurrency(selectedSession.price)}</p>
                             </div>
+
+                            <div>
+                                <label className="mb-2 block text-sm font-semibold text-white">Note / description</label>
+                                <textarea
+                                    rows={5}
+                                    value={bookingNote}
+                                    onChange={(e) => setBookingNote(e.target.value)}
+                                    placeholder={`Hi ${mentorName}, I'd love your help with...`}
+                                    className="w-full resize-none rounded-xl bg-transparent px-4 py-3 text-sm text-white/90 outline-none placeholder:text-white/25"
+                                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                                />
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleBookingSubmit}
+                                disabled={isBooking}
+                                className="mt-5 w-full rounded-lg bg-white px-4 py-3 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {isBooking ? "Processing..." : "Continue to Paystack"}
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
+
+            <style>{`
+                @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes modalFadeOut { from { opacity: 1; } to { opacity: 0; } }
+                @keyframes modalPanelIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+                @keyframes modalPanelOut { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(14px) scale(0.98); } }
+            `}</style>
         </div>
     );
 };

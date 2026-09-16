@@ -15,8 +15,10 @@ import Notifications from '../pages/userDashboard/Notifications'
 import Overview from '../pages/userDashboard/Overview'
 import Product from '../pages/userDashboard/Product'
 import SearchPage from '../pages/userDashboard/Search'
+import SessionBookedSuccess from '../pages/userDashboard/SessionBookedSuccess'
 import SettingsPage from '../pages/userDashboard/Settings'
 import UserBookings from '../pages/userDashboard/UserBookings'
+import UserProducts from '../pages/userDashboard/UserProducts'
 import Wallet from '../pages/userDashboard/Wallet'
 
 const Content = () => {
@@ -31,8 +33,10 @@ const Content = () => {
                 <Route path='/dashboard/setting' element={<SettingsPage />} />
                 <Route path='/dashboard/wallet' element={<Wallet />} />
                 <Route path='/dashboard/bookings' element={<UserBookings />} />
+                <Route path='/dashboard/products' element={<UserProducts />} />
                 <Route path='/dashboard/notifications' element={<Notifications />} />
                 <Route path='/dashboard/events/create' element={<EventCreate />} />
+                <Route path='/dashboard/session-booked-success' element={<SessionBookedSuccess />} />
                 <Route path='/dashboard/mentor/success' element={<MentorOnboardingSuccess />} />
 
                 {/* MentorDashboardLayout renders the tab nav + <Outlet />, and each

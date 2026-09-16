@@ -28,7 +28,7 @@ const NAV_ITEMS = [
     { id: 'bookings', name: 'Bookings', icon: <FiBookOpen className="" />, path: '/dashboard/bookings' },
 ];
 
-const MY_PRODUCTS_PATH = '/dashboard/mentor/products';
+const MY_PRODUCTS_PATH = '/dashboard/products';
 
 // Mobile bottom tab bar: keep it focused on core actions and let the More menu hold
 // secondary destinations like Bookings / Mentor Profile.
