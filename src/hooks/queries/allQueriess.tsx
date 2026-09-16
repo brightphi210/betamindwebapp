@@ -294,3 +294,21 @@ export const useGetUserSession = () => {
         refetch,
     };
 };
+
+export const useGetMentorGroupSessions = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["groupSessions"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`group-sessions/`, token);
+        },
+    });
+
+    return {
+        mentorGroupSessions: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};

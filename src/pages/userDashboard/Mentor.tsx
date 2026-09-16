@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { BsFillCheckCircleFill } from 'react-icons/bs';
 import { FaFacebookF, FaLinkedinIn, FaRedditAlien, FaWhatsapp } from 'react-icons/fa';
 import {
-    FiAlertCircle,
     FiArrowLeft,
     FiAward,
     FiBookOpen,
@@ -12,14 +11,11 @@ import {
     FiCheckCircle,
     FiClock,
     FiCopy,
-    FiDollarSign,
     FiGlobe,
     FiLinkedin,
-    FiLoader,
     FiMail,
     FiMapPin,
     FiPlayCircle,
-    FiSend,
     FiShare2,
     FiStar,
     FiTag,
@@ -28,10 +24,8 @@ import {
     FiX
 } from 'react-icons/fi';
 import { Link, useParams } from 'react-router-dom';
-import { toast, ToastContainer } from 'react-toastify';
-import LoadingOverlay from '../../component/LoadingOverlay';
+import { ToastContainer } from 'react-toastify';
 import Button from '../../component/ui/Button';
-import { useBookMentorship } from '../../hooks/mutations/allMutation';
 import { useGetMentorProfile } from '../../hooks/queries/allQueriess';
 
 type MentorReview = {
@@ -50,63 +44,6 @@ type MentorProduct = {
     thumbnail: string | null;
     price: string;
 };
-
-// ─── Availability (same shape + rendering pattern as StudentTutorProfile) ──
-interface AvailabilitySlot {
-    id?: number;
-    day_of_week: string;
-    start_time: string; // "HH:MM:SS"
-    end_time: string;   // "HH:MM:SS"
-    is_booked?: boolean;
-}
-
-const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-const formatTime = (time: string) => {
-    if (!time) return '';
-    const [hStr, mStr] = time.split(':');
-    let hours = parseInt(hStr, 10);
-    const minutes = mStr ?? '00';
-    const period = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    if (hours === 0) hours = 12;
-    return `${hours}:${minutes} ${period}`;
-};
-
-const groupSlotsByDay = (slots: AvailabilitySlot[]) => {
-    const grouped: Record<string, AvailabilitySlot[]> = {};
-    slots.forEach((slot) => {
-        if (!grouped[slot.day_of_week]) grouped[slot.day_of_week] = [];
-        grouped[slot.day_of_week].push(slot);
-    });
-
-    Object.values(grouped).forEach((daySlots) =>
-        daySlots.sort((a, b) => a.start_time.localeCompare(b.start_time))
-    );
-
-    return DAY_ORDER.filter((day) => grouped[day]).map((day) => ({
-        day,
-        slots: grouped[day],
-    }));
-};
-
-const parseAvailability = (raw: unknown): AvailabilitySlot[] => {
-    if (!raw) return [];
-    if (Array.isArray(raw)) return raw as AvailabilitySlot[];
-    if (typeof raw === 'string') {
-        try {
-            const parsed = JSON.parse(raw);
-            return Array.isArray(parsed) ? parsed : [];
-        } catch {
-            return [];
-        }
-    }
-    return [];
-};
-
-// Stable key even when the API doesn't return an `id`
-const slotKey = (slot: AvailabilitySlot) =>
-    slot.id != null ? String(slot.id) : `${slot.day_of_week}-${slot.start_time}`;
 
 // ─── Dummy data ───────────────────────────────────────────────────────────
 const DUMMY_INTRO_VIDEO = 'https://youtu.be/BD8fDugktAE';
@@ -159,15 +96,71 @@ const DUMMY_REVIEWS: MentorReview[] = [
     },
 ];
 
-// ─── Book mentorship: goal options shown as selectable chips ────────────────
-const MENTORSHIP_GOALS = [
-    'Career guidance',
-    'Skill development',
-    'Interview preparation',
-    'Resume / portfolio review',
-    'Business or startup advice',
-    'Something else',
-] as const;
+type MentorPublicSession = {
+    id: string;
+    type: 'one-on-one' | 'group';
+    title: string;
+    description: string;
+    price: number;
+    startDate: string;
+    endDate: string;
+    dailyTime: string;
+    image: string;
+    capacity: number;
+    spotsLeft: number;
+    status: string;
+    durationLabel: string;
+};
+
+const DUMMY_MENTOR_SESSIONS: MentorPublicSession[] = [
+    {
+        id: 'session-1',
+        type: 'one-on-one',
+        title: '1:1 Career Mentorship',
+        description: 'A focused conversation to review your goals, strengths, and next steps for career growth.',
+        price: 45000,
+        startDate: '2026-09-18',
+        endDate: '2026-09-25',
+        dailyTime: '14:00',
+        image: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
+        capacity: 1,
+        spotsLeft: 1,
+        status: 'open',
+        durationLabel: '45 mins',
+    },
+    {
+        id: 'session-2',
+        type: 'group',
+        title: 'Product Design Critique Circle',
+        description: 'A small-group review session for portfolios, case studies, and design presentations.',
+        price: 15000,
+        startDate: '2026-09-20',
+        endDate: '2026-09-27',
+        dailyTime: '18:30',
+        image: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
+        capacity: 12,
+        spotsLeft: 6,
+        status: 'open',
+        durationLabel: '60 mins',
+    },
+];
+
+const formatCurrency = (value: number) => `₦${value.toLocaleString()}`;
+const formatDayDate = (value: string) => {
+    if (!value) return 'TBD';
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+};
+const formatTimeDisplay = (value: string) => {
+    if (!value) return 'TBD';
+    const [hoursStr, minutesStr] = value.split(':');
+    const hours = Number(hoursStr);
+    const minutes = Number(minutesStr ?? 0);
+    const suffix = hours >= 12 ? 'PM' : 'AM';
+    const normalizedHour = hours % 12 || 12;
+    return `${normalizedHour}:${String(minutes).padStart(2, '0')} ${suffix}`;
+};
 
 // ─── Map a raw digital_products entry from the API into the shape this page renders ──
 const mapDigitalProduct = (dp: any): MentorProduct => {
@@ -315,6 +308,130 @@ const ReviewCard: React.FC<{ review: MentorReview }> = ({ review }) => {
     );
 };
 
+const MentorSessionCard: React.FC<{ session: MentorPublicSession; onSelect: (session: MentorPublicSession) => void }> = ({ session, onSelect }) => (
+    <div className="rounded-2xl p-3 sm:p-4 bg-white/5">
+        <div className="flex gap-3 sm:gap-4">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md sm:h-16 sm:w-16">
+                <img src={session.image} alt={session.title} className="h-full w-full object-cover" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <h3 className="text-base font-bold text-white line-clamp-1">{session.title}</h3>
+                        <p className=" text-xs leading-relaxed text-white/55 line-clamp-2">{session.description}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-white/55">
+            <span className="flex items-center gap-1.5">
+                <FiClock size={13} />
+                {session.dailyTime ? formatTimeDisplay(session.dailyTime) : 'Flexible'}
+            </span>
+            <span className="text-white/40">{formatDayDate(session.startDate)} – {formatDayDate(session.endDate)}</span>
+            <span className="rounded bg-white px-2 py-0.5 text-[10px] font-semibold capitalize text-black">
+                {session.type === 'one-on-one' ? '1-1 Session' : 'Group Session'}
+            </span>
+        </div>
+
+        <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
+            <div className="flex items-center gap-2">
+                <span className="text-[11px] text-white/40">
+                    {session.type === 'one-on-one' ? 'Single mentor slot' : `${session.capacity} total · ${session.spotsLeft} left`}
+                </span>
+            </div>
+            <p className="text-base font-bold text-white sm:text-lg">{formatCurrency(session.price)}</p>
+        </div>
+
+        <button
+            type="button"
+            onClick={() => onSelect(session)}
+            className="mt-2 w-full bg-white rounded-md px-4 py-2.5 text-xs font-bold text-black"
+        >
+            Book Session
+        </button>
+    </div>
+);
+
+const SessionDetailsModal: React.FC<{ session: MentorPublicSession; onClose: () => void; onBook: () => void }> = ({ session, onClose, onBook }) => (
+    <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
+        onClick={onClose}
+    >
+        <div
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-5 shadow-2xl"
+            style={{
+                background: 'rgba(10,13,9,0.9)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                backdropFilter: 'blur(24px)',
+                WebkitBackdropFilter: 'blur(24px)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">Session Details</h3>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Close"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:text-white"
+                    style={{ background: 'rgba(255,255,255,0.06)' }}
+                >
+                    <FiX size={16} />
+                </button>
+            </div>
+
+            <div className="mb-4 overflow-hidden rounded-xl">
+                <img src={session.image} alt={session.title} className="h-44 w-full object-cover" />
+            </div>
+
+            <div className="mb-3 flex items-center justify-between gap-3">
+                <h4 className="text-xl font-bold text-white">{session.title}</h4>
+                <span className="rounded bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
+                    {session.type === 'one-on-one' ? '1-1 Session' : 'Group Session'}
+                </span>
+            </div>
+
+            <p className="mb-5 text-sm leading-relaxed text-white/65">{session.description}</p>
+
+            <div className="grid grid-cols-2 gap-3 text-xs text-white/75">
+                <div className="rounded-lg px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-white/40">Date</p>
+                    <p className="mt-1 font-semibold text-white">{formatDayDate(session.startDate)} – {formatDayDate(session.endDate)}</p>
+                </div>
+                <div className="rounded-lg px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-white/40">Time</p>
+                    <p className="mt-1 font-semibold text-white">{formatTimeDisplay(session.dailyTime)}</p>
+                </div>
+                <div className="rounded-lg px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-white/40">Duration</p>
+                    <p className="mt-1 font-semibold text-white">{session.durationLabel}</p>
+                </div>
+                <div className="rounded-lg px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-white/40">Availability</p>
+                    <p className="mt-1 font-semibold text-white">{session.spotsLeft > 0 ? `${session.spotsLeft} spots left` : 'Sold out'}</p>
+                </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-between rounded-lg px-3 py-3" style={{ background: 'rgba(166,255,0,0.08)', border: '1px solid rgba(166,255,0,0.18)' }}>
+                <span className="text-xs font-semibold uppercase tracking-wide text-white/60">Price</span>
+                <span className="text-lg font-black text-white">{formatCurrency(session.price)}</span>
+            </div>
+
+            <div className="mt-5 flex gap-3">
+                <button type="button" onClick={onClose} className="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white/80" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                    Close
+                </button>
+                <button type="button" onClick={onBook} className="flex-1 rounded-lg py-2.5 text-sm font-bold text-black" style={{ background: '#fff' }}>
+                    Book Session
+                </button>
+            </div>
+        </div>
+    </div>
+);
+
 const MentorProductCard: React.FC<{ product: MentorProduct }> = ({ product }) => (
     <Link
         to={`/dashboard/products/${product.id}`}
@@ -342,7 +459,7 @@ const MentorProductCard: React.FC<{ product: MentorProduct }> = ({ product }) =>
             </span>
         </div>
         <div className="p-3.5 flex flex-col flex-1">
-            <h4 className="text-white font-semibold text-sm mb-1 break-words line-clamp-2">{product.title}</h4>
+            <h4 className="text-white font-semibold text-sm mb-1 wrap-break-word line-clamp-2">{product.title}</h4>
             <span className="text-white font-bold text-sm mt-auto pt-1">{product.price}</span>
         </div>
 
@@ -526,285 +643,6 @@ const ShareModal: React.FC<{
     );
 };
 
-// ─── Book mentorship modal ────────────────────────────────────────────────
-type BookMentorshipPayload = {
-    title: string;
-    subject: string;
-    description: string;
-    notes: string;
-    duration: number;
-    session_type: 'online' | 'offline';
-    scheduled_date: string; // yyyy-mm-dd
-};
-
-const SESSION_TYPES: { value: 'online' | 'offline'; label: string }[] = [
-    { value: 'online', label: 'Online' },
-    { value: 'offline', label: 'In person' },
-];
-
-const WEEKDAY_INDEX: Record<string, number> = {
-    Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
-};
-
-// Next calendar date (yyyy-mm-dd) that falls on `dayName`, including today if it matches.
-const nextDateForWeekday = (dayName: string): string => {
-    const targetIdx = WEEKDAY_INDEX[dayName];
-    if (targetIdx === undefined) return '';
-    const today = new Date();
-    let diff = targetIdx - today.getDay();
-    if (diff < 0) diff += 7;
-    const result = new Date(today);
-    result.setDate(today.getDate() + diff);
-    return result.toISOString().slice(0, 10);
-};
-
-// Minutes between "HH:MM:SS" strings, e.g. 09:00:00 -> 10:00:00 = 60
-const slotDurationMinutes = (start: string, end: string): number => {
-    const [sh, sm] = start.split(':').map(Number);
-    const [eh, em] = end.split(':').map(Number);
-    if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 60;
-    const minutes = eh * 60 + em - (sh * 60 + sm);
-    return minutes > 0 ? minutes : 60;
-};
-
-const BookMentorshipModal: React.FC<{
-    mentorName: string;
-    mentorAvatar?: string;
-    selectedSlot: AvailabilitySlot;
-    isSubmitting?: boolean;
-    errorMessage?: string | null;
-    onClose: () => void;
-    onSubmit: (payload: BookMentorshipPayload) => void;
-}> = ({ mentorName, mentorAvatar, selectedSlot, isSubmitting = false, errorMessage, onClose, onSubmit }) => {
-    const [title, setTitle] = useState('');
-    const [subject, setSubject] = useState('');
-    const [sessionType, setSessionType] = useState<'online' | 'offline'>('online');
-    const [duration, setDuration] = useState(() =>
-        slotDurationMinutes(selectedSlot.start_time, selectedSlot.end_time)
-    );
-    const [scheduledDate, setScheduledDate] = useState(() => nextDateForWeekday(selectedSlot.day_of_week));
-    const [description, setDescription] = useState('');
-    const [notes, setNotes] = useState('');
-
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const dateWeekdayMismatch =
-        !!scheduledDate &&
-        new Date(`${scheduledDate}T00:00:00`).getDay() !== WEEKDAY_INDEX[selectedSlot.day_of_week];
-
-    const canSubmit =
-        !!title.trim() &&
-        !!subject.trim() &&
-        !!description.trim() &&
-        !!scheduledDate &&
-        !dateWeekdayMismatch &&
-        duration > 0 &&
-        !isSubmitting;
-
-    const handleSubmit = () => {
-        if (!canSubmit) return;
-        onSubmit({
-            title: title.trim(),
-            subject: subject.trim(),
-            description: description.trim(),
-            notes: notes.trim(),
-            duration,
-            session_type: sessionType,
-            scheduled_date: scheduledDate,
-        });
-    };
-
-    return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
-            onClick={isSubmitting ? undefined : onClose}
-        >
-            <div
-                className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl"
-                style={{
-                    background: 'rgba(10,13,9,0.55)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    backdropFilter: 'blur(24px)',
-                    WebkitBackdropFilter: 'blur(24px)',
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="mb-5 flex items-center justify-between">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <img
-                            src={mentorAvatar}
-                            alt={mentorName}
-                            className="w-11 h-11 rounded-xl object-cover shrink-0"
-                            style={{ border: '1px solid rgba(255,255,255,0.1)' }}
-                        />
-                        <div className="min-w-0">
-                            <h3 className="text-lg font-bold text-white leading-tight truncate">Book mentorship</h3>
-                            <p className="text-xs text-white/40 truncate">with {mentorName}</p>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={isSubmitting}
-                        aria-label="Close"
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:text-white shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                        style={{ background: 'rgba(255,255,255,0.06)' }}
-                    >
-                        <FiX size={16} />
-                    </button>
-                </div>
-
-                {/* Selected slot summary */}
-                <div
-                    className="mb-5 flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-xs font-semibold"
-                    style={{ background: 'rgba(166,255,0,0.08)', border: '1px solid rgba(166,255,0,0.25)', color: '#a6ff00' }}
-                >
-                    <FiCalendar size={14} className="shrink-0" />
-                    {selectedSlot.day_of_week}, {formatTime(selectedSlot.start_time)} – {formatTime(selectedSlot.end_time)}
-                </div>
-
-                {errorMessage && (
-                    <div
-                        className="mb-5 flex items-start gap-2 rounded-lg px-3.5 py-2.5 text-xs font-medium whitespace-pre-line"
-                        style={{ background: 'rgba(255,80,80,0.08)', border: '1px solid rgba(255,80,80,0.25)', color: '#ff9a9a' }}
-                    >
-                        <FiAlertCircle size={14} className="shrink-0 mt-0.5" />
-                        <span>{errorMessage}</span>
-                    </div>
-                )}
-
-                <div className="space-y-4 mb-6">
-                    <div>
-                        <label className="mb-1.5 block text-sm font-semibold text-white">Session title</label>
-                        <input
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            disabled={isSubmitting}
-                            placeholder="e.g. Python Backend Development Mentorship"
-                            className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none placeholder:text-white/25 disabled:opacity-60"
-                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                        />
-                    </div>
-
-                    <div>
-                        <label className="mb-1.5 block text-sm font-semibold text-white">Subject</label>
-                        <input
-                            value={subject}
-                            onChange={(e) => setSubject(e.target.value)}
-                            disabled={isSubmitting}
-                            placeholder="e.g. Python and Django"
-                            className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none placeholder:text-white/25 disabled:opacity-60"
-                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="mb-1.5 block text-sm font-semibold text-white">Session type</label>
-                            <select
-                                value={sessionType}
-                                onChange={(e) => setSessionType(e.target.value as 'online' | 'offline')}
-                                disabled={isSubmitting}
-                                className="w-full rounded-xl px-4 py-3 text-sm text-white bg-transparent outline-none disabled:opacity-60"
-                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                            >
-                                {SESSION_TYPES.map((t) => (
-                                    <option key={t.value} value={t.value} className="bg-[#0a0f08]">
-                                        {t.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="mb-1.5 block text-sm font-semibold text-white">Duration (min)</label>
-                            <input
-                                type="number"
-                                min={15}
-                                step={5}
-                                value={duration}
-                                onChange={(e) => setDuration(parseInt(e.target.value, 10) || 0)}
-                                disabled={isSubmitting}
-                                className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none disabled:opacity-60"
-                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="mb-1.5 block text-sm font-semibold text-white">Date</label>
-                        <input
-                            type="date"
-                            min={todayStr}
-                            value={scheduledDate}
-                            onChange={(e) => setScheduledDate(e.target.value)}
-                            disabled={isSubmitting}
-                            className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none disabled:opacity-60"
-                            style={{
-                                background: 'rgba(255,255,255,0.04)',
-                                border: dateWeekdayMismatch ? '1px solid rgba(255,80,80,0.5)' : '1px solid rgba(255,255,255,0.08)',
-                            }}
-                        />
-                        {dateWeekdayMismatch && (
-                            <p className="mt-1.5 text-xs" style={{ color: '#ff9a9a' }}>
-                                This date isn't a {selectedSlot.day_of_week}. Pick a {selectedSlot.day_of_week} to match the
-                                selected slot.
-                            </p>
-                        )}
-                    </div>
-
-                    <div>
-                        <label className="mb-1.5 block text-sm font-semibold text-white">
-                            Describe what you'd like help with
-                        </label>
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder={`Hi ${mentorName}, I'd love your help with...`}
-                            rows={4}
-                            disabled={isSubmitting}
-                            className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none resize-none placeholder:text-white/25 disabled:opacity-60"
-                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                        />
-                    </div>
-
-                    <div>
-                        <label className="mb-1.5 block text-sm font-semibold text-white">
-                            Additional notes <span className="text-white/30 font-normal">(optional)</span>
-                        </label>
-                        <textarea
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            placeholder="Anything else the mentor should know?"
-                            rows={2}
-                            disabled={isSubmitting}
-                            className="w-full rounded-xl px-4 py-3 text-sm text-white/90 bg-transparent outline-none resize-none placeholder:text-white/25 disabled:opacity-60"
-                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                        />
-                    </div>
-                </div>
-
-                <button
-                    onClick={handleSubmit}
-                    disabled={!canSubmit}
-                    className="cursor-pointer w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-lg text-sm font-bold text-black transition-transform enabled:hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-40"
-                    style={{ background: '#fff' }}
-                >
-                    {isSubmitting ? (
-                        <>
-                            <FiLoader size={14} className="animate-spin" />
-                            Sending...
-                        </>
-                    ) : (
-                        <>
-                            <FiSend size={14} />
-                            Send request
-                        </>
-                    )}
-                </button>
-            </div>
-        </div>
-    );
-};
-
 const MentorSkeleton: React.FC = () => (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
         <div className="inline-flex items-center gap-1.5 mb-6">
@@ -872,60 +710,11 @@ const MentorSkeleton: React.FC = () => (
     </div>
 );
 
-// ─── Toast used to confirm a booking request went through ───────────────────
-const BookingToast: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => (
-    <div
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-2xl"
-        style={{ background: 'rgba(10,13,9,0.9)', border: '1px solid rgba(166,255,0,0.3)', backdropFilter: 'blur(12px)' }}
-    >
-        <FiCheckCircle size={16} style={{ color: '#a6ff00' }} className="shrink-0" />
-        <span className="text-white text-sm font-medium">{message}</span>
-        <button
-            onClick={onClose}
-            aria-label="Dismiss"
-            className="ml-2 text-white/40 hover:text-white/70 shrink-0"
-        >
-            <FiX size={14} />
-        </button>
-    </div>
-);
-
 // ─── Page ────────────────────────────────────────────────────────────────────
 const Mentor: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { aMentor, isLoading } = useGetMentorProfile(id);
     const mentor = aMentor?.data;
-    console.log('Mentor Data', mentor);
-
-    const { mutate: bookMentorship, isPending: isBooking } = useBookMentorship();
-
-
-
-
-
-    // Flattens DRF-style { field: ["err1","err2"], non_field_errors: [...] } into readable text
-    const flattenErrorMessages = (data: unknown): string => {
-        if (!data) return '';
-        if (typeof data === 'string') return data;
-        if (Array.isArray(data)) {
-            return data.map((item) => flattenErrorMessages(item)).filter(Boolean).join('\n');
-        }
-        if (typeof data === 'object') {
-            const entries = Object.entries(data as Record<string, unknown>);
-            const messages = entries.flatMap(([key, value]) => {
-                const label = key === 'non_field_errors' ? '' : `${key.replace(/_/g, ' ')}: `;
-                if (Array.isArray(value)) {
-                    return value.map((v) => `${label}${typeof v === 'string' ? v : flattenErrorMessages(v)}`);
-                }
-                if (typeof value === 'object' && value !== null) {
-                    return [`${label}${flattenErrorMessages(value)}`];
-                }
-                return typeof value === 'string' ? [`${label}${value}`] : [];
-            });
-            return messages.filter(Boolean).join('\n');
-        }
-        return String(data);
-    };
 
     const mentorName = [mentor?.first_name, mentor?.last_name].filter(Boolean)
         .join(' ') || mentor?.nick_name || 'Mentor';
@@ -951,86 +740,16 @@ const Mentor: React.FC = () => {
     const sessionsCompleted: number | null =
         typeof mentor?.sessions_completed === 'number' ? mentor.sessions_completed : DUMMY_SESSIONS_COMPLETED;
 
-    // Prefer the new availability_slots field (same as StudentTutorProfile / onboarding).
-    // Fall back to the legacy daily_availability JSON string for older profiles.
-    const availabilitySlots: AvailabilitySlot[] = parseAvailability(
-        mentor?.availability_slots ?? mentor?.daily_availability
-    );
-    const groupedAvailability = groupSlotsByDay(availabilitySlots);
-
-    const [selectedSlotKey, setSelectedSlotKey] = useState<string | null>(null);
-    const selectedSlot = availabilitySlots.find((s) => slotKey(s) === selectedSlotKey) || null;
-
     const products: MentorProduct[] =
         Array.isArray(mentor?.digital_products) && mentor.digital_products.length > 0
             ? mentor.digital_products.map(mapDigitalProduct)
             : [];
 
+    const mentorSessions: MentorPublicSession[] = DUMMY_MENTOR_SESSIONS;
+
     const [showShareModal, setShowShareModal] = useState(false);
-    const [showBookModal, setShowBookModal] = useState(false);
-    const [bookingError, setBookingError] = useState<string | null>(null);
-    const [bookingToast, setBookingToast] = useState<string | null>(null);
-
-    const handleBookMentorship = () => {
-        if (!selectedSlot) {
-            toast('Please select an availability slot first.', { type: 'warning' });
-            return;
-        }
-        setBookingError(null);
-        setShowBookModal(true);
-    };
-
-    const handleCloseBookModal = () => {
-        if (isBooking) return; // avoid closing mid-request
-        setShowBookModal(false);
-        setBookingError(null);
-    };
-
-    const handleBookingSubmit = (payload: BookMentorshipPayload) => {
-        if (!selectedSlot?.id) {
-            setBookingError('Please select an availability slot first.');
-            return;
-        }
-        if (mentor?.id == null) {
-            setBookingError('Missing mentor reference. Please refresh and try again.');
-            return;
-        }
-
-        setBookingError(null);
-
-        bookMentorship(
-            {
-                mentor_profile: mentor.id,
-                availability_slot: selectedSlot.id,
-                title: payload.title,
-                subject: payload.subject,
-                description: payload.description,
-                notes: payload.notes,
-                duration: payload.duration,
-                session_type: payload.session_type,
-                scheduled_date: payload.scheduled_date,
-            },
-            {
-                onSuccess: () => {
-                    setShowBookModal(false);
-                    setSelectedSlotKey(null);
-                    toast(`Your request was sent to ${mentorName}.`, { type: 'success' });
-                },
-                onError: (error: any) => {
-                    const backendMessage = flattenErrorMessages(error?.response?.data);
-                    const message =
-                        backendMessage ||
-                        error?.response?.data?.message ||
-                        error?.response?.data?.detail ||
-                        'Something went wrong while sending your request. Please try again.';
-                    setBookingError(message); // keeps modal open with inline error
-                    toast(message, { type: 'error' });
-                },
-            }
-        );
-    };
-
     const [showFullBio, setShowFullBio] = useState(false);
+    const [selectedSession, setSelectedSession] = useState<MentorPublicSession | null>(null);
 
     const maxBioLength = 180;
     const bio = mentor?.bio || '';
@@ -1054,8 +773,6 @@ const Mentor: React.FC = () => {
                 <MentorSkeleton />
             ) : (
                 <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-                    <LoadingOverlay visible={isBooking} />
-
                     {/* Back link */}
                     <Link
                         to="/dashboard/explore"
@@ -1310,156 +1027,20 @@ const Mentor: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* ── Sidebar: booking card ── */}
+                        {/* ── Sidebar: mentor session cards ── */}
                         <div className="lg:sticky lg:top-8">
                             <div
-                                className="rounded-xl p-5 sm:p-6"
-                                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                className="rounded-xl p-4 sm:p-5 bg-neutral-950"
                             >
-                                {/* Rate */}
-                                <div className="mb-5">
-                                    {typeof mentor?.hourly_rate === 'number' ? (
-                                        <>
-                                            <span className="text-white text-3xl font-black">${mentor.hourly_rate}</span>
-                                            <span className="text-white/40 text-sm font-medium"> / hour</span>
-                                        </>
-                                    ) : (
-                                        <FieldPlaceholder icon={<FiDollarSign size={14} />} label="Rate not set" />
-                                    )}
+                                <div className="mb-4 flex items-center gap-2 text-white/80 text-[11px] font-bold uppercase tracking-wider">
+                                    <FiCalendar size={13} />
+                                    Sessions
                                 </div>
 
-                                {/* ── Weekly availability (same pattern as StudentTutorProfile) — ABOVE the book buttons ── */}
-                                <div className="flex flex-col gap-3 mb-5">
-                                    <div className="flex items-center gap-2 text-white/40 text-[11px] font-bold uppercase tracking-wider mb-1">
-                                        <FiCalendar size={13} />
-                                        Select availability
-                                    </div>
-
-                                    {groupedAvailability.length > 0 ? (
-                                        <div
-                                            role="radiogroup"
-                                            aria-label="Select an availability slot"
-                                            className="flex flex-col gap-3 max-h-64 overflow-y-auto pr-1"
-                                        >
-                                            {groupedAvailability.map(({ day, slots }) => (
-                                                <div key={day}>
-                                                    <p className="text-[10px] font-bold text-white/35 uppercase tracking-wide mb-1.5">
-                                                        {day}
-                                                    </p>
-                                                    <div className="flex flex-col gap-1.5">
-                                                        {slots.map((slot) => {
-                                                            const key = slotKey(slot);
-                                                            const isSelected = selectedSlotKey === key;
-                                                            const isBooked = !!slot.is_booked;
-
-                                                            return (
-                                                                <button
-                                                                    key={key}
-                                                                    type="button"
-                                                                    role="radio"
-                                                                    aria-checked={isSelected}
-                                                                    disabled={isBooked}
-                                                                    onClick={() => !isBooked && setSelectedSlotKey(key)}
-                                                                    className="cursor-pointer w-full flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-xs font-semibold text-left transition-colors disabled:cursor-not-allowed"
-                                                                    style={
-                                                                        isBooked
-                                                                            ? {
-                                                                                background: 'rgba(255,255,255,0.03)',
-                                                                                border: '1px solid rgba(255,255,255,0.06)',
-                                                                                color: 'rgba(255,255,255,0.25)',
-                                                                            }
-                                                                            : isSelected
-                                                                                ? {
-                                                                                    background: 'rgba(166,255,0,0.1)',
-                                                                                    border: '1px solid #a6ff00',
-                                                                                    color: '#a6ff00',
-                                                                                }
-                                                                                : {
-                                                                                    background: 'rgba(255,255,255,0.04)',
-                                                                                    border: '1px solid rgba(255,255,255,0.08)',
-                                                                                    color: 'rgba(255,255,255,0.75)',
-                                                                                }
-                                                                    }
-                                                                >
-                                                                    {/* Radio circle */}
-                                                                    <span
-                                                                        className="shrink-0 w-3.5 h-3.5 rounded-full border flex items-center justify-center"
-                                                                        style={{
-                                                                            borderColor: isBooked
-                                                                                ? 'rgba(255,255,255,0.15)'
-                                                                                : isSelected
-                                                                                    ? '#a6ff00'
-                                                                                    : 'rgba(255,255,255,0.3)',
-                                                                        }}
-                                                                    >
-                                                                        {isSelected && !isBooked && (
-                                                                            <span
-                                                                                className="w-1.5 h-1.5 rounded-full"
-                                                                                style={{ background: '#a6ff00' }}
-                                                                            />
-                                                                        )}
-                                                                    </span>
-
-                                                                    <span className={isBooked ? 'line-through' : ''}>
-                                                                        {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
-                                                                    </span>
-
-                                                                    {isBooked && (
-                                                                        <span className="ml-auto text-[10px] font-medium text-white/30">
-                                                                            Booked
-                                                                        </span>
-                                                                    )}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <FieldPlaceholder icon={<FiCalendar size={14} />} label="Availability not set" />
-                                    )}
-                                </div>
-
-                                {/* Primary CTA — Book + Follow */}
-                                <div className="flex flex-col">
-                                    <button
-                                        onClick={handleBookMentorship}
-                                        disabled={!selectedSlot}
-                                        className="cursor-pointer w-full text-center bg-white px-4 py-3 rounded-lg text-sm font-bold text-black transition-transform hover:scale-[1.02] mb-3 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
-                                    >
-                                        Book mentorship
-                                    </button>
-                                    {!selectedSlot && (
-                                        <p className="text-[11px] text-white/30 text-center -mt-2 mb-3">
-                                            Select a time slot above to book
-                                        </p>
-                                    )}
-
-                                    {/* Secondary action */}
-                                    <button
-                                        className="cursor-pointer w-full text-center px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors mb-5"
-                                        style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)' }}
-                                    >
-                                        Follow
-                                    </button>
-                                </div>
-
-                                {/* Language */}
-                                <div className="flex flex-col gap-3 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                                    <div className="flex items-center gap-2 text-white/40 text-[11px] font-bold uppercase tracking-wider mb-1">
-                                        <FiClock size={13} />
-                                        Mentorship details
-                                    </div>
-
-                                    {mentor?.language ? (
-                                        <div className="flex items-center gap-2 text-white/65 text-sm">
-                                            <FiGlobe size={14} className="text-neutral-600 shrink-0" />
-                                            {mentor.language}
-                                        </div>
-                                    ) : (
-                                        <FieldPlaceholder icon={<FiGlobe size={14} />} label="Language not set" />
-                                    )}
+                                <div className="space-y-4">
+                                    {mentorSessions.map((session) => (
+                                        <MentorSessionCard key={session.id} session={session} onSelect={setSelectedSession} />
+                                    ))}
                                 </div>
                             </div>
                         </div>
@@ -1478,21 +1059,17 @@ const Mentor: React.FC = () => {
                 />
             )}
 
-            {showBookModal && selectedSlot && (
-                <BookMentorshipModal
-                    mentorName={mentorName}
-                    mentorAvatar={mentorAvatar}
-                    selectedSlot={selectedSlot}
-                    isSubmitting={isBooking}
-                    errorMessage={bookingError}
-                    onClose={handleCloseBookModal}
-                    onSubmit={handleBookingSubmit}
+            {selectedSession && (
+                <SessionDetailsModal
+                    session={selectedSession}
+                    onClose={() => setSelectedSession(null)}
+                    onBook={() => {
+                        setSelectedSession(null);
+                        // TODO: wire to real booking flow when the session API is connected.
+                    }}
                 />
             )}
 
-            {bookingToast && (
-                <BookingToast message={bookingToast} onClose={() => setBookingToast(null)} />
-            )}
         </div>
     );
 };

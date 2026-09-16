@@ -19,8 +19,16 @@ import {
 } from "react-icons/fi";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
-import { useCreateIndividualSession } from "../../hooks/mutations/allMutation";
-import { useGetMentorIndividualSession } from "../../hooks/queries/allQueriess";
+import {
+    useCreateGroupSession,
+    useCreateIndividualSession,
+    useDeleteGroupSession,
+    useDeleteIndividualSession,
+    useEditGroupSession,
+    useEditIndividualSession,
+} from "../../hooks/mutations/allMutation";
+import { useGetMentorGroupSessions, useGetMentorIndividualSession, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
+import { useGlobalContext } from "../../providers/GlobalContext";
 
 // ─────────────────────────────────────────────
 // Types
@@ -69,8 +77,26 @@ interface GroupSession {
     dailyTime: string;
     image: string;
     capacity: number;
+    spotsLeft: number;
+    status: string;
+    meetingLink: string;
     registrants: Registrant[];
 }
+
+type GroupSessionFormValues = {
+    name: string;
+    description: string;
+    price: number;
+    startDate: string;
+    endDate: string;
+    dailyTime: string;
+    image: string;
+    capacity: number;
+    imageFile?: File | null;
+    spotsLeft?: number;
+    status?: string;
+    meetingLink?: string;
+};
 
 // ─────────────────────────────────────────────
 // API shape (matches the /individual-sessions payload you shared)
@@ -105,16 +131,18 @@ const unwrapIndividualSession = (
     return raw;
 };
 
-const mapApiSessionToLocal = (api: IndividualSessionApiResponse): OneOnOneSession => {
+const mapApiSessionToLocal = (
+    api: IndividualSessionApiResponse,
+    mentorAvatar = `https://i.pravatar.cc/150?u=${api.mentor}`
+): OneOnOneSession => {
     const parsedPrice = Number(api.price);
 
     const booking: Booking | null = api.mentee
         ? {
             id: String(api.id),
             menteeName: api.mentee_name ?? "Mentee",
-            // No avatar comes back from the API — derive a stable placeholder from the mentee id.
             menteeAvatar: `https://i.pravatar.cc/150?u=${api.mentee}`,
-            meetingLink: api.meeting_link,
+            meetingLink: api.meeting_link ?? "",
             status: api.status === "confirmed" ? "confirmed" : "pending_confirmation",
             bookedFor: new Date(api.created_at).toLocaleString("en-US", {
                 month: "short",
@@ -131,10 +159,10 @@ const mapApiSessionToLocal = (api: IndividualSessionApiResponse): OneOnOneSessio
         note: api.notes ?? "",
         price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
         availability: api.availability,
-        responseTime: api.response_time === "immediate" ? "immediate" : Number(api.response_time),
+        responseTime: api.response_time === "immediate" ? "immediate" : Number(api.response_time) || 1,
         durationMinutes: api.duration_minutes,
         daysDuration: api.duration_days,
-        mentorAvatar: `https://i.pravatar.cc/150?u=${api.mentor}`,
+        mentorAvatar: mentorAvatar || `https://i.pravatar.cc/150?u=${api.mentor}`,
         meetingLink: api.meeting_link ?? "",
         booking,
     };
@@ -152,50 +180,66 @@ const mapLocalToCreatePayload = (
     notes: data.note,
 });
 
-// ─────────────────────────────────────────────
-// Dummy data (group sessions are out of scope for this pass, left as-is)
-// ─────────────────────────────────────────────
-const DUMMY_GROUPS: GroupSession[] = [
-    {
-        id: "g1",
+const mapApiGroupSessionToLocal = (api: any): GroupSession => {
+    const rawDailyTime = api.daily_time ?? api.time ?? "14:00";
+    const normalizedDailyTime = typeof rawDailyTime === "string"
+        ? rawDailyTime.includes("T")
+            ? rawDailyTime.split("T")[1]?.slice(0, 5) ?? rawDailyTime
+            : rawDailyTime.slice(0, 5)
+        : "14:00";
+
+    const capacity = Number(api.max_participants ?? api.capacity ?? 0);
+    const spotsLeft = Number(api.spots_left ?? Math.max(0, capacity));
+
+    return {
+        id: String(api.id ?? `g-${Date.now()}`),
         type: "group",
-        name: "Product Design Critique Circle",
-        description: "Weekly group feedback sessions for mid-level product designers. Bring your latest work and get actionable feedback.",
-        price: 15000,
-        startDate: "2026-09-22",
-        endDate: "2026-11-10",
-        dailyTime: "18:00",
-        image: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=200&q=80",
-        capacity: 12,
-        registrants: [
-            { id: "r1", name: "Aisha Bello", avatar: "https://i.pravatar.cc/150?img=5" },
-            { id: "r2", name: "David Okoro", avatar: "https://i.pravatar.cc/150?img=12" },
-            { id: "r3", name: "Fatima Yusuf", avatar: "https://i.pravatar.cc/150?img=9" },
-            { id: "r4", name: "Chidi Nwosu", avatar: "https://i.pravatar.cc/150?img=15" },
-            { id: "r5", name: "Ngozi Eze", avatar: "https://i.pravatar.cc/150?img=20" },
-            { id: "r6", name: "Tunde Ade", avatar: "https://i.pravatar.cc/150?img=33" },
-            { id: "r7", name: "Amaka Joy", avatar: "https://i.pravatar.cc/150?img=47" },
-        ],
-    },
-    {
-        id: "g2",
-        type: "group",
-        name: "Frontend Performance Masterclass",
-        description: "Deep dives into Core Web Vitals, bundle optimization and real-world case studies.",
-        price: 25000,
-        startDate: "2026-10-01",
-        endDate: "2026-10-29",
-        dailyTime: "16:30",
-        image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&q=80",
-        capacity: 20,
-        registrants: [
-            { id: "r8", name: "Ibrahim Sule", avatar: "https://i.pravatar.cc/150?img=11" },
-            { id: "r9", name: "Blessing Okeke", avatar: "https://i.pravatar.cc/150?img=25" },
-            { id: "r10", name: "Emeka Uche", avatar: "https://i.pravatar.cc/150?img=32" },
-            { id: "r11", name: "Zainab Musa", avatar: "https://i.pravatar.cc/150?img=44" },
-        ],
-    },
-];
+        name: api.name ?? "Group Session",
+        description: api.description ?? "",
+        price: Number(api.price_per_participant ?? api.price ?? 0),
+        startDate: api.start_date ? String(api.start_date).split("T")[0] : "",
+        endDate: api.end_date ? String(api.end_date).split("T")[0] : "",
+        dailyTime: normalizedDailyTime,
+        image: api.banner || api.image || api.cover_image || "",
+        capacity,
+        spotsLeft,
+        status: api.status ?? "pending",
+        meetingLink: api.meeting_link ?? "",
+        registrants: Array.isArray(api.registrants)
+            ? api.registrants.map((r: any) => ({
+                id: String(r.id ?? `${api.id ?? "reg"}-${Math.random()}`),
+                name: r.name ?? "Participant",
+                avatar: r.avatar || r.image || `https://i.pravatar.cc/150?u=${r.id ?? Math.random()}`,
+            }))
+            : [],
+    };
+};
+
+const flattenApiErrors = (data: unknown): string => {
+    if (!data) return "Something went wrong. Please try again.";
+    if (typeof data === "string") return data;
+
+    if (Array.isArray(data)) {
+        return data.map((item) => flattenApiErrors(item)).filter(Boolean).join(" \n ");
+    }
+
+    if (typeof data === "object") {
+        const entries = Object.entries(data as Record<string, unknown>);
+        const messages = entries.flatMap(([key, value]) => {
+            if (key === "non_field_errors") return flattenApiErrors(value).split("\n").filter(Boolean);
+            if (Array.isArray(value)) return flattenApiErrors(value).split("\n").filter(Boolean);
+            if (typeof value === "object" && value !== null) {
+                return flattenApiErrors(value).split("\n").filter(Boolean);
+            }
+            return typeof value === "string" ? [value] : [];
+        });
+
+        if (messages.length > 0) return messages.join(" \n ");
+        return JSON.stringify(data);
+    }
+
+    return String(data);
+};
 
 const SUGGESTED_NOTES = [
     "Great session! Mentee is making good progress toward their goals.",
@@ -327,16 +371,16 @@ const OneOnOneCard = ({
 }) => (
     <div className="overflow-hidden rounded-2xl" style={{ background: cardBg, border: cardBorder }}>
         <div className="p-4 sm:p-5">
-            <div className="flex gap-4">
-                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl sm:h-20 sm:w-20">
+            <div className="flex items-center gap-4">
+                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg sm:h-16 sm:w-16">
                     <img src={session.mentorAvatar} alt="Mentor" className="h-full w-full object-cover" />
                 </div>
 
                 <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                         <div>
-                            <h3 className="text-base font-bold text-white sm:text-lg line-clamp-1">BOOK A CALL</h3>
-                            <p className="mt-1 text-sm leading-relaxed text-white/55 line-clamp-2">{session.note}</p>
+                            <h3 className="text-base font-bold text-white sm:text-lg line-clamp-1">SESSION IS LIVE</h3>
+                            <p className="text-sm leading-relaxed text-white/55 line-clamp-2">{session.note}</p>
                         </div>
                         <div className="flex shrink-0 gap-1.5">
                             <button type="button" onClick={onEdit} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white" style={{ background: "rgba(255,255,255,0.05)" }}>
@@ -407,7 +451,7 @@ const GroupCard = ({
     const total = session.registrants.length;
     const visibleAvatars = session.registrants.slice(0, 4);
     const remaining = total - visibleAvatars.length;
-    const spotsLeft = Math.max(0, session.capacity - total);
+    const spotsLeft = session.spotsLeft;
 
     return (
         <div
@@ -419,7 +463,13 @@ const GroupCard = ({
                 {/* Top row: image + title/description + actions */}
                 <div className="flex gap-4">
                     <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md sm:h-20 sm:w-20">
-                        <img src={session.image} alt={session.name} className="h-full w-full object-cover" />
+                        {session.image ? (
+                            <img src={session.image} alt={session.name} className="h-full w-full object-cover" />
+                        ) : (
+                            <div className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase tracking-[0.18em] text-white/60" style={{ background: "rgba(255,255,255,0.08)" }}>
+                                Group
+                            </div>
+                        )}
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -460,8 +510,8 @@ const GroupCard = ({
                         <p className="text-white/40">
                             {formatDate(session.startDate)} – {formatDate(session.endDate)}
                         </p>
-                        <p className="rounded px-2  bg-white text-black py-0.5 text-[11px] font-semibold">
-                            Group Session
+                        <p className="rounded px-2 bg-white text-black py-0.5 text-[11px] font-semibold capitalize">
+                            {session.status || "pending"}
                         </p>
                     </div>
                 </div>
@@ -470,27 +520,33 @@ const GroupCard = ({
                 <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
                     <div className="flex items-center gap-2">
                         <div className="flex -space-x-2">
-                            {visibleAvatars.map((r) => (
-                                <img
-                                    key={r.id}
-                                    src={r.avatar}
-                                    alt={r.name}
-                                    title={r.name}
-                                    className="h-7 w-7 rounded-full border-2 object-cover"
-                                    style={{ borderColor: "rgba(10,13,9,0.95)" }}
-                                />
-                            ))}
-                            {remaining > 0 && (
-                                <div
-                                    className="flex h-7 w-7 items-center justify-center rounded-full border-2 text-[9px] font-bold text-white/80"
-                                    style={{ background: "rgba(255,255,255,0.1)", borderColor: "rgba(10,13,9,0.95)" }}
-                                >
-                                    +{remaining}
-                                </div>
+                            {visibleAvatars.length > 0 ? (
+                                <>
+                                    {visibleAvatars.map((r) => (
+                                        <img
+                                            key={r.id}
+                                            src={r.avatar}
+                                            alt={r.name}
+                                            title={r.name}
+                                            className="h-7 w-7 rounded-full border-2 object-cover"
+                                            style={{ borderColor: "rgba(10,13,9,0.95)" }}
+                                        />
+                                    ))}
+                                    {remaining > 0 && (
+                                        <div
+                                            className="flex h-7 w-7 items-center justify-center rounded-full border-2 text-[9px] font-bold text-white/80"
+                                            style={{ background: "rgba(255,255,255,0.1)", borderColor: "rgba(10,13,9,0.95)" }}
+                                        >
+                                            +{remaining}
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <span className="text-[11px] text-white/35">No participants yet</span>
                             )}
                         </div>
                         <span className="text-[11px] text-white/40">
-                            {total}/{session.capacity} · {spotsLeft > 0 ? `${spotsLeft} left` : "Full"}
+                            {session.capacity} total · {spotsLeft > 0 ? `${spotsLeft} left` : "Full"}
                         </span>
                     </div>
 
@@ -513,15 +569,12 @@ const AnimatedModal = ({
 }) => (
     <div
         className="fixed inset-0 z-50 flex items-center justify-center px-4"
-        style={{ background: "rgba(0,0,0,0.82)" }}
+        style={{ background: "rgba(0,0,0,0.9)" }}
         onClick={onClose}
     >
         <div
-            className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl"
+            className="w-full max-w-md max-h-[90vh] bg-neutral-950 overflow-y-auto rounded-2xl p-6 shadow-2xl"
             style={{
-                background: "rgb(12, 15, 11)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                animation: "modalIn 0.22s ease-out forwards",
             }}
             onClick={(e) => e.stopPropagation()}
         >
@@ -617,8 +670,7 @@ const OneOnOneFormModal = ({
                         placeholder="What should mentees know before booking you?"
                         rows={3}
                         required
-                        className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
-                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        className="w-full bg-neutral-900 resize-none rounded-lg px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
                     />
                 </div>
 
@@ -632,10 +684,9 @@ const OneOnOneFormModal = ({
                             min="1"
                             value={price}
                             onChange={(e) => setPrice(e.target.value)}
-                            placeholder="40000"
+                            placeholder="4,000"
                             required
-                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                            className="w-full rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
                         />
                     </div>
                     <div>
@@ -645,8 +696,7 @@ const OneOnOneFormModal = ({
                         <select
                             value={durationMinutes}
                             onChange={(e) => setDurationMinutes(e.target.value)}
-                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                            className="w-full rounded-lg px-3.5 bg-neutral-900 py-2.5 text-sm text-white/90 outline-none"
                         >
                             {RADIO_DURATIONS.map((d) => (
                                 <option key={d} value={d}>{formatDuration(d)}</option>
@@ -656,7 +706,7 @@ const OneOnOneFormModal = ({
                 </div>
 
                 <div>
-                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
+                    <label className="mb-1.5 flex items-center  gap-1.5 text-xs font-semibold text-white/70">
                         <FiCalendar size={13} /> Days Duration
                     </label>
                     <input
@@ -664,24 +714,9 @@ const OneOnOneFormModal = ({
                         value={`${daysDuration} days`}
                         disabled
                         readOnly
-                        className="w-full cursor-not-allowed rounded-xl px-3.5 py-2.5 text-sm text-white/50 outline-none"
-                        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+                        className="w-full cursor-not-allowed bg-neutral-900 rounded-lg px-3.5 py-2.5 text-sm text-white/50 outline-none"
                     />
                     <p className="mt-1 text-[11px] text-white/35">This is fixed and can't be changed.</p>
-                </div>
-
-                <div>
-                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
-                        <FiLink size={13} /> Meeting link
-                    </label>
-                    <input
-                        type="url"
-                        value={meetingLink}
-                        onChange={(e) => setMeetingLink(e.target.value)}
-                        placeholder="https://meet.google.com/your-room"
-                        className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
-                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                    />
                 </div>
 
                 <div>
@@ -690,8 +725,7 @@ const OneOnOneFormModal = ({
                         {(["weekdays", "weekends"] as const).map((opt) => (
                             <label
                                 key={opt}
-                                className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold capitalize text-white/80"
-                                style={{ background: "rgba(255,255,255,0.05)", border: availability === opt ? "1px solid #ffffff" : "1px solid rgba(255,255,255,0.08)" }}
+                                className="flex cursor-pointer text-neutral-600 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold capitalize"
                             >
                                 <input
                                     type="radio"
@@ -699,7 +733,7 @@ const OneOnOneFormModal = ({
                                     value={opt}
                                     checked={availability === opt}
                                     onChange={() => setAvailability(opt)}
-                                    className="h-3.5 w-3.5 accent-white"
+                                    className="h-4.5 w-4.5  accent-green-400"
                                 />
                                 {opt}
                             </label>
@@ -711,8 +745,7 @@ const OneOnOneFormModal = ({
                     <label className="mb-1.5 block text-xs font-semibold text-white/70">Response Time</label>
                     <div className="mb-2 flex gap-4">
                         <label
-                            className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-white/80"
-                            style={{ background: "rgba(255,255,255,0.05)", border: responseMode === "immediate" ? "1px solid #ffffff" : "1px solid rgba(255,255,255,0.08)" }}
+                            className="flex cursor-pointer text-neutral-600 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold capitalize"
                         >
                             <input
                                 type="radio"
@@ -720,13 +753,12 @@ const OneOnOneFormModal = ({
                                 value="immediate"
                                 checked={responseMode === "immediate"}
                                 onChange={() => setResponseMode("immediate")}
-                                className="h-3.5 w-3.5 accent-white"
+                                className="h-4.5 w-4.5  accent-green-400"
                             />
                             Immediately
                         </label>
                         <label
-                            className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-white/80"
-                            style={{ background: "rgba(255,255,255,0.05)", border: responseMode === "hours" ? "1px solid #ffffff" : "1px solid rgba(255,255,255,0.08)" }}
+                            className="flex cursor-pointer text-neutral-600 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold capitalize"
                         >
                             <input
                                 type="radio"
@@ -734,9 +766,9 @@ const OneOnOneFormModal = ({
                                 value="hours"
                                 checked={responseMode === "hours"}
                                 onChange={() => setResponseMode("hours")}
-                                className="h-3.5 w-3.5 accent-white"
+                                className="h-4.5 w-4.5  accent-green-400"
                             />
-                            After X hours
+                            Hours
                         </label>
                     </div>
                     {responseMode === "hours" && (
@@ -744,18 +776,15 @@ const OneOnOneFormModal = ({
                             type="number"
                             min="1"
                             max="72"
+                            placeholder="e.g. 2"
                             value={hours}
                             onChange={(e) => setHours(e.target.value)}
-                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                            className="w-full bg-neutral-900 rounded-lg px-3.5 py-2.5 text-sm text-white/90 outline-none"
                         />
                     )}
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={onClose} className={modalSecondaryBtn} style={modalSecondaryBtnStyle}>
-                        Cancel
-                    </button>
                     <button type="submit" disabled={isSaving} className={`${modalPrimaryBtn} disabled:opacity-60`} style={modalPrimaryBtnStyle}>
                         <FiCheck size={14} />
                         {isSaving ? "Saving..." : initial ? "Save changes" : "Create session"}
@@ -770,10 +799,12 @@ const GroupFormModal = ({
     initial,
     onClose,
     onSave,
+    isSaving = false,
 }: {
     initial?: GroupSession | null;
     onClose: () => void;
-    onSave: (data: Omit<GroupSession, "id" | "type" | "registrants">) => void;
+    onSave: (data: GroupSessionFormValues) => void;
+    isSaving?: boolean;
 }) => {
     const [name, setName] = useState(initial?.name ?? "");
     const [description, setDescription] = useState(initial?.description ?? "");
@@ -781,8 +812,16 @@ const GroupFormModal = ({
     const [startDate, setStartDate] = useState(initial?.startDate ?? "");
     const [endDate, setEndDate] = useState(initial?.endDate ?? "");
     const [dailyTime, setDailyTime] = useState(initial?.dailyTime ?? "14:00");
-    const [image, setImage] = useState(initial?.image ?? "");
     const [capacity, setCapacity] = useState(initial?.capacity?.toString() ?? "15");
+    const [imagePreview, setImagePreview] = useState(initial?.image ?? "");
+    const [imageFile, setImageFile] = useState<File | null>(null);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setImageFile(file);
+        setImagePreview(URL.createObjectURL(file));
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -794,8 +833,12 @@ const GroupFormModal = ({
             startDate,
             endDate,
             dailyTime,
-            image: image.trim() || "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=200&q=80",
+            image: imagePreview || "",
             capacity: Number(capacity),
+            imageFile,
+            spotsLeft: initial?.spotsLeft ?? Number(capacity),
+            status: initial?.status ?? "pending",
+            meetingLink: initial?.meetingLink ?? "",
         });
     };
 
@@ -819,8 +862,7 @@ const GroupFormModal = ({
                         onChange={(e) => setName(e.target.value)}
                         placeholder="e.g. Product Design Critique Circle"
                         required
-                        className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
-                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        className="w-full rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
                     />
                 </div>
 
@@ -832,26 +874,26 @@ const GroupFormModal = ({
                         placeholder="What will participants learn or do?"
                         rows={3}
                         required
-                        className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
-                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        className="w-full resize-none rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
                     />
                 </div>
 
                 <div>
-                    <label className="mb-1.5 block text-xs font-semibold text-white/70">Session Image URL</label>
+                    <label className="mb-1.5 block text-xs font-semibold text-white/70">Session Image</label>
                     <input
-                        type="url"
-                        value={image}
-                        onChange={(e) => setImage(e.target.value)}
-                        placeholder="https://..."
-                        className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
-                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="w-full rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none file:mr-3 file:rounded file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-black"
                     />
+                    {imagePreview && (
+                        <img src={imagePreview} alt="Group session preview" className="mt-3 h-24 w-full rounded-lg object-cover" />
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className="mb-1.5 text-xs font-semibold text-white/70">Price (₦)</label>
+                        <label className="mb-1.5 block text-xs font-semibold text-white/70">Price (₦)</label>
                         <input
                             type="number"
                             min="1"
@@ -859,8 +901,7 @@ const GroupFormModal = ({
                             onChange={(e) => setPrice(e.target.value)}
                             placeholder="15000"
                             required
-                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                            className="w-full rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
                         />
                     </div>
                     <div>
@@ -875,8 +916,7 @@ const GroupFormModal = ({
                             onChange={(e) => setCapacity(e.target.value)}
                             placeholder="15"
                             required
-                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                            className="w-full rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
                         />
                     </div>
                 </div>
@@ -889,8 +929,7 @@ const GroupFormModal = ({
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
                             required
-                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                            className="w-full rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none"
                         />
                     </div>
                     <div>
@@ -900,8 +939,7 @@ const GroupFormModal = ({
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
                             required
-                            className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                            className="w-full rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none"
                         />
                     </div>
                 </div>
@@ -915,18 +953,14 @@ const GroupFormModal = ({
                         value={dailyTime}
                         onChange={(e) => setDailyTime(e.target.value)}
                         required
-                        className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none"
-                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        className="w-full rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none"
                     />
                 </div>
 
-                <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={onClose} className={modalSecondaryBtn} style={modalSecondaryBtnStyle}>
-                        Cancel
-                    </button>
-                    <button type="submit" className={modalPrimaryBtn} style={modalPrimaryBtnStyle}>
+                <div className="pt-2">
+                    <button type="submit" disabled={isSaving} className={`${modalPrimaryBtn} w-full disabled:opacity-60`} style={modalPrimaryBtnStyle}>
                         <FiCheck size={14} />
-                        {initial ? "Save changes" : "Create session"}
+                        {isSaving ? "Saving..." : initial ? "Save changes" : "Create Session"}
                     </button>
                 </div>
             </form>
@@ -937,6 +971,76 @@ const GroupFormModal = ({
 // ─────────────────────────────────────────────
 // Join Class Modal
 // ─────────────────────────────────────────────
+const DeleteConfirmModal = ({
+    onClose,
+    onConfirm,
+    isDeleting,
+}: {
+    onClose: () => void;
+    onConfirm: () => void;
+    isDeleting?: boolean;
+}) => (
+    <AnimatedModal onClose={onClose}>
+        <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-white">Delete 1-1 Session</h3>
+            <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <FiX size={16} />
+            </button>
+        </div>
+
+        <div className="rounded-xl px-4 py-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <p className="text-sm leading-relaxed text-white/70">
+                This will permanently remove your one-on-one session from your public mentor profile.
+            </p>
+        </div>
+
+        <div className="mt-5 flex gap-3">
+            <button type="button" onClick={onClose} className={modalSecondaryBtn} style={modalSecondaryBtnStyle}>
+                Cancel
+            </button>
+            <button type="button" onClick={onConfirm} disabled={isDeleting} className={`${modalPrimaryBtn} disabled:opacity-60`} style={{ ...modalPrimaryBtnStyle, background: "#f87171" }}>
+                <FiTrash2 size={14} />
+                {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+        </div>
+    </AnimatedModal>
+);
+
+const DeleteGroupSessionModal = ({
+    onClose,
+    onConfirm,
+    isDeleting,
+}: {
+    onClose: () => void;
+    onConfirm: () => void;
+    isDeleting?: boolean;
+}) => (
+    <AnimatedModal onClose={onClose}>
+        <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-white">Delete Group Session</h3>
+            <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <FiX size={16} />
+            </button>
+        </div>
+
+        <div className="rounded-xl px-4 py-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <p className="text-sm leading-relaxed text-white/70">
+                This will permanently remove this group session and make it unavailable to new registrations.
+            </p>
+        </div>
+
+        <div className="mt-5 flex gap-3">
+            <button type="button" onClick={onClose} className={modalSecondaryBtn} style={modalSecondaryBtnStyle}>
+                Cancel
+            </button>
+            <button type="button" onClick={onConfirm} disabled={isDeleting} className={`${modalPrimaryBtn} disabled:opacity-60`} style={{ ...modalPrimaryBtnStyle, background: "#f87171" }}>
+                <FiTrash2 size={14} />
+                {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+        </div>
+    </AnimatedModal>
+);
+
 const JoinClassModal = ({
     booking,
     onClose,
@@ -1067,7 +1171,7 @@ const GroupDetailsModal = ({
     onClose: () => void;
 }) => {
     const total = session.registrants.length;
-    const spotsLeft = Math.max(0, session.capacity - total);
+    const spotsLeft = session.spotsLeft;
 
     return (
         <AnimatedModal onClose={onClose}>
@@ -1134,13 +1238,20 @@ const GroupDetailsModal = ({
 const MentorSessions = () => {
     // Individual (1-1) session now comes from the API instead of dummy data.
     const [oneOnOne, setOneOnOne] = useState<OneOnOneSession | null>(null);
-    const [groups, setGroups] = useState<GroupSession[]>(DUMMY_GROUPS);
+    const [groups, setGroups] = useState<GroupSession[]>([]);
+    const { addToast } = useGlobalContext();
+
+    const { myProfile } = useGetMyUserProfile();
+    const userProfile = myProfile?.data;
 
     const [showOneOnOneForm, setShowOneOnOneForm] = useState(false);
     const [editingOneOnOne, setEditingOneOnOne] = useState<OneOnOneSession | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const [showGroupForm, setShowGroupForm] = useState(false);
     const [editingGroup, setEditingGroup] = useState<GroupSession | null>(null);
+    const [showGroupDeleteConfirm, setShowGroupDeleteConfirm] = useState(false);
+    const [groupDeleteId, setGroupDeleteId] = useState("");
 
     const [viewingGroup, setViewingGroup] = useState<GroupSession | null>(null);
 
@@ -1151,58 +1262,166 @@ const MentorSessions = () => {
     const canCreateGroup = groups.length < 3;
 
     const { mutate: createIndividualSession, isPending: isCreatingIndividualSession } = useCreateIndividualSession();
+    const { mutate: editIndividualSession, isPending: isEditingIndividualSession } = useEditIndividualSession(oneOnOne?.id ?? "");
+    const { mutate: deleteIndividualSession, isPending: isDeletingIndividualSession } = useDeleteIndividualSession(oneOnOne?.id ?? "");
+    const { mutate: createGroupSession, isPending: isCreatingGroupSession } = useCreateGroupSession();
+    const { mutate: editGroupSession, isPending: isEditingGroupSession } = useEditGroupSession(editingGroup?.id ?? "");
+    const { mutate: deleteGroupSession, isPending: isDeletingGroupSession } = useDeleteGroupSession(groupDeleteId);
     const { mentorIndividualSession, isLoading: isloadingMentorIndividualSession } = useGetMentorIndividualSession();
+    const { mentorGroupSessions, isLoading: isLoadingMentorGroupSessions } = useGetMentorGroupSessions();
 
-    // Sync fetched individual session into local UI state whenever the query resolves/refetches.
+    console.log("mentorIndividualSession", mentorGroupSessions?.data?.results);
+
+    const apiOneOnOneSession = unwrapIndividualSession(mentorIndividualSession?.data);
+
     useEffect(() => {
-        if (isloadingMentorIndividualSession) return;
-        const record = unwrapIndividualSession(
-            mentorIndividualSession as IndividualSessionApiResponse | IndividualSessionApiResponse[] | null | undefined
-        );
-        setOneOnOne(record ? mapApiSessionToLocal(record) : null);
-    }, [mentorIndividualSession, isloadingMentorIndividualSession]);
-
-    const handleSaveOneOnOne = (data: Omit<OneOnOneSession, "id" | "type" | "mentorAvatar" | "booking">) => {
-        if (editingOneOnOne) {
-            setOneOnOne({ ...editingOneOnOne, ...data });
-            setShowOneOnOneForm(false);
-            setEditingOneOnOne(null);
+        if (!apiOneOnOneSession) {
+            setOneOnOne(null);
             return;
         }
 
-        createIndividualSession(mapLocalToCreatePayload(data), {
+        setOneOnOne(mapApiSessionToLocal(apiOneOnOneSession, userProfile?.avatar ?? ""));
+    }, [apiOneOnOneSession, userProfile?.avatar]);
+
+    useEffect(() => {
+        const apiGroupPayload = (mentorGroupSessions as any)?.data ?? mentorGroupSessions ?? {};
+        const rawGroups = Array.isArray(apiGroupPayload?.results)
+            ? apiGroupPayload.results
+            : Array.isArray(apiGroupPayload?.data)
+                ? apiGroupPayload.data
+                : Array.isArray(apiGroupPayload)
+                    ? apiGroupPayload
+                    : [];
+
+        setGroups(rawGroups.map((item: any) => mapApiGroupSessionToLocal(item)));
+    }, [mentorGroupSessions]);
+
+
+    const handleSaveOneOnOne = (data: Omit<OneOnOneSession, "id" | "type" | "mentorAvatar" | "booking">) => {
+        const payload = mapLocalToCreatePayload(data);
+
+        if (editingOneOnOne) {
+            editIndividualSession(payload, {
+                onSuccess: (response: any) => {
+                    const updatedSession = unwrapIndividualSession(response?.data ?? response);
+                    if (updatedSession) {
+                        setOneOnOne(mapApiSessionToLocal(updatedSession, userProfile?.avatar ?? ""));
+                    }
+                    setShowOneOnOneForm(false);
+                    setEditingOneOnOne(null);
+                },
+                onError: (error: unknown) => {
+                    const apiError = error as any;
+                    addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
+                },
+            });
+            return;
+        }
+
+        createIndividualSession(payload, {
             onSuccess: (response: any) => {
-                setOneOnOne(mapApiSessionToLocal(response));
+                const createdSession = unwrapIndividualSession(response?.data ?? response);
+                if (createdSession) {
+                    setOneOnOne(mapApiSessionToLocal(createdSession, userProfile?.avatar ?? ""));
+                }
+                addToast("1:1 session created successfully", "success");
                 setShowOneOnOneForm(false);
                 setEditingOneOnOne(null);
             },
             onError: (error: unknown) => {
-                console.error("Failed to create individual session:", error);
+                const apiError = error as any;
+                addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
             },
         });
     };
 
-    const handleSaveGroup = (data: Omit<GroupSession, "id" | "type" | "registrants">) => {
-        if (editingGroup) {
-            setGroups((prev) => prev.map((g) => (g.id === editingGroup.id ? { ...g, ...data } : g)));
-        } else {
-            setGroups((prev) => [
-                ...prev,
-                { id: `g-${Date.now()}`, type: "group", registrants: [], ...data },
-            ]);
+    const handleSaveGroup = (data: GroupSessionFormValues) => {
+        const formData = new FormData();
+
+        formData.append("name", data.name);
+        formData.append("description", data.description);
+        formData.append("price_per_participant", String(data.price));
+        formData.append("start_date", data.startDate);
+        formData.append("end_date", data.endDate);
+        formData.append("daily_time", data.dailyTime);
+        formData.append("max_participants", String(data.capacity));
+
+        if (data.imageFile) {
+            formData.append("banner", data.imageFile);
         }
-        setShowGroupForm(false);
-        setEditingGroup(null);
+
+        const requestFn = editingGroup
+            ? () => editGroupSession(formData, {
+                onSuccess: () => {
+                    addToast("Group session updated", "success");
+                    setShowGroupForm(false);
+                    setEditingGroup(null);
+                },
+                onError: (error: any) => {
+                    const apiError = error as any;
+                    addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
+                },
+            })
+            : () => createGroupSession(formData, {
+                onSuccess: () => {
+                    addToast("Group session created", "success");
+                    setShowGroupForm(false);
+                    setEditingGroup(null);
+                },
+                onError: (error: any) => {
+                    const apiError = error as any;
+                    addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
+                },
+            });
+
+        requestFn();
     };
 
     const handleDeleteOneOnOne = () => {
-        if (window.confirm("Delete your 1-1 session?")) setOneOnOne(null);
+        if (oneOnOne) {
+            setShowDeleteConfirm(true);
+        }
+    };
+
+    const confirmDeleteOneOnOne = () => {
+        if (!oneOnOne) return;
+
+        deleteIndividualSession(undefined, {
+            onSuccess: () => {
+                setOneOnOne(null);
+                setEditingOneOnOne(null);
+                setShowDeleteConfirm(false);
+                addToast("1:1 session deleted", "success");
+            },
+            onError: (error: unknown) => {
+                const apiError = error as any;
+                addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
+            },
+        });
     };
 
     const handleDeleteGroup = (id: string) => {
-        if (window.confirm("Delete this Group session?")) {
-            setGroups((prev) => prev.filter((g) => g.id !== id));
-        }
+        setGroupDeleteId(id);
+        setShowGroupDeleteConfirm(true);
+    };
+
+    const confirmDeleteGroup = () => {
+        if (!groupDeleteId) return;
+
+        deleteGroupSession(undefined, {
+            onSuccess: () => {
+                setGroups((prev) => prev.filter((g) => g.id !== groupDeleteId));
+                addToast("Group session deleted", "success");
+                setGroupDeleteId("");
+                setShowGroupDeleteConfirm(false);
+            },
+            onError: (error: any) => {
+                const apiError = error as any;
+                addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
+                setGroupDeleteId("");
+                setShowGroupDeleteConfirm(false);
+            },
+        });
     };
 
     // ── Booking flow handlers ──
@@ -1246,7 +1465,16 @@ const MentorSessions = () => {
 
     return (
         <div>
-            <LoadingOverlay visible={isCreatingIndividualSession || isloadingMentorIndividualSession} />
+            <LoadingOverlay visible={
+                isCreatingIndividualSession ||
+                isEditingIndividualSession ||
+                isDeletingIndividualSession ||
+                isCreatingGroupSession ||
+                isEditingGroupSession ||
+                isDeletingGroupSession ||
+                isloadingMentorIndividualSession ||
+                isLoadingMentorGroupSessions
+            } />
             <div className="mb-6">
                 <h2 className="text-xl font-bold text-white sm:text-2xl">My Sessions</h2>
                 <p className="text-sm text-white/40">
@@ -1355,7 +1583,21 @@ const MentorSessions = () => {
                     initial={editingOneOnOne}
                     onClose={() => { setShowOneOnOneForm(false); setEditingOneOnOne(null); }}
                     onSave={handleSaveOneOnOne}
-                    isSaving={isCreatingIndividualSession}
+                    isSaving={isCreatingIndividualSession || isEditingIndividualSession}
+                />
+            )}
+            {showDeleteConfirm && (
+                <DeleteConfirmModal
+                    onClose={() => setShowDeleteConfirm(false)}
+                    onConfirm={confirmDeleteOneOnOne}
+                    isDeleting={isDeletingIndividualSession}
+                />
+            )}
+            {showGroupDeleteConfirm && (
+                <DeleteGroupSessionModal
+                    onClose={() => { setShowGroupDeleteConfirm(false); setGroupDeleteId(""); }}
+                    onConfirm={confirmDeleteGroup}
+                    isDeleting={isDeletingGroupSession}
                 />
             )}
             {showGroupForm && (
@@ -1363,6 +1605,7 @@ const MentorSessions = () => {
                     initial={editingGroup}
                     onClose={() => { setShowGroupForm(false); setEditingGroup(null); }}
                     onSave={handleSaveGroup}
+                    isSaving={isCreatingGroupSession || isEditingGroupSession}
                 />
             )}
             {viewingGroup && (

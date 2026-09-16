@@ -1,31 +1,45 @@
-import { useState } from "react";
-import { BsStarFill } from "react-icons/bs";
-import { FaLinkedinIn, FaXTwitter } from "react-icons/fa6";
+import React, { useState } from "react";
+import { BsFillCheckCircleFill, BsStarFill } from "react-icons/bs";
+import { FaFacebookF, FaLinkedinIn, FaRedditAlien, FaWhatsapp } from "react-icons/fa";
 import {
-    FiAlertCircle,
+    FiArrowLeft,
+    FiAward,
     FiBookOpen,
+    FiBriefcase,
+    FiCalendar,
+    FiCheck,
     FiCheckCircle,
+    FiClock,
+    FiCopy,
     FiGlobe,
-    FiLoader,
+    FiLinkedin,
+    FiMail,
+    FiMapPin,
     FiPlayCircle,
-    FiSend,
     FiShare2,
-    FiShoppingBag,
+    FiStar,
     FiTag,
-    FiTarget,
+    FiTwitter,
     FiUser,
-    FiX,
-    FiZap,
+    FiUsers,
+    FiX
 } from "react-icons/fi";
 import { Link } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
-import logo from '../../assets/betamindlogo.png';
 import LoadingOverlay from "../../component/LoadingOverlay";
 import { cardBg, cardBorder, pageBackground } from "../../component/MentorDashboardStyles";
+import Button from "../../component/ui/Button";
 import { useBookMentorship } from "../../hooks/mutations/allMutation";
 import { useGetMentorDigitalProduct, useGetMyMentorProfile, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
-import { useGlobalContext } from "../../providers/GlobalContext";
 
+type MentorReview = {
+    id: string | number;
+    reviewer_name: string;
+    reviewer_avatar?: string;
+    rating: number;
+    comment: string;
+    created_at: string;
+};
 
 type ApiDigitalProduct = {
     id: string;
@@ -55,25 +69,164 @@ type Product = {
     link: string;
 };
 
+type MentorPublicSession = {
+    id: string;
+    type: "one-on-one" | "group";
+    title: string;
+    description: string;
+    price: number;
+    startDate: string;
+    endDate: string;
+    dailyTime: string;
+    image: string;
+    capacity: number;
+    spotsLeft: number;
+    status: string;
+    durationLabel: string;
+};
+
+type SocialLink = {
+    linkedin?: string;
+    twitter?: string;
+    website?: string;
+};
+
+type BookMentorshipPayload = {
+    goal: string;
+    message: string;
+};
+
+const DUMMY_INTRO_VIDEO = "https://youtu.be/BD8fDugktAE";
+const DUMMY_SESSIONS_COMPLETED = 48;
+const DUMMY_RATING = 5;
+
+const DUMMY_REVIEWS: MentorReview[] = [
+    {
+        id: 1,
+        reviewer_name: "Sarah K.",
+        rating: 5,
+        created_at: "Jul 23, 2026",
+        comment:
+            "Really helped me organize my thoughts and communicate more clearly. Sessions are practical and easy to follow, and always tailored to what I actually needed that week.",
+    },
+    {
+        id: 2,
+        reviewer_name: "Daniel O.",
+        rating: 5,
+        created_at: "Jul 18, 2026",
+        comment: "Patient, encouraging, and always prepared. I noticed real improvement after just a few sessions.",
+    },
+    {
+        id: 3,
+        reviewer_name: "Amara N.",
+        rating: 5,
+        created_at: "Jul 11, 2026",
+        comment: "Great mentor, gives honest feedback and genuinely wants you to improve.",
+    },
+    {
+        id: 4,
+        reviewer_name: "James T.",
+        rating: 4,
+        created_at: "Jul 5, 2026",
+        comment: "Solid sessions overall, learned a lot about presenting my work with more confidence.",
+    },
+];
+
+const DUMMY_MENTOR_SESSIONS: MentorPublicSession[] = [
+    {
+        id: "session-1",
+        type: "one-on-one",
+        title: "1:1 Career Mentorship",
+        description: "A focused conversation to review your goals, strengths, and next steps for career growth.",
+        price: 45000,
+        startDate: "2026-09-18",
+        endDate: "2026-09-25",
+        dailyTime: "14:00",
+        image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80",
+        capacity: 1,
+        spotsLeft: 1,
+        status: "open",
+        durationLabel: "45 mins",
+    },
+    {
+        id: "session-2",
+        type: "group",
+        title: "Product Design Critique Circle",
+        description: "A small-group review session for portfolios, case studies, and design presentations.",
+        price: 15000,
+        startDate: "2026-09-20",
+        endDate: "2026-09-27",
+        dailyTime: "18:30",
+        image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80",
+        capacity: 12,
+        spotsLeft: 6,
+        status: "open",
+        durationLabel: "60 mins",
+    },
+];
+
+const getYouTubeEmbedUrl = (url: string): string | null => {
+    const patterns = [
+        /youtu\.be\/([a-zA-Z0-9_-]{6,})/,
+        /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{6,})/,
+        /youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/,
+        /youtube\.com\/shorts\/([a-zA-Z0-9_-]{6,})/,
+    ];
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match?.[1]) return `https://www.youtube.com/embed/${match[1]}`;
+    }
+    return null;
+};
+
 const mapApiProductToProduct = (p: ApiDigitalProduct): Product => ({
     id: p.id,
     type: p.product_type === "course" ? "Course" : "Book",
     title: p.title,
     price: Number(p.price) || 0,
     thumbnail: p.cover_image,
-    // Not returned by this endpoint yet — default to 0 until the API exposes them.
     sold: 0,
     rating: 0,
     link: p.link,
 });
 
-const extractHandle = (url?: string) => {
-    if (!url) return "";
-    const clean = url.replace(/\/$/, "");
-    return clean.substring(clean.lastIndexOf("/") + 1).replace(/^@/, "");
+const formatCurrency = (value: number) => `₦${value.toLocaleString()}`;
+const formatDayDate = (value: string) => {
+    if (!value) return "TBD";
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+};
+const formatTimeDisplay = (value: string) => {
+    if (!value) return "TBD";
+    const [hoursStr, minutesStr] = value.split(":");
+    const hours = Number(hoursStr);
+    const minutes = Number(minutesStr ?? 0);
+    const suffix = hours >= 12 ? "PM" : "AM";
+    const normalizedHour = hours % 12 || 12;
+    return `${normalizedHour}:${String(minutes).padStart(2, "0")} ${suffix}`;
 };
 
-// ---------- Product card (public, read-only — links straight out) ----------
+const MENTORSHIP_GOALS = [
+    "Career guidance",
+    "Skill development",
+    "Interview preparation",
+    "Resume / portfolio review",
+    "Business or startup advice",
+    "Something else",
+] as const;
+
+const SOCIAL_ICON_MAP: Record<keyof SocialLink, React.ReactNode> = {
+    linkedin: <FiLinkedin size={16} />,
+    twitter: <FiTwitter size={16} />,
+    website: <FiGlobe size={16} />,
+};
+
+const SOCIAL_LABEL_MAP: Record<keyof SocialLink, string> = {
+    linkedin: "LinkedIn",
+    twitter: "X (Twitter)",
+    website: "Website",
+};
 
 const ProductCard: React.FC<{ product: Product }> = ({ product }) => (
     <a
@@ -87,21 +240,11 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => (
             {product.thumbnail ? (
                 <img src={product.thumbnail} alt={product.title} className="h-40 w-full object-cover sm:h-48" />
             ) : (
-                <div
-                    className="flex h-40 w-full items-center justify-center sm:h-48"
-                    style={{ background: "rgba(255,255,255,0.03)" }}
-                >
-                    {product.type === "Course" ? (
-                        <FiPlayCircle size={28} className="text-white/15" />
-                    ) : (
-                        <FiBookOpen size={28} className="text-white/15" />
-                    )}
+                <div className="flex h-40 w-full items-center justify-center sm:h-48" style={{ background: "rgba(255,255,255,0.03)" }}>
+                    {product.type === "Course" ? <FiPlayCircle size={28} className="text-white/15" /> : <FiBookOpen size={28} className="text-white/15" />}
                 </div>
             )}
-            <span
-                className="absolute left-3 top-3 flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold"
-                style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
-            >
+            <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold" style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}>
                 {product.type === "Course" ? <FiPlayCircle size={13} /> : <FiBookOpen size={13} />}
                 {product.type}
             </span>
@@ -126,255 +269,309 @@ const ProductCard: React.FC<{ product: Product }> = ({ product }) => (
     </a>
 );
 
-const ProductCardSkeleton: React.FC = () => (
-    <div className="flex flex-col overflow-hidden rounded-xl animate-pulse" style={{ background: cardBg, border: cardBorder }}>
-        <div className="h-40 w-full bg-white/5 sm:h-48" />
-        <div className="flex flex-col gap-2.5 p-4 sm:p-5">
-            <div className="h-4 w-3/4 rounded bg-white/5" />
-            <div className="h-3 w-1/2 rounded bg-white/5" />
+const Panel: React.FC<{ icon?: React.ReactNode; title: string; subtitle?: string; children: React.ReactNode }> = ({ icon, title, subtitle, children }) => (
+    <div className="mb-5 rounded-xl p-4 sm:p-4" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white/90">
+            {icon}
+            {title}
+        </div>
+        {subtitle && <p className="mb-4 text-xs text-white/35">{subtitle}</p>}
+        {children}
+    </div>
+);
+
+const SectionPlaceholder: React.FC<{ text: string }> = ({ text }) => (
+    <div className="flex items-center justify-center rounded-lg px-4 py-6 text-center" style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)" }}>
+        <p className="text-xs italic text-white/25">{text}</p>
+    </div>
+);
+
+const ReviewAvatar: React.FC<{ name: string; avatar?: string }> = ({ name, avatar }) => {
+    const initials = name
+        .split(" ")
+        .map((part) => part[0])
+        .filter(Boolean)
+        .slice(0, 2)
+        .join("")
+        .toUpperCase();
+
+    return avatar ? (
+        <img src={avatar} alt={name} className="h-10 w-10 shrink-0 rounded-full object-cover" />
+    ) : (
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }}>
+            {initials || "?"}
+        </div>
+    );
+};
+
+const ReviewCard: React.FC<{ review: MentorReview }> = ({ review }) => {
+    const [expanded, setExpanded] = useState(false);
+    const isLong = review.comment.length > 160;
+    const displayText = expanded || !isLong ? review.comment : `${review.comment.slice(0, 160).trim()}…`;
+
+    return (
+        <div>
+            <div className="mb-3 flex items-center gap-3">
+                <ReviewAvatar name={review.reviewer_name} avatar={review.reviewer_avatar} />
+                <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">{review.reviewer_name}</p>
+                    <p className="text-xs text-white/35">{review.created_at}</p>
+                </div>
+            </div>
+            <div className="flex items-center gap-0.5">
+                {Array.from({ length: 5 }).map((_, index) => (
+                    <FiStar
+                        key={index}
+                        size={13}
+                        style={{
+                            color: index < Math.round(review.rating) ? "black" : "rgba(255,255,255,0.15)",
+                            fill: index < Math.round(review.rating) ? "#a6ff00" : "none",
+                        }}
+                    />
+                ))}
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-white">
+                {displayText}
+                {isLong && (
+                    <button onClick={() => setExpanded((prev) => !prev)} className="mt-1 block text-xs font-semibold hover:underline" style={{ color: "#a6ff00" }}>
+                        {expanded ? "Show less" : "Show more"}
+                    </button>
+                )}
+            </p>
+        </div>
+    );
+};
+
+const MentorSessionCard: React.FC<{ session: MentorPublicSession; onSelect: (session: MentorPublicSession) => void }> = ({ session, onSelect }) => (
+    <div className="rounded-2xl bg-white/5 p-3 sm:p-4">
+        <div className="flex gap-3 sm:gap-4">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md sm:h-16 sm:w-16">
+                <img src={session.image} alt={session.title} className="h-full w-full object-cover" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+                <h3 className="line-clamp-1 text-base font-bold text-white">{session.title}</h3>
+                <p className="line-clamp-2 text-xs leading-relaxed text-white/55">{session.description}</p>
+            </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-white/55">
+            <span className="flex items-center gap-1.5">
+                <FiClock size={13} />
+                {session.dailyTime ? formatTimeDisplay(session.dailyTime) : "Flexible"}
+            </span>
+            <span className="text-white/40">
+                {formatDayDate(session.startDate)} – {formatDayDate(session.endDate)}
+            </span>
+            <span className="rounded bg-white px-2 py-0.5 text-[10px] font-semibold capitalize text-black">
+                {session.type === "one-on-one" ? "1-1 Session" : "Group Session"}
+            </span>
+        </div>
+
+        <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
+            <div className="flex items-center gap-2">
+                <span className="text-[11px] text-white/40">
+                    {session.type === "one-on-one" ? "Single mentor slot" : `${session.capacity} total · ${session.spotsLeft} left`}
+                </span>
+            </div>
+            <p className="text-base font-bold text-white sm:text-lg">{formatCurrency(session.price)}</p>
+        </div>
+
+        <button type="button" onClick={() => onSelect(session)} className="mt-2 w-full rounded-md bg-white px-4 py-2.5 text-xs font-bold text-black">
+            Book Session
+        </button>
+    </div>
+);
+
+const SessionDetailsModal: React.FC<{ session: MentorPublicSession; onClose: () => void; onBook: () => void }> = ({ session, onClose, onBook }) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm" onClick={onClose}>
+        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl p-5 shadow-2xl" style={{ background: "rgba(10,13,9,0.9)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">Session Details</h3>
+                <button type="button" onClick={onClose} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <FiX size={16} />
+                </button>
+            </div>
+
+            <div className="mb-4 overflow-hidden rounded-xl">
+                <img src={session.image} alt={session.title} className="h-44 w-full object-cover" />
+            </div>
+
+            <div className="mb-3 flex items-center justify-between gap-3">
+                <h4 className="text-xl font-bold text-white">{session.title}</h4>
+                <span className="rounded bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-black">
+                    {session.type === "one-on-one" ? "1-1 Session" : "Group Session"}
+                </span>
+            </div>
+
+            <p className="mb-5 text-sm leading-relaxed text-white/65">{session.description}</p>
+
+            <div className="grid grid-cols-2 gap-3 text-xs text-white/75">
+                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-white/40">Date</p>
+                    <p className="mt-1 font-semibold text-white">
+                        {formatDayDate(session.startDate)} – {formatDayDate(session.endDate)}
+                    </p>
+                </div>
+                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-white/40">Time</p>
+                    <p className="mt-1 font-semibold text-white">{formatTimeDisplay(session.dailyTime)}</p>
+                </div>
+                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-white/40">Duration</p>
+                    <p className="mt-1 font-semibold text-white">{session.durationLabel}</p>
+                </div>
+                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p className="text-white/40">Availability</p>
+                    <p className="mt-1 font-semibold text-white">{session.spotsLeft > 0 ? `${session.spotsLeft} spots left` : "Sold out"}</p>
+                </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-between rounded-lg px-3 py-3" style={{ background: "rgba(166,255,0,0.08)", border: "1px solid rgba(166,255,0,0.18)" }}>
+                <span className="text-xs font-semibold uppercase tracking-wide text-white/60">Price</span>
+                <span className="text-lg font-black text-white">{formatCurrency(session.price)}</span>
+            </div>
+
+            <div className="mt-5 flex gap-3">
+                <button type="button" onClick={onClose} className="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white/80" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    Close
+                </button>
+                <button type="button" onClick={onBook} className="flex-1 rounded-lg py-2.5 text-sm font-bold text-black" style={{ background: "#fff" }}>
+                    Book Session
+                </button>
+            </div>
         </div>
     </div>
 );
 
-const EmptyProducts: React.FC = () => (
-    <div
-        className="col-span-full flex flex-col items-center justify-center rounded-xl px-4 py-14 text-center"
-        style={{ background: cardBg, border: "1px dashed rgba(255,255,255,0.1)" }}
-    >
-        <FiShoppingBag size={22} className="mb-3 text-white/20" />
-        <p className="text-sm text-white/40">No products listed yet.</p>
-    </div>
-);
+const ShareModal: React.FC<{ mentorName: string; mentorAvatar?: string; rating: number | null; reviewCount: number; isApproved?: boolean; onClose: () => void }> = ({ mentorName, mentorAvatar, rating, reviewCount, isApproved, onClose }) => {
+    const [copied, setCopied] = useState(false);
+    const shareUrl = window.location.href;
+    const shareTitle = mentorName ? `${mentorName} on Betamind` : "Mentor profile";
 
-// ---------- Book mentorship goal chips (mirrors the Mentor detail page) ----------
-const MENTORSHIP_GOALS = [
-    "Career guidance",
-    "Skill development",
-    "Interview preparation",
-    "Resume / portfolio review",
-    "Business or startup advice",
-    "Something else",
-] as const;
-
-type BookMentorshipPayload = {
-    goal: string;
-    message: string;
-};
-
-// ---------- Book mentorship modal (same pattern as the Mentor detail page) ----------
-const BookMentorshipModal: React.FC<{
-    mentorName: string;
-    mentorAvatar?: string;
-    isSubmitting?: boolean;
-    errorMessage?: string | null;
-    onClose: () => void;
-    onSubmit: (payload: BookMentorshipPayload) => void;
-}> = ({ mentorName, mentorAvatar, isSubmitting = false, errorMessage, onClose, onSubmit }) => {
-    const [goal, setGoal] = useState<string | null>(null);
-    const [message, setMessage] = useState("");
-
-    const canSubmit = !!goal && message.trim().length > 0 && !isSubmitting;
-
-    const handleSubmit = () => {
-        if (!canSubmit || !goal) return;
-        onSubmit({ goal, message: message.trim() });
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // Clipboard blocked.
+        }
     };
 
+    const shareLinks = [
+        { id: "whatsapp", label: "WhatsApp", icon: <FaWhatsapp size={16} />, href: `https://wa.me/?text=${encodeURIComponent(`${shareTitle} ${shareUrl}`)}` },
+        { id: "reddit", label: "Reddit", icon: <FaRedditAlien size={16} />, href: `https://www.reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(shareTitle)}` },
+        { id: "facebook", label: "Facebook", icon: <FaFacebookF size={16} />, href: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}` },
+        { id: "email", label: "Email", icon: <FiMail size={16} />, href: `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(shareUrl)}` },
+        { id: "linkedin", label: "LinkedIn", icon: <FaLinkedinIn size={16} />, href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}` },
+        { id: "x", label: "X (Twitter)", icon: <FiTwitter size={16} />, href: `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareTitle)}` },
+    ];
+
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
-            onClick={isSubmitting ? undefined : onClose}
-        >
-            <div
-                className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl"
-                style={{
-                    background: "rgba(10,13,9,0.55)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backdropFilter: "blur(24px)",
-                    WebkitBackdropFilter: "blur(24px)",
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Header */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm" onClick={onClose}>
+            <div className="w-full max-w-md overflow-y-auto rounded-2xl p-6 shadow-2xl" style={{ background: "rgba(10,13,9,0.55)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }} onClick={(e) => e.stopPropagation()}>
                 <div className="mb-5 flex items-center justify-between">
-                    <div className="flex min-w-0 items-center gap-3">
-                        {mentorAvatar ? (
-                            <img
-                                src={mentorAvatar}
-                                alt={mentorName}
-                                className="h-11 w-11 shrink-0 rounded-xl object-cover"
-                                style={{ border: "1px solid rgba(255,255,255,0.1)" }}
-                            />
-                        ) : (
-                            <div
-                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-                                style={{ background: "rgba(255,255,255,0.08)" }}
-                            >
-                                <FiUser size={18} className="text-white/40" />
-                            </div>
-                        )}
-                        <div className="min-w-0">
-                            <h3 className="truncate text-lg font-bold leading-tight text-white">Book mentorship</h3>
-                            <p className="truncate text-xs text-white/40">with {mentorName}</p>
-                        </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-white">Share this mentor</h3>
+                        <p className="mt-0.5 text-xs text-white/40">{mentorName}</p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={isSubmitting}
-                        aria-label="Close"
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                        style={{ background: "rgba(255,255,255,0.06)" }}
-                    >
+                    <button type="button" onClick={onClose} aria-label="Close" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
                         <FiX size={16} />
                     </button>
                 </div>
 
-                {/* Error banner */}
-                {errorMessage && (
-                    <div
-                        className="mb-5 flex items-start gap-2 rounded-lg px-3.5 py-2.5 text-xs font-medium"
-                        style={{ background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.25)", color: "#ff9a9a" }}
-                    >
-                        <FiAlertCircle size={14} className="mt-0.5 shrink-0" />
-                        <span>{errorMessage}</span>
-                    </div>
-                )}
-
-                {/* Goal selection */}
-                <div className="mb-6">
-                    <label className="mb-2.5 flex items-center gap-1.5 text-sm font-semibold text-white">
-                        <FiTarget size={14} className="text-neutral-400" />
-                        What best describes the goal of your mentorship?
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                        {MENTORSHIP_GOALS.map((option) => {
-                            const active = goal === option;
-                            return (
-                                <button
-                                    key={option}
-                                    type="button"
-                                    disabled={isSubmitting}
-                                    onClick={() => setGoal(option)}
-                                    className="cursor-pointer rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                                    style={
-                                        active
-                                            ? { background: "#a6ff00", color: "#000" }
-                                            : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.1)" }
-                                    }
-                                >
-                                    {option}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Message */}
-                <div className="mb-6">
-                    <label className="mb-2 block text-sm font-semibold text-white">Write a message to {mentorName}</label>
-                    <textarea
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder={`Hi ${mentorName}, I'd love your help with...`}
-                        rows={5}
-                        disabled={isSubmitting}
-                        className="w-full resize-none rounded-xl bg-transparent px-4 py-3 text-sm text-white/90 outline-none placeholder:text-white/25 disabled:opacity-60"
-                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                    />
-                </div>
-
-                {/* Submit */}
-                <button
-                    onClick={handleSubmit}
-                    disabled={!canSubmit}
-                    className="cursor-pointer flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3.5 text-sm font-bold text-black transition-transform enabled:hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-40"
-                    style={{ background: "#fff" }}
-                >
-                    {isSubmitting ? (
-                        <>
-                            <FiLoader size={14} className="animate-spin" />
-                            Sending...
-                        </>
+                <div className="mb-6 flex items-center gap-3">
+                    {mentorAvatar ? (
+                        <img src={mentorAvatar} alt={mentorName} className="h-14 w-14 shrink-0 rounded-xl object-cover" style={{ border: "1px solid rgba(255,255,255,0.1)" }} />
                     ) : (
-                        <>
-                            <FiSend size={14} />
-                            Send request
-                        </>
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white/70"><FiUser size={18} /></div>
                     )}
-                </button>
+                    <div className="min-w-0">
+                        <p className="truncate text-base font-bold text-white">{mentorName}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {rating !== null && (
+                                <span className="flex items-center gap-1 text-xs text-white/60">
+                                    <FiStar size={12} style={{ color: "#a6ff00", fill: "#a6ff00" }} />
+                                    {rating.toFixed(1)} ({reviewCount} review{reviewCount === 1 ? "" : "s"})
+                                </span>
+                            )}
+                            {isApproved && (
+                                <span className="flex items-center gap-1 text-xs text-white/60">
+                                    <FiCheckCircle size={12} className="text-neutral-600" />
+                                    Verified
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mb-6">
+                    <label className="mb-2 block text-sm font-semibold text-white">Profile link</label>
+                    <div className="flex items-center gap-3 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                        <input readOnly value={shareUrl} onFocus={(e) => e.currentTarget.select()} className="w-full rounded-xl bg-transparent px-4 py-3 text-sm text-white/70 outline-none" />
+                        <button onClick={handleCopy} className="mr-1.5 shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold transition-transform hover:scale-[1.02]" style={{ background: "#a6ff00", color: "#000" }}>
+                            {copied ? <FiCheck size={13} /> : <FiCopy size={13} />}
+                            {copied ? "Copied" : "Copy"}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                    {shareLinks.map((link) => (
+                        <a key={link.id} href={link.href} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white/80 transition-colors hover:text-white" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                            {link.icon}
+                            {link.label}
+                        </a>
+                    ))}
+                </div>
+
+                <Button variant="white" className="mt-6 w-full py-3.5 text-xs" onClick={onClose}>
+                    Done
+                </Button>
             </div>
         </div>
     );
 };
 
-// ---------- Floating "Powered by Betamind" badge ----------
-const PoweredByBadge: React.FC = () => (
-    <a
-        href="https://betamind.online"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-5 bg-white text-black right-5 z-40 flex items-center gap-2 rounded-full px-6 py-3 text-xs font-semibold  shadow-2xl transition-transform hover:scale-[1.04]"
-        style={{
-            backdropFilter: "blur(12px)",
-        }}
-    >
-        <FiZap size={13} />
-        <span className="italic">Powered by</span> <span className="text-[#547511] text-base font-bold">Betamind</span>
-    </a>
-);
-
-// ---------- Page ----------
-
 const PublicProfile = () => {
-    const { addToast } = useGlobalContext();
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
     const { myMentorProfile, isLoading: mentorLoading } = useGetMyMentorProfile();
-    const { digitalProduct, isLoading: productsLoading } = useGetMentorDigitalProduct();
+    const { digitalProduct } = useGetMentorDigitalProduct();
     const { mutate: bookMentorship, isPending: isBooking } = useBookMentorship();
 
-    const [copied, setCopied] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
     const [showBookModal, setShowBookModal] = useState(false);
     const [bookingError, setBookingError] = useState<string | null>(null);
+    const [selectedSession, setSelectedSession] = useState<MentorPublicSession | null>(null);
+    const [showFullBio, setShowFullBio] = useState(false);
 
     const userProfile = myProfile?.data;
     const mentorProfile = myMentorProfile?.data;
-
-    const rawProducts: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data)
-        ? digitalProduct.data
-        : digitalProduct?.data?.results ?? [];
+    const rawProducts: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data) ? digitalProduct.data : digitalProduct?.data?.results ?? [];
     const publishedProducts = rawProducts.filter((p) => p.is_published);
     const products: Product[] = publishedProducts.map(mapApiProductToProduct);
 
+    const mentorName = [mentorProfile?.nick_name, userProfile?.first_name, userProfile?.last_name].filter(Boolean).join(" ") || "Mentor";
+    const mentorAvatar = userProfile?.avatar || mentorProfile?.cover_images;
+    const mentorId = mentorProfile?.id;
+    const mentorSessions: MentorPublicSession[] = DUMMY_MENTOR_SESSIONS;
+    const location = [mentorProfile?.state, mentorProfile?.country].filter(Boolean).join(", ") || "Location not added yet";
     const categories: string[] = Array.isArray(mentorProfile?.categories) ? mentorProfile.categories : [];
-    const socialLink = mentorProfile?.social_link ?? {};
-    const linkedinHandle = extractHandle(socialLink.linkedin);
-    const xHandle = extractHandle(socialLink.twitter);
-    const website: string = socialLink.website ?? "";
+    const expertise: string[] = Array.isArray(mentorProfile?.expertise) ? mentorProfile.expertise : [];
+    const socialLink: SocialLink = mentorProfile?.social_link ?? {};
+    const activeSocials = (Object.keys(socialLink) as (keyof SocialLink)[]).filter((platform) => !!socialLink[platform]);
+    const introVideo: string | null = mentorProfile?.video_link ?? DUMMY_INTRO_VIDEO;
+    const introVideoEmbedUrl = introVideo ? getYouTubeEmbedUrl(introVideo) : null;
+    const reviews: MentorReview[] = DUMMY_REVIEWS;
+    const reviewCount: number = mentorProfile?.review_count ?? reviews.length;
+    const averageRating: number | null = typeof mentorProfile?.rating === "number" ? mentorProfile.rating : reviews.length > 0 ? DUMMY_RATING : null;
+    const sessionsCompleted: number | null = typeof mentorProfile?.sessions_completed === "number" ? mentorProfile.sessions_completed : DUMMY_SESSIONS_COMPLETED;
 
-    const mentorName =
-        mentorProfile?.nick_name || `${userProfile?.first_name ?? ""} ${userProfile?.last_name ?? ""}`.trim() || "Mentor";
-    const mentorAvatar: string | undefined = userProfile?.avatar;
-    const mentorId: string | undefined = mentorProfile?.id;
-
-    const publicUrl = userProfile?.username ? `${window.location.origin}/${userProfile.username}` : window.location.href;
-
-    const handleShare = async () => {
-        try {
-            if (navigator.share) {
-                await navigator.share({ title: `${userProfile?.first_name}'s profile`, url: publicUrl });
-                return;
-            }
-            await navigator.clipboard.writeText(publicUrl);
-            setCopied(true);
-            addToast("Profile link copied", "success");
-            setTimeout(() => setCopied(false), 2000);
-        } catch (error) {
-            if (!(error instanceof DOMException && error.name === "AbortError")) {
-                addToast("Could not copy link. Please try again.", "error");
-            }
-        }
-    };
+    const bio = mentorProfile?.bio || "";
+    const maxBioLength = 180;
+    const isLongBio = bio.length > maxBioLength;
+    const displayedBio = showFullBio || !isLongBio ? bio : `${bio.slice(0, maxBioLength).trim()}...`;
 
     const handleBookMentorship = () => {
         setBookingError(null);
@@ -382,7 +579,7 @@ const PublicProfile = () => {
     };
 
     const handleCloseBookModal = () => {
-        if (isBooking) return; // avoid closing mid-request
+        if (isBooking) return;
         setShowBookModal(false);
         setBookingError(null);
     };
@@ -394,13 +591,8 @@ const PublicProfile = () => {
         }
 
         setBookingError(null);
-
         bookMentorship(
-            {
-                mentor_id: mentorId,
-                goal: payload.goal,
-                description: payload.message,
-            },
+            { mentor_id: mentorId, goal: payload.goal, description: payload.message },
             {
                 onSuccess: () => {
                     setShowBookModal(false);
@@ -429,171 +621,304 @@ const PublicProfile = () => {
     }
 
     return (
-        <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
+        <div className="min-h-screen w-full" style={{ background: "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)" }}>
             <ToastContainer theme="dark" />
-            <LoadingOverlay visible={isBooking} />
+            {isBooking && <LoadingOverlay visible={true} />}
 
-            <div className="mx-auto max-w-4xl px-4 pb-16 sm:px-6">
-                {/* Logo bar */}
-                <div className="flex h-16 items-center sm:h-20">
-                    <Link to={'/'}
-                        className="flex items-center w-28 justify-center rounded-lg text-xs font-black"
-                        title="Logo placeholder"
-                    >
-                        <img src={logo} alt="Logo" className="" />
-                    </Link>
-                </div>
+            <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8 sm:py-14">
+                <Link to="/dashboard/explore" className="mb-6 inline-flex items-center gap-1.5 text-sm font-semibold text-white/40 transition-colors hover:text-white/70">
+                    <FiArrowLeft size={14} />
+                    Explore
+                </Link>
 
-                {/* Cover + avatar */}
                 <div className="relative mb-16 sm:mb-20">
-                    <div
-                        className="h-32 w-full overflow-hidden rounded-b-2xl sm:h-48"
-                        style={{
-                            background: mentorProfile?.cover_images
-                                ? undefined
-                                : "linear-gradient(160deg, #6ee7b7 0%, #a6ff00 45%, #0a0d09 100%)",
-                        }}
-                    >
-                        {mentorProfile?.cover_images && (
-                            <img src={mentorProfile.cover_images} alt="Cover" className="h-full w-full object-cover" />
+                    <div className="relative overflow-hidden rounded-lg" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+                        {mentorProfile?.cover_images ? (
+                            <img src={mentorProfile.cover_images} alt={mentorName} className="h-32 w-full object-cover lg:h-40" />
+                        ) : (
+                            <div className="h-32 w-full lg:h-40" style={{ background: "linear-gradient(90deg, #34d399 0%, #a3e635 45%, #000000 100%)" }} />
                         )}
+                        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 100%)" }} />
                     </div>
 
-                    {/* Share — kept obvious with solid accent fill instead of a translucent icon-only button */}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            void handleShare();
-                        }}
-                        className="absolute right-4 top-4 flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold text-black shadow-lg transition-transform hover:scale-[1.03]"
-                        style={{ background: "#a6ff00" }}
-                    >
-                        {copied ? <FiCheckCircle size={14} /> : <FiShare2 size={14} />}
-                        {copied ? "Copied!" : "Share profile"}
-                    </button>
-
-                    <div className="absolute -bottom-12 left-4 sm:-bottom-14 sm:left-6">
-                        <div
-                            className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl bg-white p-1 sm:h-28 sm:w-28"
-                        >
-                            {userProfile?.avatar ? (
-                                <img src={userProfile.avatar} alt="Profile" className="h-full w-full rounded-xl object-cover" />
-                            ) : (
-                                <FiUser size={32} className="text-black/20" />
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Identity */}
-                <div className="mb-6">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <h1 className="text-2xl font-black text-white sm:text-3xl">
-                                {mentorProfile?.nick_name || `${userProfile?.first_name ?? ""} ${userProfile?.last_name ?? ""}`.trim()}
-                            </h1>
-                            {mentorProfile?.occupation && (
-                                <p className="mt-1 text-sm font-semibold text-white/60">{mentorProfile.occupation}</p>
-                            )}
-                        </div>
-
-                        {/* Book mentor — primary CTA */}
-                        <button
-                            type="button"
-                            onClick={handleBookMentorship}
-                            className="cursor-pointer flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-black transition-transform hover:scale-[1.02]"
-                        >
-                            Book mentor
-                        </button>
-                    </div>
-
-                    {mentorProfile?.bio && <p className="text-base text-justify border-t border-white/5 mt-5 pt-3 text-white/50">{mentorProfile.bio}</p>}
-
-                    {(linkedinHandle || xHandle || website) && (
-                        <div className="mt-4 flex items-center gap-3">
-                            {linkedinHandle && (
-                                <a
-                                    href={`https://linkedin.com/in/${linkedinHandle}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex h-9 w-9 bg-white text-black items-center justify-center rounded-md transition-colors hover:text-[#a6ff00]"
-                                    aria-label="LinkedIn"
-                                >
-                                    <FaLinkedinIn size={15} />
-                                </a>
-                            )}
-                            {xHandle && (
-                                <a
-                                    href={`https://x.com/${xHandle}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex h-9 w-9 bg-white text-black items-center justify-center rounded-md transition-colors hover:text-[#a6ff00]"
-                                    aria-label="X (Twitter)"
-                                >
-                                    <FaXTwitter size={14} />
-                                </a>
-                            )}
-                            {website && (
-                                <a
-                                    href={website}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex h-9 w-9 items-center justify-center rounded-md bg-white text-black transition-colors hover:text-[#a6ff00]"
-                                    aria-label="Website"
-                                >
-                                    <FiGlobe size={15} />
-                                </a>
-                            )}
+                    {mentorAvatar ? (
+                        <img src={mentorAvatar} alt={mentorName} className="absolute -bottom-6 left-4 z-10 h-16 w-16 rounded-xl object-cover lg:-bottom-10 lg:h-20 lg:w-20" style={{ border: "4px solid #05080e", boxShadow: "0 0 0 1px rgba(205,220,57,.2)" }} />
+                    ) : (
+                        <div className="absolute -bottom-6 left-4 z-10 flex h-16 w-16 items-center justify-center rounded-xl bg-white/10 text-white/70 lg:-bottom-10 lg:h-20 lg:w-20" style={{ border: "4px solid #05080e", boxShadow: "0 0 0 1px rgba(205,220,57,.2)" }}>
+                            <FiUser size={24} />
                         </div>
                     )}
+                </div>
 
-                    {categories.length > 0 && (
-                        <div className="mt-5">
-                            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-white/30">
-                                <FiTag size={12} />
-                                Categories
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                                {categories.map((cat) => (
-                                    <span
-                                        key={cat}
-                                        className="inline-flex bg-neutral-900 text-white rounded-full px-3.5 py-1.5 text-xs font-semibold capitalize"
-                                    >
-                                        {cat}
-                                    </span>
+                <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_320px] lg:gap-10">
+                    <div>
+                        <div className="mb-1 flex items-start justify-between gap-3">
+                            <div>
+                                {mentorProfile?.nick_name && <p className="pt-1.5 text-sm text-white/40">@{mentorProfile.nick_name}</p>}
+                                <h1 className="flex flex-wrap items-center gap-2 text-2xl font-black text-white sm:text-3xl">
+                                    {mentorName}
+                                    {mentorProfile?.is_approved && <BsFillCheckCircleFill size={20} className="shrink-0 text-green-100" title="Verified mentor" />}
+                                </h1>
+                            </div>
+
+                            <button onClick={() => setShowShareModal(true)} title="Share mentor profile" aria-label="Share mentor profile" className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/10 text-neutral-100 transition-colors">
+                                <FiShare2 size={16} />
+                            </button>
+                        </div>
+
+                        <div className="mt-1 mb-8 flex flex-wrap items-center gap-3">
+                            {mentorProfile?.occupation && (
+                                <div className="inline-block rounded-md border border-neutral-700 px-4 py-1.5 text-sm font-semibold" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.85)" }}>
+                                    {mentorProfile.occupation}
+                                </div>
+                            )}
+
+                            {activeSocials.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                    {activeSocials.map((platform) => (
+                                        <a key={platform} href={socialLink[platform]} target="_blank" rel="noopener noreferrer" title={SOCIAL_LABEL_MAP[platform]} className="flex h-9 w-9 items-center justify-center rounded-md bg-white text-black transition-colors">
+                                            {SOCIAL_ICON_MAP[platform]}
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-1.5 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                            {typeof mentorProfile?.years_of_experience === "number" ? (
+                                <div className="flex items-center gap-1.5 text-sm text-white/80">
+                                    <div className="rounded-md bg-white/10 p-2">
+                                        <FiAward size={15} className="text-neutral-100" />
+                                    </div>
+                                    {mentorProfile.years_of_experience}+ years of experience
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1.5 text-sm italic text-white/25">
+                                    <FiAward size={14} />
+                                    Experience not added yet
+                                </div>
+                            )}
+
+                            {location ? (
+                                <div className="flex items-center gap-1.5 text-sm text-white/80">
+                                    <div className="rounded-md bg-white/10 p-2">
+                                        <FiMapPin size={15} className="text-neutral-100" />
+                                    </div>
+                                    {location}
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1.5 text-sm italic text-white/25">
+                                    <FiMapPin size={14} />
+                                    Location not added yet
+                                </div>
+                            )}
+
+                            {sessionsCompleted !== null ? (
+                                <div className="flex items-center gap-1.5 text-sm text-white/80">
+                                    <div className="rounded-md bg-white/10 p-2">
+                                        <FiUsers size={15} className="text-neutral-100" />
+                                    </div>
+                                    {sessionsCompleted} session{sessionsCompleted === 1 ? "" : "s"} completed
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1.5 text-sm italic text-white/25">
+                                    <FiUsers size={14} />
+                                    No sessions yet
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mb-10 rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                            {introVideo ? (
+                                <div className="overflow-hidden rounded-lg" style={{ border: "1px solid rgba(255,255,255,0.08)", aspectRatio: "16 / 9" }}>
+                                    {introVideoEmbedUrl ? (
+                                        <iframe
+                                            src={introVideoEmbedUrl}
+                                            title={`${mentorName} mentorship style intro`}
+                                            className="h-full w-full"
+                                            style={{ border: 0 }}
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allowFullScreen
+                                        />
+                                    ) : (
+                                        <video src={introVideo} poster={mentorAvatar || undefined} controls className="h-full w-full bg-black" />
+                                    )}
+                                </div>
+                            ) : (
+                                <SectionPlaceholder text="No introduction video added yet" />
+                            )}
+                        </div>
+
+                        <div className="border-t border-neutral-800 pb-3">
+                            <p className="pb-2 pt-5 text-sm text-white/70">About Me:</p>
+                            {bio ? (
+                                <>
+                                    <p className="max-w-xl text-sm leading-relaxed text-white/90 sm:text-base">{displayedBio}</p>
+                                    {isLongBio && (
+                                        <button onClick={() => setShowFullBio((prev) => !prev)} className="mt-2 text-sm font-medium hover:underline" style={{ color: "#a6ff00" }}>
+                                            {showFullBio ? "See Less" : "See More"}
+                                        </button>
+                                    )}
+                                </>
+                            ) : (
+                                <p className="text-sm italic text-white/25">No bio added yet</p>
+                            )}
+                        </div>
+
+                        <Panel icon={<FiTag size={14} className="text-neutral-600" />} title="Focus areas">
+                            {categories.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {categories.map((cat) => (
+                                        <span key={cat} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold capitalize text-black">
+                                            {cat}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <SectionPlaceholder text="No focus areas added yet" />
+                            )}
+                        </Panel>
+
+                        <Panel icon={<FiBriefcase size={14} className="text-neutral-600" />} title="Expertise">
+                            {expertise.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {expertise.map((skill) => (
+                                        <span key={skill} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-black">
+                                            {skill}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <SectionPlaceholder text="No expertise added yet" />
+                            )}
+                        </Panel>
+
+                        <Panel icon={<FiBookOpen size={14} className="text-neutral-600" />} title={`Products by ${mentorName.split(" ")[0] || "this mentor"}`}>
+                            {products.length > 0 ? (
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                    {products.map((product) => (
+                                        <ProductCard key={product.id} product={product} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <SectionPlaceholder text="No courses or books uploaded yet" />
+                            )}
+                        </Panel>
+
+                        <div id="reviews" className="scroll-mt-24">
+                            <Panel icon={<FiStar size={14} className="text-neutral-600" />} title="What students say">
+                                {reviews.length > 0 ? (
+                                    <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
+                                        {reviews.map((review) => (
+                                            <ReviewCard key={review.id} review={review} />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <SectionPlaceholder text="No reviews yet" />
+                                )}
+                            </Panel>
+                        </div>
+                    </div>
+
+                    <div className="lg:sticky lg:top-8">
+                        <div className="rounded-xl bg-neutral-950 p-4 sm:p-5">
+                            <div className="mb-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/80">
+                                <FiCalendar size={13} />
+                                Sessions
+                            </div>
+
+                            <div className="space-y-4">
+                                {mentorSessions.map((session) => (
+                                    <MentorSessionCard key={session.id} session={session} onSelect={setSelectedSession} />
                                 ))}
                             </div>
                         </div>
-                    )}
-                </div>
-
-                {/* Products */}
-                <div className="mt-10 border-t pt-8" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
-                    <h2 className="mb-5 text-lg font-bold text-white sm:text-xl">Products</h2>
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        {productsLoading ? (
-                            Array.from({ length: 3 }).map((_, i) => <ProductCardSkeleton key={i} />)
-                        ) : products.length > 0 ? (
-                            products.map((product) => <ProductCard key={product.id} product={product} />)
-                        ) : (
-                            <EmptyProducts />
-                        )}
                     </div>
                 </div>
             </div>
 
-            {showBookModal && (
-                <BookMentorshipModal
+            {showShareModal && (
+                <ShareModal
                     mentorName={mentorName}
                     mentorAvatar={mentorAvatar}
-                    isSubmitting={isBooking}
-                    errorMessage={bookingError}
-                    onClose={handleCloseBookModal}
-                    onSubmit={handleBookingSubmit}
+                    rating={averageRating}
+                    reviewCount={reviewCount}
+                    isApproved={mentorProfile?.is_approved}
+                    onClose={() => setShowShareModal(false)}
                 />
             )}
 
-            <PoweredByBadge />
+            {selectedSession && (
+                <SessionDetailsModal
+                    session={selectedSession}
+                    onClose={() => setSelectedSession(null)}
+                    onBook={() => {
+                        setSelectedSession(null);
+                        handleBookMentorship();
+                    }}
+                />
+            )}
+
+            {showBookModal && (
+                <div>
+                    <div className="fixed inset-0 z-40 bg-black/50" onClick={handleCloseBookModal} />
+                    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+                        <div className="w-full max-w-lg rounded-2xl bg-[#0a0f08] p-6 shadow-2xl" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+                            <div className="mb-4 flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-white">Book mentorship</h3>
+                                <button type="button" onClick={handleCloseBookModal} className="rounded-lg p-2 text-white/70 hover:text-white" aria-label="Close">
+                                    <FiX size={16} />
+                                </button>
+                            </div>
+
+                            {bookingError && <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{bookingError}</div>}
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="mb-2 block text-sm font-semibold text-white">What best describes your goal?</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {MENTORSHIP_GOALS.map((goal) => (
+                                            <button
+                                                key={goal}
+                                                type="button"
+                                                onClick={() => setBookingError(null)}
+                                                className="rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-white/80"
+                                            >
+                                                {goal}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="mb-2 block text-sm font-semibold text-white">Message</label>
+                                    <textarea
+                                        rows={5}
+                                        placeholder={`Hi ${mentorName}, I'd love your help with...`}
+                                        className="w-full resize-none rounded-xl bg-transparent px-4 py-3 text-sm text-white/90 outline-none placeholder:text-white/25"
+                                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                                    />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const message = (document.querySelector("textarea[placeholder^='Hi']") as HTMLTextAreaElement | null)?.value?.trim();
+                                        if (!message) {
+                                            setBookingError("Please write a short message before sending your request.");
+                                            return;
+                                        }
+                                        handleBookingSubmit({ goal: "Career guidance", message });
+                                    }}
+                                    className="w-full rounded-lg bg-white px-4 py-3 text-sm font-bold text-black"
+                                >
+                                    Send request
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

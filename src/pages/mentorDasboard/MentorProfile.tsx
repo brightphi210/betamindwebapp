@@ -7,8 +7,6 @@ import {
     FiClock,
     FiEdit2,
     FiImage,
-    FiPlus,
-    FiTrash2,
     FiUser,
     FiUserPlus,
     FiX
@@ -44,100 +42,6 @@ const LANGUAGE_OPTIONS = [
 
 const prefixBg = "rgba(255,255,255,0.03)";
 
-/* ─── Availability (same robust pattern as TutorProfile) ─────────────── */
-interface TimeSlot {
-    id: number;
-    startTime: string;
-    endTime: string;
-    isBooked?: boolean;
-}
-
-interface DayAvailability {
-    day: string;
-    enabled: boolean;
-    slots: TimeSlot[];
-}
-
-const DAYS_OF_WEEK = [
-    { key: "monday", label: "Monday" },
-    { key: "tuesday", label: "Tuesday" },
-    { key: "wednesday", label: "Wednesday" },
-    { key: "thursday", label: "Thursday" },
-    { key: "friday", label: "Friday" },
-    { key: "saturday", label: "Saturday" },
-    { key: "sunday", label: "Sunday" },
-];
-
-const DAY_TO_INDEX: Record<string, number> = {
-    sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
-};
-const INDEX_TO_DAY: Record<number, string> = Object.fromEntries(
-    Object.entries(DAY_TO_INDEX).map(([day, idx]) => [idx, day])
-);
-
-const normalizeDayKey = (value: unknown): string | undefined => {
-    if (typeof value === "number") return INDEX_TO_DAY[value];
-    if (typeof value === "string") {
-        const normalized = value.trim().toLowerCase();
-        if (normalized in DAY_TO_INDEX) return normalized;
-
-        const dayNameMap: Record<string, string> = {
-            sunday: "sunday", monday: "monday", tuesday: "tuesday",
-            wednesday: "wednesday", thursday: "thursday", friday: "friday", saturday: "saturday",
-        };
-        if (dayNameMap[normalized]) return dayNameMap[normalized];
-
-        const match = DAYS_OF_WEEK.find(d =>
-            d.key === normalized ||
-            d.label.toLowerCase() === normalized ||
-            normalized === d.key.slice(0, 3)
-        );
-        return match?.key;
-    }
-    return undefined;
-};
-
-const MAX_SLOTS_PER_DAY = 3;
-
-const defaultAvailability: DayAvailability[] = DAYS_OF_WEEK.map((d) => ({
-    day: d.key,
-    enabled: false,
-    slots: [],
-}));
-
-const emptyTimeSlot = (id: number): TimeSlot => ({
-    id,
-    startTime: "09:00",
-    endTime: "10:00",
-    isBooked: false,
-});
-
-const toShortTime = (t: unknown, fallback: string) =>
-    typeof t === "string" && t.length >= 5 ? t.slice(0, 5) : fallback;
-
-const buildAvailabilityPayload = (availability: DayAvailability[]) =>
-    availability
-        .filter((d) => d.enabled && d.slots.length > 0)
-        .flatMap((d) => {
-            const day = typeof d.day === "string" ? d.day.trim() : "";
-            if (!day) return [];
-
-            return d.slots
-                .map((s) => {
-                    const start = typeof s.startTime === "string" && s.startTime.length >= 5 ? s.startTime.slice(0, 5) : "";
-                    const end = typeof s.endTime === "string" && s.endTime.length >= 5 ? s.endTime.slice(0, 5) : "";
-
-                    if (!start || !end) return null;
-
-                    return {
-                        day_of_week: day.charAt(0).toUpperCase() + day.slice(1),
-                        start_time: `${start}:00`,
-                        end_time: `${end}:00`,
-                    };
-                })
-                .filter((slot): slot is NonNullable<typeof slot> => slot !== null);
-        });
-
 const flattenErrorMessages = (data: unknown): string => {
     if (!data) return "Something went wrong. Please try again.";
 
@@ -169,329 +73,6 @@ const flattenErrorMessages = (data: unknown): string => {
     return String(data);
 };
 
-function normalizeAvailability(value: unknown): DayAvailability[] {
-    let arr: any[] = [];
-    if (Array.isArray(value)) {
-        arr = value;
-    } else if (typeof value === "string" && value.trim()) {
-        try {
-            const parsed = JSON.parse(value);
-            arr = Array.isArray(parsed) ? parsed : [];
-        } catch {
-            arr = [];
-        }
-    }
-
-    if (arr.length === 0) return defaultAvailability;
-
-    if (typeof arr[0]?.day_of_week === "number" || typeof arr[0]?.day_of_week === "string") {
-        const grouped: Record<string, TimeSlot[]> = {};
-        arr.forEach((item: any) => {
-            const dayKey = normalizeDayKey(item?.day_of_week ?? item?.day ?? item?.day_name);
-            if (!dayKey) return;
-            if (!grouped[dayKey]) grouped[dayKey] = [];
-            if (grouped[dayKey].length >= MAX_SLOTS_PER_DAY) return;
-            grouped[dayKey].push({
-                id: grouped[dayKey].length + 1,
-                startTime: toShortTime(item?.start_time ?? item?.startTime, "09:00"),
-                endTime: toShortTime(item?.end_time ?? item?.endTime, "10:00"),
-                isBooked: !!(item?.is_booked ?? item?.isBooked),
-            });
-        });
-        return DAYS_OF_WEEK.map((d) => {
-            const slots = grouped[d.key] || [];
-            return { day: d.key, enabled: slots.length > 0, slots };
-        });
-    }
-
-    return DAYS_OF_WEEK.map((d) => {
-        const found = arr.find((a: any) => a?.day === d.key);
-        if (!found) return { day: d.key, enabled: false, slots: [] };
-        const slots: TimeSlot[] = Array.isArray(found.slots)
-            ? found.slots.slice(0, MAX_SLOTS_PER_DAY).map((s: any, idx: number) => ({
-                id: typeof s?.id === "number" ? s.id : idx + 1,
-                startTime: toShortTime(s?.startTime ?? s?.start_time, "09:00"),
-                endTime: toShortTime(s?.endTime ?? s?.end_time, "10:00"),
-                isBooked: !!(s?.isBooked ?? s?.is_booked),
-            }))
-            : [];
-        return { day: d.key, enabled: !!found.enabled && slots.length > 0, slots };
-    });
-}
-
-const to12Hour = (time24: string): { hour: number; minute: number; period: "AM" | "PM" } => {
-    if (!time24) return { hour: 9, minute: 0, period: "AM" };
-    const [hStr, mStr] = time24.split(":");
-    const hours = parseInt(hStr, 10) || 0;
-    const minutes = parseInt(mStr, 10) || 0;
-    const period: "AM" | "PM" = hours >= 12 ? "PM" : "AM";
-    let hour12 = hours % 12;
-    if (hour12 === 0) hour12 = 12;
-    return { hour: hour12, minute: minutes, period };
-};
-
-const to24Hour = (hour12: number, minute: number, period: "AM" | "PM"): string => {
-    let hours = hour12 % 12;
-    if (period === "PM") hours += 12;
-    return `${String(hours).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-};
-
-const to12Label = (time24: string) => {
-    const { hour, minute, period } = to12Hour(time24);
-    return `${hour}:${String(minute).padStart(2, "0")} ${period}`;
-};
-
-const HOURS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
-const MINUTES_5MIN = Array.from({ length: 12 }, (_, i) => i * 5);
-
-const TimePickerInput: React.FC<{
-    value: string;
-    onChange: (value: string) => void;
-    disabled?: boolean;
-}> = ({ value, onChange, disabled }) => {
-    const { hour, minute, period } = to12Hour(value);
-    const update = (h: number, m: number, p: "AM" | "PM") => onChange(to24Hour(h, m, p));
-    const selectCls = "rounded-lg px-1.5 py-2 text-xs text-white outline-none transition-all disabled:opacity-60";
-
-    return (
-        <div className="flex items-center gap-1 flex-1 min-w-[170px]">
-            <select
-                disabled={disabled}
-                value={hour}
-                onChange={(e) => update(parseInt(e.target.value, 10), minute, period)}
-                className={selectCls}
-                style={{ background: cardBg, border: cardBorder }}
-                aria-label="Hour"
-            >
-                {HOURS_12.map((h) => (
-                    <option key={h} value={h} className="bg-[#0a0f08]">{h}</option>
-                ))}
-            </select>
-            <span className="text-xs text-white/30 shrink-0">:</span>
-            <select
-                disabled={disabled}
-                value={minute}
-                onChange={(e) => update(hour, parseInt(e.target.value, 10), period)}
-                className={selectCls}
-                style={{ background: cardBg, border: cardBorder }}
-                aria-label="Minute"
-            >
-                {MINUTES_5MIN.map((m) => (
-                    <option key={m} value={m} className="bg-[#0a0f08]">
-                        {String(m).padStart(2, "0")}
-                    </option>
-                ))}
-            </select>
-            <div className="flex rounded-lg overflow-hidden shrink-0" style={{ border: cardBorder }}>
-                {(["AM", "PM"] as const).map((p) => (
-                    <button
-                        key={p}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => update(hour, minute, p)}
-                        className={`px-2 py-2 text-[10px] font-bold transition-all ${period === p ? "bg-[#a6ff00] text-black" : "text-white/40 hover:text-white"
-                            }`}
-                    >
-                        {p}
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
-};
-
-const AvailabilitySection: React.FC<{
-    availability: DayAvailability[];
-    onChange: (a: DayAvailability[]) => void;
-    disabled?: boolean;
-}> = ({ availability, onChange, disabled }) => {
-    const updateDay = (dayKey: string, updater: (d: DayAvailability) => DayAvailability) => {
-        onChange(availability.map((d) => (d.day === dayKey ? updater(d) : d)));
-    };
-
-    const toggleDay = (dayKey: string) => {
-        const day = availability.find((d) => d.day === dayKey);
-        if (day?.enabled && day.slots.some((s) => s.isBooked)) {
-            // Don't allow silently dropping a day that has booked slots.
-            return;
-        }
-        updateDay(dayKey, (d) => {
-            const enabling = !d.enabled;
-            return {
-                ...d,
-                enabled: enabling,
-                // On: seed a default slot if none exist.
-                // Off: clear slots so this day can never leak into the payload.
-                slots: enabling
-                    ? (d.slots.length === 0 ? [emptyTimeSlot(1)] : d.slots)
-                    : [],
-            };
-        });
-    };
-
-    const addSlot = (dayKey: string) => {
-        updateDay(dayKey, (d) => {
-            if (d.slots.length >= MAX_SLOTS_PER_DAY) return d;
-            const nextId = d.slots.length ? Math.max(...d.slots.map((s) => s.id)) + 1 : 1;
-            return { ...d, slots: [...d.slots, emptyTimeSlot(nextId)] };
-        });
-    };
-
-    // FIXED: when last slot is removed → automatically disable the day
-    const removeSlot = (dayKey: string, slotId: number) => {
-        updateDay(dayKey, (d) => {
-            const nextSlots = d.slots.filter((s) => s.id !== slotId);
-            return {
-                ...d,
-                slots: nextSlots,
-                enabled: nextSlots.length > 0 ? d.enabled : false,
-            };
-        });
-    };
-
-    const updateSlot = (dayKey: string, slotId: number, field: "startTime" | "endTime", value: string) => {
-        updateDay(dayKey, (d) => ({
-            ...d,
-            slots: d.slots.map((s) => (s.id === slotId ? { ...s, [field]: value } : s)),
-        }));
-    };
-
-    const applyToAllDays = (dayKey: string) => {
-        const source = availability.find((d) => d.day === dayKey);
-        if (!source || source.slots.length === 0) return;
-        onChange(
-            availability.map((d) => ({
-                ...d,
-                enabled: true,
-                slots: source.slots.map((s, idx) => ({ ...s, id: idx + 1 })),
-            }))
-        );
-    };
-
-    return (
-        <div className="flex flex-col gap-2.5">
-            {availability.map((dayAv) => {
-                const dayMeta = DAYS_OF_WEEK.find((d) => d.key === dayAv.day)!;
-                const atMax = dayAv.slots.length >= MAX_SLOTS_PER_DAY;
-
-                return (
-                    <div
-                        key={dayAv.day}
-                        className="rounded-xl p-3.5 transition-all"
-                        style={{ background: cardBg, border: cardBorder }}
-                    >
-                        <div className="flex items-center justify-between gap-3 flex-wrap">
-                            <div className="flex items-center gap-3">
-                                <button
-                                    type="button"
-                                    disabled={disabled}
-                                    onClick={() => toggleDay(dayAv.day)}
-                                    className="relative w-9 h-5 rounded-full transition-all shrink-0"
-                                    style={{ background: dayAv.enabled ? "#a6ff00" : "rgba(255,255,255,0.15)" }}
-                                >
-                                    <span
-                                        className={`absolute top-0.5 w-4 h-4 rounded-full shadow transition-all ${dayAv.enabled ? "left-4 bg-black" : "left-0.5 bg-white"
-                                            }`}
-                                    />
-                                </button>
-                                <span className={`text-sm font-bold ${dayAv.enabled ? "text-white" : "text-white/40"}`}>
-                                    {dayMeta.label}
-                                </span>
-                                {!dayAv.enabled && <span className="text-xs text-white/30 italic">Unavailable</span>}
-                            </div>
-
-                            {dayAv.enabled && (
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        type="button"
-                                        disabled={disabled}
-                                        onClick={() => applyToAllDays(dayAv.day)}
-                                        className="text-[11px] font-semibold text-white/30 hover:text-[#a6ff00] transition-colors"
-                                    >
-                                        Copy to all days
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={disabled || atMax}
-                                        onClick={() => addSlot(dayAv.day)}
-                                        className="flex items-center gap-1 text-xs font-semibold text-[#a6ff00] hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-                                    >
-                                        <FiPlus size={12} /> Add slot
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-
-                        {dayAv.enabled && (
-                            <div className="mt-3 flex flex-col gap-2">
-                                {dayAv.slots.map((slot) => (
-                                    <div key={slot.id} className="flex flex-wrap items-center gap-2">
-                                        <TimePickerInput
-                                            value={slot.startTime}
-                                            disabled={disabled || !!slot.isBooked}
-                                            onChange={(v) => updateSlot(dayAv.day, slot.id, "startTime", v)}
-                                        />
-                                        <span className="text-xs text-white/30 shrink-0">to</span>
-                                        <TimePickerInput
-                                            value={slot.endTime}
-                                            disabled={disabled || !!slot.isBooked}
-                                            onChange={(v) => updateSlot(dayAv.day, slot.id, "endTime", v)}
-                                        />
-                                        {slot.isBooked ? (
-                                            <span className="text-[10px] font-semibold text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-full px-2 py-1 shrink-0">
-                                                Booked
-                                            </span>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                disabled={disabled}
-                                                onClick={() => removeSlot(dayAv.day, slot.id)}
-                                                className="p-1.5 text-white/20 hover:text-red-400 transition-colors shrink-0"
-                                            >
-                                                <FiTrash2 size={13} />
-                                            </button>
-                                        )}
-                                    </div>
-                                ))}
-                                {atMax && (
-                                    <p className="text-[11px] text-white/30 italic">
-                                        Maximum {MAX_SLOTS_PER_DAY} slots reached for this day
-                                    </p>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                );
-            })}
-        </div>
-    );
-};
-
-const ViewAvailabilityRow: React.FC<{ availability: DayAvailability[] }> = ({ availability }) => {
-    const activeDays = availability.filter((d) => d.enabled && d.slots.length > 0);
-    return (
-        <div className="rounded-xl px-4 py-3" style={{ background: cardBg, border: cardBorder }}>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Weekly Availability</p>
-            {activeDays.length > 0 ? (
-                <div className="flex flex-col gap-1.5">
-                    {activeDays.map((d) => {
-                        const label = DAYS_OF_WEEK.find((x) => x.key === d.day)?.label ?? d.day;
-                        return (
-                            <div key={d.day} className="flex items-start gap-2 text-sm">
-                                <span className="w-24 shrink-0 font-semibold text-white">{label}</span>
-                                <span className="text-white/60">
-                                    {d.slots.map((s) => `${to12Label(s.startTime)}–${to12Label(s.endTime)}`).join(", ")}
-                                </span>
-                            </div>
-                        );
-                    })}
-                </div>
-            ) : (
-                <p className="mt-1 text-sm text-white/30">Not set</p>
-            )}
-        </div>
-    );
-};
 
 /* ─── Shared fields ──────────────────────────────────────────────────── */
 const Field: React.FC<{
@@ -682,7 +263,7 @@ const extractHandle = (url?: string) => {
     return clean.substring(clean.lastIndexOf("/") + 1).replace(/^@/, "");
 };
 
-type Step = "professional" | "social" | "availability";
+type Step = "professional" | "social";
 
 type Draft = {
     banner: string | null;
@@ -691,14 +272,12 @@ type Draft = {
     occupation: string;
     bio: string;
     experience: string;
-    hourlyRate: string;
     language: string;
     categories: string[];
     expertise: string[];
     linkedin: string;
     xHandle: string;
     website: string;
-    availability: DayAvailability[];
 };
 
 const emptyDraft: Draft = {
@@ -708,14 +287,12 @@ const emptyDraft: Draft = {
     occupation: "",
     bio: "",
     experience: "",
-    hourlyRate: "",
     language: "",
     categories: [],
     expertise: [],
     linkedin: "",
     xHandle: "",
     website: "",
-    availability: defaultAvailability,
 };
 
 const draftFromMentorProfile = (mentorProfile: any): Draft => {
@@ -727,14 +304,12 @@ const draftFromMentorProfile = (mentorProfile: any): Draft => {
         occupation: mentorProfile?.occupation ?? "",
         bio: mentorProfile?.bio ?? "",
         experience: mentorProfile?.years_of_experience != null ? String(mentorProfile.years_of_experience) : "",
-        hourlyRate: mentorProfile?.hourly_rate != null ? String(mentorProfile.hourly_rate) : "",
         language: mentorProfile?.language ?? "",
         categories: Array.isArray(mentorProfile?.categories) ? mentorProfile.categories : [],
         expertise: Array.isArray(mentorProfile?.expertise) ? mentorProfile.expertise : [],
         linkedin: extractHandle(socialLink.linkedin),
         xHandle: extractHandle(socialLink.twitter),
         website: socialLink.website ?? "",
-        availability: normalizeAvailability(mentorProfile?.availability_slots ?? mentorProfile?.availability),
     };
 };
 
@@ -818,9 +393,8 @@ const MentorProfile = () => {
 
     const professionalComplete = !!(draft.nickname && draft.occupation && draft.bio && draft.experience);
     const socialComplete = draft.categories.length > 0;
-    const availabilityComplete = draft.availability.some((d) => d.enabled && d.slots.length > 0);
 
-    const stepOrder: Step[] = ["professional", "social", "availability"];
+    const stepOrder: Step[] = ["professional", "social"];
     const goNext = () => {
         const idx = stepOrder.indexOf(step);
         if (idx < stepOrder.length - 1) setStep(stepOrder[idx + 1]);
@@ -829,13 +403,9 @@ const MentorProfile = () => {
         const idx = stepOrder.indexOf(step);
         if (idx > 0) setStep(stepOrder[idx - 1]);
     };
-    const goToNextStep = () => {
-        const idx = stepOrder.indexOf(step);
-        setStep(stepOrder[(idx + 1) % stepOrder.length]);
-    };
 
     const saveProfile = async () => {
-        if (!availabilityComplete || !mentorProfile) return;
+        if (!mentorProfile) return;
 
         setIsPreparingSave(true);
         try {
@@ -845,23 +415,15 @@ const MentorProfile = () => {
                 website: draft.website || "",
             };
 
-            const availabilitySlots = buildAvailabilityPayload(draft.availability);
-            if (availabilitySlots.length === 0) {
-                addToast("Please add at least one valid availability slot before saving.", "error");
-                return;
-            }
-
             const payload = {
                 occupation: draft.occupation,
                 bio: draft.bio,
                 nick_name: draft.nickname,
                 years_of_experience: parseInt(draft.experience, 10) || 0,
-                hourly_rate: draft.hourlyRate ? parseFloat(draft.hourlyRate) : null,
                 language: draft.language,
                 categories: draft.categories,
                 expertise: draft.expertise,
                 social_link: socialLink,
-                availability_slots: availabilitySlots, // stays a real array — sent as JSON
             };
 
             const onDone = () => {
@@ -943,9 +505,6 @@ const MentorProfile = () => {
     const savedLinkedin = extractHandle(savedSocialLink.linkedin);
     const savedXHandle = extractHandle(savedSocialLink.twitter);
     const savedWebsite: string = savedSocialLink.website ?? "";
-    const savedAvailability = normalizeAvailability(
-        mentorProfile?.availability_slots ?? mentorProfile?.availability
-    );
 
     return (
         <div className="min-h-screen w-full text-white">
@@ -1047,7 +606,7 @@ const MentorProfile = () => {
                                         placeholder="Tell people who you are and what you help with"
                                         helper="This appears on your public mentor profile."
                                     />
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <Field
                                             label="Years of Experience"
                                             value={draft.experience}
@@ -1055,15 +614,6 @@ const MentorProfile = () => {
                                                 setDraft((d) => ({ ...d, experience: v.replace(/[^0-9]/g, "") }))
                                             }
                                             placeholder="e.g. 4"
-                                        />
-                                        <Field
-                                            label="Hourly Rate"
-                                            value={draft.hourlyRate}
-                                            onChange={(v) =>
-                                                setDraft((d) => ({ ...d, hourlyRate: v.replace(/[^0-9.]/g, "") }))
-                                            }
-                                            placeholder="e.g. 50"
-                                            helper="In NGN."
                                         />
                                         <SelectField
                                             label="Language"
@@ -1081,20 +631,12 @@ const MentorProfile = () => {
                                         <ViewRow label="Occupation" value={mentorProfile?.occupation} />
                                     </div>
                                     <ViewRow label="Bio" value={mentorProfile?.bio} />
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <ViewRow
                                             label="Years of Experience"
                                             value={
                                                 mentorProfile?.years_of_experience != null
                                                     ? `${mentorProfile.years_of_experience} years`
-                                                    : ""
-                                            }
-                                        />
-                                        <ViewRow
-                                            label="Hourly Rate"
-                                            value={
-                                                mentorProfile?.hourly_rate != null
-                                                    ? `₦${mentorProfile.hourly_rate}`
                                                     : ""
                                             }
                                         />
@@ -1208,23 +750,6 @@ const MentorProfile = () => {
                     </div>
                 )}
 
-                {step === "availability" && (
-                    <div>
-                        <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">Availability</h2>
-                        <div className="space-y-5">
-                            {isEditing ? (
-                                <AvailabilitySection
-                                    availability={draft.availability}
-                                    onChange={(a) => setDraft((d) => ({ ...d, availability: a }))}
-                                    disabled={isSaving}
-                                />
-                            ) : (
-                                <ViewAvailabilityRow availability={savedAvailability} />
-                            )}
-                        </div>
-                    </div>
-                )}
-
                 <div className="mt-10 flex gap-3 sm:flex-row justify-between">
                     {isEditing ? (
                         <>
@@ -1237,11 +762,11 @@ const MentorProfile = () => {
                                     )}
                                 </span>
                             </Button>
-                            {step !== "availability" ? (
+                            {step === "professional" ? (
                                 <Button
                                     variant="green"
                                     onClick={goNext}
-                                    disabled={step === "professional" ? !professionalComplete : !socialComplete}
+                                    disabled={!professionalComplete}
                                 >
                                     <span className="flex items-center justify-center gap-2">
                                         Next <FiArrowRight size={15} />
@@ -1251,7 +776,7 @@ const MentorProfile = () => {
                                 <Button
                                     variant="green"
                                     onClick={() => { void saveProfile(); }}
-                                    disabled={!availabilityComplete || isSaving}
+                                    disabled={!socialComplete || isSaving}
                                 >
                                     <span className="flex items-center justify-center gap-2">
                                         <FiCheck size={15} /> Save Changes
@@ -1261,11 +786,6 @@ const MentorProfile = () => {
                         </>
                     ) : (
                         <div className="flex flex-wrap gap-3 justify-between">
-                            <Button variant="white" onClick={goToNextStep}>
-                                <span className="flex items-center justify-center gap-2">
-                                    Next <FiArrowRight size={15} />
-                                </span>
-                            </Button>
                             <Button variant="green" onClick={startEditing}>
                                 <span className="flex items-center justify-center gap-2">
                                     Edit Profile <FiEdit2 size={14} />

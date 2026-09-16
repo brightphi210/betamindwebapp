@@ -177,9 +177,6 @@ const BookingDetailModal: React.FC<{ booking: ApiBooking; onClose: () => void }>
     const mentor = booking.mentor_profile;
     const tabKey = normalizeStatus(booking.status);
     const statusStyle = STATUS_STYLE[tabKey];
-
-    // TODO: wire to a real payment flow / mutation once the backend endpoint exists.
-    // For now this just surfaces intent so the UI reads correctly.
     const handleProceedToPayment = () => {
         toast("Payment flow isn't wired up yet — hook this up to your payment endpoint.", { type: "info" });
     };

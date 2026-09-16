@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { delete_requests, patch_requests, post_request_with_image, post_requests, put_request_with_image } from "../helper/AxioHelper";
+import { delete_requests, patch_requests, post_request_with_image, post_requests, put_request_with_image, put_requests } from "../helper/AxioHelper";
 
 
 export const useCreateMentor = () => {
@@ -165,7 +165,85 @@ export const useCreateIndividualSession = () => {
   return createIndividualSession
 }
 
+export const useEditIndividualSession = (id: string) => {
+  const queryClient = useQueryClient()
 
+  const editIndividualSession = useMutation({
+    mutationFn: async (data: any) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return put_requests(`individual-sessions/${id}/`, data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["individualSessions"] })
+    },
+  })
+
+  return editIndividualSession
+}
+
+export const useDeleteIndividualSession = (id: string) => {
+  const queryClient = useQueryClient()
+
+  const deleteIndividualSession = useMutation({
+    mutationFn: async () => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return delete_requests(`individual-sessions/${id}/`, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["individualSessions"] })
+    },
+  })
+
+  return deleteIndividualSession
+}
+
+export const useCreateGroupSession = () => {
+  const queryClient = useQueryClient()
+
+  const createGroupSession = useMutation({
+    mutationFn: async (data: FormData) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return post_request_with_image('group-sessions/', data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupSessions"] })
+    },
+  })
+
+  return createGroupSession
+}
+
+export const useEditGroupSession = (id: string) => {
+  const queryClient = useQueryClient()
+
+  const editGroupSession = useMutation({
+    mutationFn: async (data: FormData) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return put_request_with_image(`group-sessions/${id}/`, data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupSessions"] })
+    },
+  })
+
+  return editGroupSession
+}
+
+export const useDeleteGroupSession = (id: string) => {
+  const queryClient = useQueryClient()
+
+  const deleteGroupSession = useMutation({
+    mutationFn: async () => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return delete_requests(`group-sessions/${id}/`, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupSessions"] })
+    },
+  })
+
+  return deleteGroupSession
+}
 
 // ============== Book Mentor Session ============
 export const useBookMentorship = () => {
