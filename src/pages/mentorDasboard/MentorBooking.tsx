@@ -632,7 +632,6 @@ const OneOnOneFormModal = ({
     );
     const [durationMinutes, setDurationMinutes] = useState(initial?.durationMinutes?.toString() ?? "30");
     const [daysDuration] = useState(initial?.daysDuration ?? 7);
-    const [meetingLink, setMeetingLink] = useState(initial?.meetingLink ?? "");
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -642,9 +641,9 @@ const OneOnOneFormModal = ({
             price: Number(price),
             availability,
             responseTime: responseMode === "immediate" ? "immediate" : Number(hours) || 1,
-            durationMinutes: Number(durationMinutes),
             daysDuration,
-            meetingLink: meetingLink.trim(),
+            durationMinutes: Number(durationMinutes),
+            meetingLink: '',
         });
     };
 
