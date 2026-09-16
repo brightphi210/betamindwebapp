@@ -184,7 +184,7 @@ export const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
         >
             <div className="flex items-start justify-between mb-4">
                 <img
-                    src={mentor?.profile?.avatar}
+                    src={mentor?.avatar}
                     alt={mentor?.name}
                     className="w-14 h-14 rounded-xl object-cover"
                     style={{ border: '1px solid rgba(255,255,255,0.1)' }}

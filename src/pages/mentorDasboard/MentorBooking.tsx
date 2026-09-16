@@ -241,6 +241,62 @@ const flattenApiErrors = (data: unknown): string => {
     return String(data);
 };
 
+const formatModalValidationErrors = (data: unknown): string => {
+    if (!data) return "Something went wrong. Please try again.";
+    if (typeof data === "string") return data;
+
+    if (Array.isArray(data)) {
+        const formatted = data
+            .map((item) => formatModalValidationErrors(item))
+            .filter(Boolean)
+            .flatMap((line) => line.split("\n"));
+        return formatted.join("\n");
+    }
+
+    if (typeof data === "object") {
+        const entries = Object.entries(data as Record<string, unknown>);
+        const parts: string[] = [];
+
+        for (const [key, value] of entries) {
+            if (value === null || value === undefined) continue;
+
+            if (key === "non_field_errors") {
+                const message = formatModalValidationErrors(value).trim();
+                if (message) parts.push(message);
+                continue;
+            }
+
+            if (Array.isArray(value)) {
+                const message = formatModalValidationErrors(value).trim();
+                if (message) parts.push(`${key}: ${message}`);
+                continue;
+            }
+
+            if (typeof value === "object") {
+                const nested = formatModalValidationErrors(value).trim();
+                if (nested) {
+                    const normalized = nested
+                        .split("\n")
+                        .map((line) => line.trim())
+                        .filter(Boolean)
+                        .join("\n");
+                    if (normalized) parts.push(`${key}:\n${normalized}`);
+                }
+                continue;
+            }
+
+            if (typeof value === "string" && value.trim()) {
+                parts.push(`${key}: ${value}`);
+            }
+        }
+
+        if (parts.length > 0) return parts.join("\n");
+        return JSON.stringify(data);
+    }
+
+    return String(data);
+};
+
 const SUGGESTED_NOTES = [
     "Great session! Mentee is making good progress toward their goals.",
     "Covered the key concepts today — mentee should practice before the next call.",
@@ -615,11 +671,13 @@ const OneOnOneFormModal = ({
     onClose,
     onSave,
     isSaving,
+    errorMessage,
 }: {
     initial?: OneOnOneSession | null;
     onClose: () => void;
     onSave: (data: Omit<OneOnOneSession, "id" | "type" | "mentorAvatar" | "booking">) => void;
     isSaving?: boolean;
+    errorMessage?: string | null;
 }) => {
     const [note, setNote] = useState(initial?.note ?? "");
     const [price, setPrice] = useState(initial?.price?.toString() ?? "");
@@ -657,6 +715,12 @@ const OneOnOneFormModal = ({
                     <FiX size={16} />
                 </button>
             </div>
+
+            {errorMessage && (
+                <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs leading-relaxed text-red-200 whitespace-pre-line">
+                    {errorMessage}
+                </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -799,11 +863,13 @@ const GroupFormModal = ({
     onClose,
     onSave,
     isSaving = false,
+    errorMessage,
 }: {
     initial?: GroupSession | null;
     onClose: () => void;
     onSave: (data: GroupSessionFormValues) => void;
     isSaving?: boolean;
+    errorMessage?: string | null;
 }) => {
     const [name, setName] = useState(initial?.name ?? "");
     const [description, setDescription] = useState(initial?.description ?? "");
@@ -851,6 +917,12 @@ const GroupFormModal = ({
                     <FiX size={16} />
                 </button>
             </div>
+
+            {errorMessage && (
+                <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs leading-relaxed text-red-200 whitespace-pre-line">
+                    {errorMessage}
+                </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -1245,10 +1317,12 @@ const MentorSessions = () => {
 
     const [showOneOnOneForm, setShowOneOnOneForm] = useState(false);
     const [editingOneOnOne, setEditingOneOnOne] = useState<OneOnOneSession | null>(null);
+    const [oneOnOneFormError, setOneOnOneFormError] = useState<string>("");
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const [showGroupForm, setShowGroupForm] = useState(false);
     const [editingGroup, setEditingGroup] = useState<GroupSession | null>(null);
+    const [groupFormError, setGroupFormError] = useState<string>("");
     const [showGroupDeleteConfirm, setShowGroupDeleteConfirm] = useState(false);
     const [groupDeleteId, setGroupDeleteId] = useState("");
 
@@ -1306,11 +1380,14 @@ const MentorSessions = () => {
                     if (updatedSession) {
                         setOneOnOne(mapApiSessionToLocal(updatedSession, userProfile?.avatar ?? ""));
                     }
+                    setOneOnOneFormError("");
                     setShowOneOnOneForm(false);
                     setEditingOneOnOne(null);
                 },
                 onError: (error: unknown) => {
                     const apiError = error as any;
+                    const message = formatModalValidationErrors(apiError?.response?.data ?? error);
+                    setOneOnOneFormError(message);
                     addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
                 },
             });
@@ -1323,12 +1400,15 @@ const MentorSessions = () => {
                 if (createdSession) {
                     setOneOnOne(mapApiSessionToLocal(createdSession, userProfile?.avatar ?? ""));
                 }
+                setOneOnOneFormError("");
                 addToast("1:1 session created successfully", "success");
                 setShowOneOnOneForm(false);
                 setEditingOneOnOne(null);
             },
             onError: (error: unknown) => {
                 const apiError = error as any;
+                const message = formatModalValidationErrors(apiError?.response?.data ?? error);
+                setOneOnOneFormError(message);
                 addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
             },
         });
@@ -1352,23 +1432,29 @@ const MentorSessions = () => {
         const requestFn = editingGroup
             ? () => editGroupSession(formData, {
                 onSuccess: () => {
+                    setGroupFormError("");
                     addToast("Group session updated", "success");
                     setShowGroupForm(false);
                     setEditingGroup(null);
                 },
                 onError: (error: any) => {
                     const apiError = error as any;
+                    const message = formatModalValidationErrors(apiError?.response?.data ?? error);
+                    setGroupFormError(message);
                     addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
                 },
             })
             : () => createGroupSession(formData, {
                 onSuccess: () => {
+                    setGroupFormError("");
                     addToast("Group session created", "success");
                     setShowGroupForm(false);
                     setEditingGroup(null);
                 },
                 onError: (error: any) => {
                     const apiError = error as any;
+                    const message = formatModalValidationErrors(apiError?.response?.data ?? error);
+                    setGroupFormError(message);
                     addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
                 },
             });
@@ -1580,9 +1666,10 @@ const MentorSessions = () => {
             {showOneOnOneForm && (
                 <OneOnOneFormModal
                     initial={editingOneOnOne}
-                    onClose={() => { setShowOneOnOneForm(false); setEditingOneOnOne(null); }}
+                    onClose={() => { setOneOnOneFormError(""); setShowOneOnOneForm(false); setEditingOneOnOne(null); }}
                     onSave={handleSaveOneOnOne}
                     isSaving={isCreatingIndividualSession || isEditingIndividualSession}
+                    errorMessage={oneOnOneFormError}
                 />
             )}
             {showDeleteConfirm && (
@@ -1602,9 +1689,10 @@ const MentorSessions = () => {
             {showGroupForm && (
                 <GroupFormModal
                     initial={editingGroup}
-                    onClose={() => { setShowGroupForm(false); setEditingGroup(null); }}
+                    onClose={() => { setGroupFormError(""); setShowGroupForm(false); setEditingGroup(null); }}
                     onSave={handleSaveGroup}
                     isSaving={isCreatingGroupSession || isEditingGroupSession}
+                    errorMessage={groupFormError}
                 />
             )}
             {viewingGroup && (

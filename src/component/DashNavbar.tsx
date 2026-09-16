@@ -28,15 +28,16 @@ const NAV_ITEMS = [
     { id: 'bookings', name: 'Bookings', icon: <FiBookOpen className="" />, path: '/dashboard/bookings' },
 ];
 
-// Items shown on the left/right of the mobile bottom tab bar (Create sits in the middle,
-// the "More" dots menu sits at the far end).
+const MY_PRODUCTS_PATH = '/dashboard/mentor/products';
+
+// Mobile bottom tab bar: keep it focused on core actions and let the More menu hold
+// secondary destinations like Bookings / Mentor Profile.
 const MOBILE_PRIMARY_IDS = ['home', 'events'];
-const MOBILE_SECONDARY_IDS = ['explore', 'wallet'];
+const MOBILE_SECONDARY_IDS = ['wallet'];
 
 const DashNavbar = () => {
     const location = useLocation();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
-    const [showQuickActions, setShowQuickActions] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
     const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -60,8 +61,16 @@ const DashNavbar = () => {
     }, []);
 
     useEffect(() => {
+        const onEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setShowMoreMenu(false);
+        };
+
+        window.addEventListener('keydown', onEscape);
+        return () => window.removeEventListener('keydown', onEscape);
+    }, []);
+
+    useEffect(() => {
         setShowProfileMenu(false);
-        setShowQuickActions(false);
         setShowMoreMenu(false);
     }, [location.pathname]);
 
@@ -70,6 +79,9 @@ const DashNavbar = () => {
 
     const mobilePrimaryItems = NAV_ITEMS.filter((item) => MOBILE_PRIMARY_IDS.includes(item.id));
     const mobileSecondaryItems = NAV_ITEMS.filter((item) => MOBILE_SECONDARY_IDS.includes(item.id));
+    const desktopNavItems = userProfile?.is_mentor
+        ? [...NAV_ITEMS, { id: 'my-products', name: 'My Products', icon: <FiBookOpen className="" />, path: MY_PRODUCTS_PATH }]
+        : NAV_ITEMS;
 
     return (
         <>
@@ -99,7 +111,7 @@ const DashNavbar = () => {
 
                         {/* Desktop nav links */}
                         <div className="hidden lg:flex items-center gap-8">
-                            {NAV_ITEMS.map((item) => {
+                            {desktopNavItems.map((item) => {
                                 const isActive = location.pathname === item.path;
                                 return (
                                     <Link
@@ -326,9 +338,9 @@ const DashNavbar = () => {
             <nav
                 className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch py-2.5"
                 style={{
-                    background: 'rgba(6, 10, 4, 0.95)',
-                    backdropFilter: 'blur(20px) saturate(150%)',
-                    WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+                    background: 'rgba(255,255,255,0.05)',
+                    backdropFilter: 'blur(24px) saturate(150%)',
+                    WebkitBackdropFilter: 'blur(24px) saturate(150%)',
                     boxShadow: '0 -8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
                     paddingBottom: 'env(safe-area-inset-bottom)',
                 }}
@@ -357,20 +369,20 @@ const DashNavbar = () => {
                     );
                 })}
 
-                {/* Plus — raised action in the middle slot, opens the quick-actions dialog */}
-                <button
-                    onClick={() => setShowQuickActions(true)}
+                {/* Direct link to the create-event page; the More menu handles secondary actions */}
+                <Link
+                    to="/dashboard/events/create"
                     className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[10px]"
                     style={{ color: '#a6ff00', fontWeight: 600 }}
                 >
                     <span
-                        className="w-10 h-10 -mt-1 rounded-full flex items-center justify-center"
+                        className="w-10 h-10 -mt-1 rounded-full flex items-center justify-center transition-transform duration-200 hover:scale-105"
                         style={{ background: '#a6ff00', boxShadow: '0 0 12px rgba(166,255,0,0.4)' }}
                     >
                         <FiPlus className="text-black" size={20} />
                     </span>
                     Create
-                </button>
+                </Link>
 
                 {mobileSecondaryItems.map((item) => {
                     const isActive = location.pathname === item.path;
@@ -390,7 +402,7 @@ const DashNavbar = () => {
                     );
                 })}
 
-                {/* Dots — opens a small menu with Bookings + Become a Mentor */}
+                {/* Dots — opens a bottom-sheet menu with smooth transitions */}
                 <div className="relative flex-1" ref={moreMenuRef}>
                     <button
                         onClick={() => setShowMoreMenu((prev) => !prev)}
@@ -407,150 +419,96 @@ const DashNavbar = () => {
                         </span>
                         More
                     </button>
-
-                    {/* Dropdown panel — same styling as the profile dropdown, anchored near the dots */}
-                    <div
-                        className={`absolute bg-neutral-950 border-2 border-neutral-800 bottom-9/12 p-5 mb-3 w-56 rounded-2xl overflow-hidden right-3 origin-bottom-right transition-all duration-200 ease-out ${showMoreMenu
-                            ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
-                            : 'opacity-0 scale-95 translate-y-1 pointer-events-none'
-                            }`}
-                        style={{
-                            backdropFilter: 'blur(24px) saturate(150%)',
-                            WebkitBackdropFilter: 'blur(24px) saturate(150%)',
-                            boxShadow: '0 -12px 32px rgba(0,0,0,0.4)',
-                        }}
-                    >
-                        {/* Header with close icon */}
-                        <div className="flex items-center justify-between pb-1">
-                            <p className="text-white text-xs font-semibold">More</p>
-                            <button
-                                onClick={() => setShowMoreMenu(false)}
-                                aria-label="Close menu"
-                                className="w-6 h-6 flex items-center justify-center rounded-full text-white/60 transition-colors"
-                                onMouseEnter={(e) => {
-                                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)';
-                                    (e.currentTarget as HTMLButtonElement).style.color = '#fff';
-                                }}
-                                onMouseLeave={(e) => {
-                                    (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                                    (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.6)';
-                                }}
-                            >
-                                <FiX size={16} />
-                            </button>
-                        </div>
-
-                        <div className="py-1">
-                            <Link
-                                to="/dashboard/bookings"
-                                onClick={() => setShowMoreMenu(false)}
-                                className="flex justify-center items-center gap-2 px-5 py-2.5 text-sm bg-white text-black rounded-lg no-underline transition-colors"
-                                onMouseEnter={(e) => {
-                                    (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
-                                    (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
-                                }}
-                                onMouseLeave={(e) => {
-                                    (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
-                                    (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
-                                }}
-                            >
-                                <FiBookOpen />
-                                Bookings
-                            </Link>
-                        </div>
-
-                        <div className="h-px w-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
-
-                        <div className="py-1">
-                            {userProfile?.is_mentor ? (
-                                <Link
-                                    to="/dashboard/mentor"
-                                    onClick={() => setShowMoreMenu(false)}
-                                    className="flex justify-center items-center gap-2 px-5 py-2.5 bg-white text-black rounded-lg text-sm no-underline transition-colors"
-                                    onMouseEnter={(e) => {
-                                        (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
-                                        (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
-                                        (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
-                                    }}
-                                >
-                                    <FiUser />
-                                    Mentor Profile
-                                </Link>
-                            ) : (
-                                <Link
-                                    to="/mentor-onboarding"
-                                    onClick={() => setShowMoreMenu(false)}
-                                    className="flex items-center gap-3 px-5 py-3 text-sm no-underline transition-colors"
-                                    style={{ color: 'rgba(255,255,255,0.75)' }}
-                                    onMouseEnter={(e) => {
-                                        (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.05)';
-                                        (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
-                                        (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.75)';
-                                    }}
-                                >
-                                    <FiUser />
-                                    Become a Mentor
-                                </Link>
-                            )}
-                        </div>
-                    </div>
                 </div>
             </nav>
 
-            {/* Quick actions dialog, opened from the middle Plus tab */}
-            {showQuickActions && (
-                <>
-                    <div
-                        onClick={() => setShowQuickActions(false)}
-                        aria-hidden="true"
-                        className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-                    // style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
-                    />
-                    <div
-                        role="dialog"
-                        aria-modal="true"
-                        className="lg:hidden fixed left-0 right-0 bottom-0 z-50 rounded-t-3xl overflow-hidden bg-neutral-950!"
-                        style={{
-                            background: 'rgba(10, 14, 8, 0.98)',
-                            backdropFilter: 'blur(24px) saturate(150%)',
-                            WebkitBackdropFilter: 'blur(24px) saturate(150%)',
-                            boxShadow: '0 -12px 40px rgba(0,0,0,0.5)',
-                            paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
-                        }}
-                    >
-                        <div
-                            className="h-px p-0.5 w-full"
-                            style={{ background: 'linear-gradient(90deg, transparent, rgba(166,255,0,0.3), transparent)' }}
-                        />
-
-                        <div className="flex justify-center pt-3">
-                            <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
-                        </div>
-
-                        <div className="px-5 pt-4 pb-2">
-                            <p className="text-white text-center text-sm font-semibold">Quick Actions</p>
-                        </div>
-
-                        <div className="flex flex-col gap-2.5 px-5 pb-5 ">
-                            <Link
-                                to="/dashboard/events/create"
-                                onClick={() => setShowQuickActions(false)}
-                                className="flex items-center justify-center gap-2 w-full py-3 rounded-md text-sm font-semibold text-black"
-                                style={{ background: '#a6ff00' }}
-                            >
-                                <FiPlus size={16} />
-                                Create Event
-                            </Link>
-                        </div>
+            <div
+                className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-300 ease-out ${showMoreMenu ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+                style={{
+                    background: 'rgba(2, 5, 3, 0.5)',
+                    backdropFilter: 'blur(5px) saturate(140%)',
+                    WebkitBackdropFilter: 'blur(5px) saturate(140%)',
+                }}
+                onClick={() => setShowMoreMenu(false)}
+            >
+                <div
+                    className={`absolute bottom-0 bg-neutral-950 left-0 right-0 mx-auto w-full max-w-md rounded-t-[28px] border-t border-white/10 px-5 pb-8 pt-4 shadow-2xl transition-all duration-300 ease-out ${showMoreMenu ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                        backdropFilter: 'blur(24px) saturate(150%)',
+                        WebkitBackdropFilter: 'blur(24px) saturate(150%)',
+                        boxShadow: '0 -12px 32px rgba(0,0,0,0.4)',
+                    }}
+                >
+                    <div className="mb-4 flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">More</p>
+                        <button
+                            onClick={() => setShowMoreMenu(false)}
+                            aria-label="Close menu"
+                            className="w-7 h-7 flex items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/8 hover:text-white"
+                        >
+                            <FiX size={16} />
+                        </button>
                     </div>
-                </>
-            )}
+
+                    <div className="space-y-2.5 py-1">
+                        <Link
+                            to="/dashboard/explore"
+                            onClick={() => setShowMoreMenu(false)}
+                            className="flex items-center bg-neutral-900 justify-center gap-2 rounded-md px-5 py-3 text-sm text-white transition-colors"
+                        >
+                            <FiCompass />
+                            Explore
+                        </Link>
+
+                        <Link
+                            to="/dashboard/bookings"
+                            onClick={() => setShowMoreMenu(false)}
+                            className="flex justify-center items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black"
+                        >
+                            <FiBookOpen />
+                            Bookings
+                        </Link>
+
+                        {userProfile?.is_mentor && (
+                            <Link
+                                to={MY_PRODUCTS_PATH}
+                                onClick={() => setShowMoreMenu(false)}
+                                className="flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm text-white transition-colors"
+                                style={{ background: 'rgba(255,255,255,0.04)' }}
+                            >
+                                <FiBookOpen />
+                                My Products
+                            </Link>
+                        )}
+                    </div>
+
+                    <div className="my-4 h-px w-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
+
+                    <div className="pb-1">
+                        {userProfile?.is_mentor ? (
+                            <Link
+                                to="/dashboard/mentor"
+                                onClick={() => setShowMoreMenu(false)}
+                                className="flex justify-center items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black"
+                            >
+                                <FiUser />
+                                Mentor Profile
+                            </Link>
+                        ) : (
+                            <Link
+                                to="/mentor-onboarding"
+                                onClick={() => setShowMoreMenu(false)}
+                                className="flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm text-white transition-colors"
+                                style={{ background: 'rgba(255,255,255,0.04)' }}
+                            >
+                                <FiUser />
+                                Become a Mentor
+                            </Link>
+                        )}
+                    </div>
+                </div>
+            </div>
 
             <style>{`
         input::placeholder {

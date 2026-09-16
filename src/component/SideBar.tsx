@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     FiCalendar,
     FiCompass,
     FiHome,
+    FiMoreHorizontal,
     FiUser,
+    FiX,
 } from 'react-icons/fi';
 import { Link, useLocation } from 'react-router-dom';
 import betamindLogo1 from '../assets/beta.png';
@@ -78,6 +80,18 @@ const NavList = ({ collapsed }: NavListProps) => {
 const SideBar = () => {
     const location = useLocation();
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [showMoreSheet, setShowMoreSheet] = useState(false);
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setShowMoreSheet(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     return (
         <>
@@ -88,6 +102,12 @@ const SideBar = () => {
         .bottom-nav-item.active {
           color: #a6ff00 !important;
           border-bottom: 2px solid #a6ff00;
+        }
+        .more-sheet-backdrop {
+          transition: opacity 0.28s ease;
+        }
+        .more-sheet-panel {
+          transition: transform 0.28s ease, opacity 0.28s ease;
         }
       `}</style>
 
@@ -140,10 +160,11 @@ const SideBar = () => {
 
             {/* ════════════ MOBILE BOTTOM NAV BAR ═════════════ */}
             <nav
-                className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 bg-[#000904]"
+                className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-2 bg-[#000904]"
                 style={{
                     borderTop: '1px solid rgba(205,220,57,.1)',
                     height: 70,
+                    paddingBottom: 'env(safe-area-inset-bottom)',
                 }}
             >
                 {NAV_ITEMS.map((item) => {
@@ -163,7 +184,64 @@ const SideBar = () => {
                         </Link>
                     );
                 })}
+
+                <button
+                    type="button"
+                    onClick={() => setShowMoreSheet(true)}
+                    className="bottom-nav-item flex flex-col items-center gap-1 py-0 px-3 flex-1 pt-2"
+                    style={{ color: showMoreSheet ? '#a6ff00' : 'rgba(255,255,255,.5)' }}
+                >
+                    <span className="text-xl"><FiMoreHorizontal /></span>
+                    <span className="text-[10px] font-medium">More</span>
+                </button>
             </nav>
+
+            <div
+                className={`more-sheet-backdrop fixed inset-0 z-50 md:hidden ${showMoreSheet ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+                style={{ background: 'rgba(0,0,0,0.68)' }}
+                onClick={() => setShowMoreSheet(false)}
+            >
+                <div
+                    className={`more-sheet-panel absolute bottom-0 left-0 right-0 mx-auto w-full max-w-md rounded-t-3xl border-t border-white/10 bg-[#0b100c] px-5 pb-8 pt-4 shadow-2xl ${showMoreSheet ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="mb-4 flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">More</p>
+                        <button
+                            type="button"
+                            onClick={() => setShowMoreSheet(false)}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/5 hover:text-white"
+                            aria-label="Close more menu"
+                        >
+                            <FiX size={16} />
+                        </button>
+                    </div>
+
+                    <div className="space-y-2.5">
+                        <Link
+                            to="/dashboard/explore"
+                            onClick={() => setShowMoreSheet(false)}
+                            className="flex items-center justify-center rounded-xl bg-white/5 px-4 py-3 text-sm font-semibold text-white"
+                        >
+                            Explore
+                        </Link>
+                        <Link
+                            to="/dashboard/profile"
+                            onClick={() => setShowMoreSheet(false)}
+                            className="flex items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black"
+                        >
+                            Profile
+                        </Link>
+                        <Link
+                            to="/dashboard/overview"
+                            onClick={() => setShowMoreSheet(false)}
+                            className="flex items-center justify-center rounded-xl bg-white/5 px-4 py-3 text-sm font-semibold text-white"
+                        >
+                            Home
+                        </Link>
+                    </div>
+                </div>
+            </div>
         </>
     );
 };

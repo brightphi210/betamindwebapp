@@ -101,6 +101,7 @@ type MentorPublicSession = {
     type: 'one-on-one' | 'group';
     title: string;
     description: string;
+    note?: string;
     price: number;
     startDate: string;
     endDate: string;
@@ -110,40 +111,77 @@ type MentorPublicSession = {
     spotsLeft: number;
     status: string;
     durationLabel: string;
+    durationMinutes?: number;
+    daysDuration?: number;
+    availability?: 'weekdays' | 'weekends';
+    responseTime?: 'immediate' | number;
+    mentorAvatar?: string;
+    meetingLink?: string;
+    booking?: {
+        id: string;
+        menteeName: string;
+        menteeAvatar: string;
+        meetingLink: string;
+        status: 'pending_confirmation' | 'confirmed';
+        bookedFor: string;
+    } | null;
 };
 
-const DUMMY_MENTOR_SESSIONS: MentorPublicSession[] = [
-    {
-        id: 'session-1',
-        type: 'one-on-one',
-        title: '1:1 Career Mentorship',
-        description: 'A focused conversation to review your goals, strengths, and next steps for career growth.',
-        price: 45000,
-        startDate: '2026-09-18',
-        endDate: '2026-09-25',
-        dailyTime: '14:00',
-        image: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
-        capacity: 1,
-        spotsLeft: 1,
-        status: 'open',
-        durationLabel: '45 mins',
-    },
-    {
-        id: 'session-2',
-        type: 'group',
-        title: 'Product Design Critique Circle',
-        description: 'A small-group review session for portfolios, case studies, and design presentations.',
-        price: 15000,
-        startDate: '2026-09-20',
-        endDate: '2026-09-27',
-        dailyTime: '18:30',
-        image: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
-        capacity: 12,
-        spotsLeft: 6,
-        status: 'open',
-        durationLabel: '60 mins',
-    },
-];
+const mapGroupSessionToPublicSession = (session: any, fallbackImage?: string): MentorPublicSession => ({
+    id: String(session?.id ?? `${Date.now()}-group`),
+    type: 'group',
+    title: session?.name || 'Group Session',
+    description: session?.description || 'A group mentorship session.',
+    price: Number(session?.price_per_participant) || 0,
+    startDate: session?.start_date || '',
+    endDate: session?.end_date || session?.start_date || '',
+    dailyTime: session?.daily_time || '',
+    image: session?.banner || session?.banner_url || fallbackImage || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
+    capacity: Number(session?.max_participants) || 1,
+    spotsLeft: Number(session?.spots_left ?? session?.max_participants ?? 1) || 0,
+    status: session?.status || 'open',
+    durationLabel: session?.duration_minutes ? `${session.duration_minutes} mins` : '60 mins',
+});
+
+const mapIndividualSessionToPublicSession = (session: any, fallbackImage?: string): MentorPublicSession => ({
+    id: String(session?.id ?? `${Date.now()}-individual`),
+    type: 'one-on-one',
+    title: '1:1 Mentorship',
+    description: session?.notes || 'Private mentorship tailored to your goals.',
+    note: session?.notes || 'Private mentorship tailored to your goals.',
+    price: Number(session?.price) || 0,
+    startDate: '',
+    endDate: '',
+    dailyTime: session?.availability || 'Flexible',
+    image: fallbackImage || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
+    capacity: 1,
+    spotsLeft: 1,
+    status: session?.status || 'open',
+    durationLabel: session?.duration_minutes ? `${session.duration_minutes} mins` : `${session?.duration_days || 1} day`,
+    durationMinutes: Number(session?.duration_minutes) || 45,
+    daysDuration: Number(session?.duration_days) || 7,
+    availability: session?.availability || 'weekdays',
+    responseTime: session?.response_time === 'immediate' ? 'immediate' : Number(session?.response_time) || 2,
+    mentorAvatar: fallbackImage || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80',
+    meetingLink: session?.meeting_link || '',
+    booking: session?.mentee
+        ? {
+            id: String(session.id),
+            menteeName: session?.mentee_name || 'Mentee',
+            menteeAvatar: `https://i.pravatar.cc/150?u=${session.mentee}`,
+            meetingLink: session?.meeting_link || '',
+            status: session?.status === 'confirmed' ? 'confirmed' : 'pending_confirmation',
+            bookedFor: session?.created_at
+                ? new Date(session.created_at).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                })
+                : 'Recently booked',
+        }
+        : null,
+});
 
 const formatCurrency = (value: number) => `₦${value.toLocaleString()}`;
 const formatDayDate = (value: string) => {
@@ -308,52 +346,109 @@ const ReviewCard: React.FC<{ review: MentorReview }> = ({ review }) => {
     );
 };
 
-const MentorSessionCard: React.FC<{ session: MentorPublicSession; onSelect: (session: MentorPublicSession) => void }> = ({ session, onSelect }) => (
-    <div className="rounded-2xl p-3 sm:p-4 bg-white/5">
-        <div className="flex gap-3 sm:gap-4">
-            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md sm:h-16 sm:w-16">
-                <img src={session.image} alt={session.title} className="h-full w-full object-cover" />
-            </div>
+const MentorSessionCard: React.FC<{ session: MentorPublicSession; onSelect: (session: MentorPublicSession) => void }> = ({ session, onSelect }) => {
+    if (session.type === 'one-on-one') {
+        return (
+            <div className="rounded-2xl bg-white/5 p-3 sm:p-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg sm:h-16 sm:w-16">
+                        <img src={session.mentorAvatar || session.image} alt="Mentor" className="h-full w-full object-cover" />
+                    </div>
 
-            <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                        <h3 className="text-base font-bold text-white line-clamp-1">{session.title}</h3>
-                        <p className=" text-xs leading-relaxed text-white/55 line-clamp-2">{session.description}</p>
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                                <h3 className="line-clamp-1 text-base font-bold text-white">SESSION IS LIVE</h3>
+                                <p className="line-clamp-2 text-xs leading-relaxed text-white/55">{session.note || session.description}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-white/60">
+                        <span className="flex items-center gap-1.5">
+                            <FiClock size={13} />
+                            {session.durationMinutes ? `${session.durationMinutes} mins` : session.durationLabel}
+                        </span>
+                        <span className="rounded bg-white px-2 py-0.5 text-[11px] font-semibold capitalize text-black">
+                            1-1 Session
+                        </span>
+                        <span className="text-white/40">· {session.daysDuration ?? 7} days</span>
+                        {session.meetingLink && (
+                            <a href={session.meetingLink} target="_blank" rel="noreferrer" className="text-white/40 underline decoration-dotted underline-offset-2 hover:text-white/70">
+                                Meeting link
+                            </a>
+                        )}
+                    </div>
+                    <p className="text-base font-bold text-white sm:text-lg">{formatCurrency(session.price)}</p>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
+                    <span className="text-[11px] text-white/40">
+                        {!session.booking && 'No mentee has booked this slot yet'}
+                        {session.booking?.status === 'pending_confirmation' && `${session.booking.menteeName} requested a booking`}
+                        {session.booking?.status === 'confirmed' && `Confirmed with ${session.booking.menteeName}`}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => onSelect(session)}
+                        className="rounded-md bg-white px-4 py-2 text-[11px] font-bold text-black"
+                    >
+                        View Session
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="rounded-2xl p-3 sm:p-4 bg-white/5">
+            <div className="flex gap-3 sm:gap-4">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md sm:h-16 sm:w-16">
+                    <img src={session.image} alt={session.title} className="h-full w-full object-cover" />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                            <h3 className="text-base font-bold text-white line-clamp-1">{session.title}</h3>
+                            <p className="text-xs leading-relaxed text-white/55 line-clamp-2">{session.description}</p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-white/55">
-            <span className="flex items-center gap-1.5">
-                <FiClock size={13} />
-                {session.dailyTime ? formatTimeDisplay(session.dailyTime) : 'Flexible'}
-            </span>
-            <span className="text-white/40">{formatDayDate(session.startDate)} – {formatDayDate(session.endDate)}</span>
-            <span className="rounded bg-white px-2 py-0.5 text-[10px] font-semibold capitalize text-black">
-                {session.type === 'one-on-one' ? '1-1 Session' : 'Group Session'}
-            </span>
-        </div>
-
-        <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
-            <div className="flex items-center gap-2">
-                <span className="text-[11px] text-white/40">
-                    {session.type === 'one-on-one' ? 'Single mentor slot' : `${session.capacity} total · ${session.spotsLeft} left`}
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-white/55">
+                <span className="flex items-center gap-1.5">
+                    <FiClock size={13} />
+                    {session.dailyTime ? formatTimeDisplay(session.dailyTime) : 'Flexible'}
+                </span>
+                <span className="text-white/40">{formatDayDate(session.startDate)} – {formatDayDate(session.endDate)}</span>
+                <span className="rounded bg-white px-2 py-0.5 text-[10px] font-semibold capitalize text-black">
+                    Group Session
                 </span>
             </div>
-            <p className="text-base font-bold text-white sm:text-lg">{formatCurrency(session.price)}</p>
-        </div>
 
-        <button
-            type="button"
-            onClick={() => onSelect(session)}
-            className="mt-2 w-full bg-white rounded-md px-4 py-2.5 text-xs font-bold text-black"
-        >
-            Book Session
-        </button>
-    </div>
-);
+            <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
+                <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-white/40">
+                        {`${session.capacity} total · ${session.spotsLeft} left`}
+                    </span>
+                </div>
+                <p className="text-base font-bold text-white sm:text-lg">{formatCurrency(session.price)}</p>
+            </div>
+
+            <button
+                type="button"
+                onClick={() => onSelect(session)}
+                className="mt-2 w-full bg-white rounded-md px-4 py-2.5 text-xs font-bold text-black"
+            >
+                Book Session
+            </button>
+        </div>
+    );
+};
 
 const SessionDetailsModal: React.FC<{ session: MentorPublicSession; onClose: () => void; onBook: () => void }> = ({ session, onClose, onBook }) => (
     <div
@@ -715,6 +810,7 @@ const Mentor: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { aMentor, isLoading } = useGetMentorProfile(id);
     const mentor = aMentor?.data;
+    console.log('mentor', mentor);
 
     const mentorName = [mentor?.first_name, mentor?.last_name].filter(Boolean)
         .join(' ') || mentor?.nick_name || 'Mentor';
@@ -745,7 +841,13 @@ const Mentor: React.FC = () => {
             ? mentor.digital_products.map(mapDigitalProduct)
             : [];
 
-    const mentorSessions: MentorPublicSession[] = DUMMY_MENTOR_SESSIONS;
+    const groupSessions: MentorPublicSession[] = Array.isArray(mentor?.group_sessions)
+        ? mentor.group_sessions.map((session: any) => mapGroupSessionToPublicSession(session, mentor?.cover_images))
+        : [];
+
+    const individualSessions: MentorPublicSession[] = Array.isArray(mentor?.individual_sessions)
+        ? mentor.individual_sessions.map((session: any) => mapIndividualSessionToPublicSession(session, mentor?.cover_images))
+        : [];
 
     const [showShareModal, setShowShareModal] = useState(false);
     const [showFullBio, setShowFullBio] = useState(false);
@@ -1037,11 +1139,39 @@ const Mentor: React.FC = () => {
                                     Sessions
                                 </div>
 
-                                <div className="space-y-4">
-                                    {mentorSessions.map((session) => (
-                                        <MentorSessionCard key={session.id} session={session} onSelect={setSelectedSession} />
-                                    ))}
-                                </div>
+                                {individualSessions.length > 0 && (
+                                    <div className="mb-5">
+                                        <div className="mb-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-white/70">1:1 Sessions</p>
+                                            <p className="mt-1 text-[11px] text-white/45">Private mentoring tailored to your goals and growth plan.</p>
+                                        </div>
+                                        <div className="space-y-4">
+                                            {individualSessions.map((session) => (
+                                                <MentorSessionCard key={session.id} session={session} onSelect={setSelectedSession} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {groupSessions.length > 0 && (
+                                    <div>
+                                        <div className="mb-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-white/70">Group Sessions</p>
+                                            <p className="mt-1 text-[11px] text-white/45">Collaborative sessions for learning, feedback, and community support.</p>
+                                        </div>
+                                        <div className="space-y-4">
+                                            {groupSessions.map((session) => (
+                                                <MentorSessionCard key={session.id} session={session} onSelect={setSelectedSession} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {individualSessions.length === 0 && groupSessions.length === 0 && (
+                                    <div className="rounded-lg border border-dashed border-white/10 bg-white/3 px-3 py-6 text-center text-xs text-white/40">
+                                        No sessions have been published yet.
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
