@@ -881,6 +881,7 @@ const Mentor: React.FC = () => {
             session_type: bookingSession.type === 'group' ? 'group' : 'individual',
             note: trimmedNote,
             gateway: 'paystack',
+            callback_url: 'https://betamindwebapp.vercel.app/dashboard/session-booked-success',
         };
 
         if (bookingSession.type === 'group') {

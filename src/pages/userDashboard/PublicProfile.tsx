@@ -612,6 +612,7 @@ const PublicProfile = () => {
             session_type: sessionToBook.type === "group" ? "group" : "individual",
             note: trimmedNote,
             gateway: "paystack",
+            callback_url: "https://betamindwebapp.vercel.app/dashboard/session-booked-success",
         };
 
         if (sessionToBook.type === "group") {
