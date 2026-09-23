@@ -25,7 +25,7 @@ const NAV_ITEMS = [
     { id: 'events', name: 'Events', icon: <FiCalendar className="" />, path: '/dashboard/events' },
     { id: 'explore', name: 'Explore', icon: <FiCompass className="" />, path: '/dashboard/explore' },
     { id: 'wallet', name: 'Wallet', icon: <FiCreditCard className="" />, path: '/dashboard/wallet' },
-    { id: 'bookings', name: 'Bookings', icon: <FiBookOpen className="" />, path: '/dashboard/bookings' },
+    { id: 'bookings', name: 'My Bookings', icon: <FiBookOpen className="" />, path: '/dashboard/bookings' },
 ];
 
 const MY_PRODUCTS_PATH = '/dashboard/products';
@@ -470,17 +470,15 @@ const DashNavbar = () => {
                             Bookings
                         </Link>
 
-                        {userProfile?.is_mentor && (
-                            <Link
-                                to={MY_PRODUCTS_PATH}
-                                onClick={() => setShowMoreMenu(false)}
-                                className="flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm text-white transition-colors"
-                                style={{ background: 'rgba(255,255,255,0.04)' }}
-                            >
-                                <FiBookOpen />
-                                My Products
-                            </Link>
-                        )}
+                        <Link
+                            to={MY_PRODUCTS_PATH}
+                            onClick={() => setShowMoreMenu(false)}
+                            className="flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm text-white transition-colors"
+                            style={{ background: 'rgba(255,255,255,0.04)' }}
+                        >
+                            <FiBookOpen />
+                            My Products
+                        </Link>
                     </div>
 
                     <div className="my-4 h-px w-full" style={{ background: 'rgba(255,255,255,0.08)' }} />

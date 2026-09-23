@@ -232,16 +232,16 @@ const EventsTimelineSkeleton: React.FC<{ groups?: number; rowsPerGroup?: number 
 );
 
 const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
-    <div className="flex flex-col items-center justify-center py-24 sm:py-32">
+    <div className="flex flex-col items-center justify-center py-10 sm:py-10">
         <div
-            className="relative w-24 h-24 rounded-2xl mb-8 flex items-center justify-center bg-neutral-900"
+            className="relative w-20 h-20 rounded-xl mb-4 flex items-center justify-center bg-neutral-900"
         >
             <FiCalendar size={44} className="text-white" />
         </div>
         <h2 className="text-white text-xl font-bold mb-2">
             No {tab === 'upcoming' ? 'Upcoming' : 'Past'} Events
         </h2>
-        <p className="text-white/40 text-sm mb-8">
+        <p className="text-white/40 text-sm mb-3">
             {tab === 'upcoming'
                 ? "You dont have any upcoming event"
                 : "You don't have any past events."}
@@ -515,7 +515,7 @@ const EventRow: React.FC<{
         {/* ── Mobile card (matches design) ── */}
         <div
             onClick={() => onView(event)}
-            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-"
+            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-neutral-950"
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -998,25 +998,24 @@ const EventDrawerContent: React.FC<{
     };
 
     return (
-        <div className="bg-[#0a0f08] min-h-full w-full sm:w-[480px] flex flex-col shadow-xl border-l border-[rgba(205,220,57,.1)]">
-            <div className="flex items-center justify-between p-5 border-b border-[rgba(205,220,57,.08)] shrink-0 gap-2">
+        <div className="bg-neutral-950 min-h-full w-full sm:w-[480px] flex flex-col shadow-xl ">
+            <div className="flex flex-wrap items-center justify-between p-5 border-b border-[rgba(205,220,57,.08)] shrink-0 gap-2">
                 <div className="flex items-center gap-2">
-                    <Button
+                    <button
                         onClick={handleCopyLink}
-                        variant="dark"
-                        className="px-3 py-1.5 text-xs"
+                        className="px-3 py-1.5 text-xs bg-white cursor-pointer text-black rounded-md flex transition-colors gap-1.5 items-center justify-center hover:bg-white/90"
                     >
                         <FiCopy size={13} />
-                        {copied ? 'Copied!' : 'Share Event Page'}
-                    </Button>
+                        {copied ? 'Copied!' : 'Share'}
+                    </button>
                     <a
                         href={event.publicUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors bg-[#010C06] text-white border border-white/10 hover:bg-[#0a140c]"
+                        className="px-3 py-1.5 text-xs bg-white cursor-pointer text-black rounded-md flex transition-colors gap-1.5 items-center justify-center hover:bg-white/90"
                     >
-                        View Event Page
+                        View Page
                         <FiExternalLink size={13} />
                     </a>
                 </div>
@@ -1197,7 +1196,7 @@ const EventDrawerContent: React.FC<{
                         onClick={(e) => e.stopPropagation()}
                         className="flex items-center w-full justify-center gap-1.5 py-2.5 rounded-md text-xs font-semibold transition-colors bg-white/10 text-white"
                     >
-                        View Event Page
+                        View Event
                         <FiExternalLink size={13} />
                     </a>
                     <button
@@ -1210,28 +1209,6 @@ const EventDrawerContent: React.FC<{
                     >
                         <FiShare2 size={13} />
                         Invite a Friend
-                    </button>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2 mt-2">
-                    <button
-                        type="button"
-                        onClick={() => onEdit(event)}
-                        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-md font-semibold text-xs transition-colors"
-                        style={{ background: 'rgba(166,255,0,0.1)', color: '#a6ff00', border: '1px solid rgba(166,255,0,.2)' }}
-                    >
-                        <FiEdit2 size={13} />
-                        Edit Event
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => onDelete(event)}
-                        disabled={isDeleting}
-                        className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-md font-semibold text-xs transition-colors disabled:opacity-40"
-                        style={{ background: 'rgba(248,113,113,0.08)', color: 'rgba(248,113,113,0.9)', border: '1px solid rgba(248,113,113,0.15)' }}
-                    >
-                        <FiTrash2 size={13} />
-                        {isDeleting ? 'Deleting…' : 'Delete Event'}
                     </button>
                 </div>
             </div>

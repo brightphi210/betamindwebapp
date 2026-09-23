@@ -23,25 +23,32 @@ export type BookingMentorProfile = {
 
 export type ApiBooking = {
     id: number;
-    mentee: BookingMentee;
-    mentor_profile: BookingMentorProfile;
-    title: string;
-    description: string;
-    subject: string;
-    session_type: string;
-    session_type_display: string;
-    student_acknowledged: boolean;
-    mentor_completed: boolean;
-    scheduled_date: string;
-    start_time: string;
-    end_time: string;
-    status: string;
-    status_display: string;
-    session_link: string | null;
-    duration: number;
-    notes: string;
-    total_amount: string;
-    created_at: string;
+    created_at?: string;
+    group_session?: number | null;
+    individual_session?: number | null;
+    mentee?: BookingMentee | string | null;
+    mentor_profile?: BookingMentorProfile | null;
+    mentor_name?: string | null;
+    mentor_avatar?: string | null;
+    note?: string | null;
+    session_date?: string | null;
+    session_name?: string | null;
+    session_type?: string;
+    session_type_display?: string;
+    title?: string;
+    description?: string;
+    subject?: string;
+    student_acknowledged?: boolean;
+    mentor_completed?: boolean;
+    scheduled_date?: string;
+    start_time?: string;
+    end_time?: string;
+    status?: string;
+    status_display?: string;
+    session_link?: string | null;
+    duration?: number;
+    notes?: string;
+    total_amount?: string | number | null;
 };
 
 export type ApiBookingsResponse = {
@@ -70,7 +77,8 @@ export const formatTime = (time: string) => {
  */
 export const formatDate = (dateStr: string) => {
     if (!dateStr) return "";
-    const d = new Date(`${dateStr}T00:00:00`);
+    const safeDate = dateStr.includes("T") ? dateStr : `${dateStr}T00:00:00`;
+    const d = new Date(safeDate);
     if (Number.isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 };
@@ -81,7 +89,8 @@ export const formatDate = (dateStr: string) => {
  */
 export const formatDayLabel = (dateStr: string) => {
     if (!dateStr) return "";
-    const d = new Date(`${dateStr}T00:00:00`);
+    const safeDate = dateStr.includes("T") ? dateStr : `${dateStr}T00:00:00`;
+    const d = new Date(safeDate);
     if (Number.isNaN(d.getTime())) return dateStr;
     return formatSessionDateLabel(d);
 };
@@ -131,10 +140,10 @@ export const formatRecurringSummary = (scheduledDate: string, duration: number):
 };
 
 export const mentorFullName = (m: BookingMentorProfile) =>
-    [m.first_name, m.last_name].filter(Boolean).join(" ") || m.nick_name || "Mentor";
+    [m?.first_name, m?.last_name].filter(Boolean).join(" ") || m?.nick_name || "Mentor";
 
 export const menteeDisplayName = (m: BookingMentee) =>
-    [m.first_name, m.last_name].filter(Boolean).join(" ") || m.given_name || (m.email ? m.email.split("@")[0] : "Mentee");
+    [m?.first_name, m?.last_name].filter(Boolean).join(" ") || m?.given_name || (m?.email ? m.email.split("@")[0] : "Mentee");
 
 // ASSUMPTION: confirm the real status enum against your backend and adjust.
 export const normalizeStatus = (

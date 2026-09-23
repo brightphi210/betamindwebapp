@@ -419,7 +419,7 @@ const SessionDetailsModal: React.FC<{ session: MentorPublicSession; isClosing?: 
         style={{ animation: isClosing ? 'modalFadeOut 0.22s ease-out forwards' : 'modalFadeIn 0.22s ease-out forwards' }}
     >
         <div
-            className={`w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-5 shadow-2xl transition-all duration-300 ${isClosing ? 'translate-y-3 scale-[0.98] opacity-0' : 'translate-y-0 scale-100 opacity-100'}`}
+            className={`w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-5 shadow-2xl transition-all duration-300 ${isClosing ? 'translate-y-3 scale-[0.98] opacity-0' : 'translate-y-0 scale-100 opacity-100'}`}
             style={{
                 background: 'rgba(10,13,9,0.9)',
                 border: '1px solid rgba(255,255,255,0.1)',
@@ -460,25 +460,25 @@ const SessionDetailsModal: React.FC<{ session: MentorPublicSession; isClosing?: 
             <p className="mb-5 text-sm leading-relaxed text-white/65">{session.description}</p>
 
             <div className="grid grid-cols-2 gap-3 text-xs text-white/75">
-                <div className="rounded-lg px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
                     <p className="text-white/40">Date</p>
                     <p className="mt-1 font-semibold text-white">{formatDayDate(session.startDate)} – {formatDayDate(session.endDate)}</p>
                 </div>
-                <div className="rounded-lg px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
                     <p className="text-white/40">Time</p>
                     <p className="mt-1 font-semibold text-white">{formatTimeDisplay(session.dailyTime)}</p>
                 </div>
-                <div className="rounded-lg px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
                     <p className="text-white/40">Duration</p>
                     <p className="mt-1 font-semibold text-white">{session.durationLabel}</p>
                 </div>
-                <div className="rounded-lg px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
                     <p className="text-white/40">Availability</p>
                     <p className="mt-1 font-semibold text-white">{session.spotsLeft > 0 ? `${session.spotsLeft} spots left` : 'Sold out'}</p>
                 </div>
             </div>
 
-            <div className="mt-5 flex items-center justify-between rounded-lg px-3 py-3" style={{ background: 'rgba(166,255,0,0.08)', border: '1px solid rgba(166,255,0,0.18)' }}>
+            <div className="mt-5 flex items-center justify-between rounded-lg px-3 py-3" >
                 <span className="text-xs font-semibold uppercase tracking-wide text-white/60">Price</span>
                 <span className="text-lg font-black text-white">{formatCurrency(session.price)}</span>
             </div>
@@ -905,14 +905,28 @@ const Mentor: React.FC = () => {
                 navigate('/dashboard/session-booked-success');
             },
             onError: (error: any) => {
-                const message =
-                    error?.response?.data?.message ||
-                    error?.response?.data?.detail ||
+                const data = error?.response?.data;
+
+                let message =
+                    data?.message ||
+                    data?.detail ||
                     error?.response?.detail ||
                     'Something went wrong while creating this booking.';
+
+                // Handle field errors like { individual_session: ["..."] }
+                if (data && typeof data === 'object' && !data.message && !data.detail) {
+                    const firstField = Object.keys(data)[0];
+                    const fieldErrors = data[firstField];
+                    if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+                        message = fieldErrors[0];
+                    } else if (typeof fieldErrors === 'string') {
+                        message = fieldErrors;
+                    }
+                }
+
                 setBookingError(message);
                 toast.error(message);
-            },
+            }
         });
     };
 
@@ -1262,7 +1276,7 @@ const Mentor: React.FC = () => {
             {showBookingNoteModal && (
                 <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm transition-opacity duration-300 ${bookingModalClosing ? 'opacity-0' : 'opacity-100'}`} onClick={closeBookingModal} style={{ animation: bookingModalClosing ? 'modalFadeOut 0.22s ease-out forwards' : 'modalFadeIn 0.22s ease-out forwards' }}>
                     <div
-                        className={`w-full max-w-lg rounded-2xl p-5 shadow-2xl transition-all duration-300 ${bookingModalClosing ? 'translate-y-3 scale-[0.98] opacity-0' : 'translate-y-0 scale-100 opacity-100'}`}
+                        className={`w-full max-w-sm rounded-2xl p-5 shadow-2xl transition-all duration-300 ${bookingModalClosing ? 'translate-y-3 scale-[0.98] opacity-0' : 'translate-y-0 scale-100 opacity-100'}`}
                         style={{
                             background: 'rgba(10,13,9,0.9)',
                             border: '1px solid rgba(255,255,255,0.1)',
@@ -1285,7 +1299,7 @@ const Mentor: React.FC = () => {
                             </button>
                         </div>
 
-                        <div className="mb-4 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white/75">
+                        <div className="mb-4 rounded-lg bg-neutral-900 px-3 py-2.5 text-sm text-white/75">
                             <p className="font-semibold text-white">{bookingSession?.title || 'Session booking'}</p>
                             <p className="mt-1 text-xs text-white/55">
                                 {bookingSession?.type === 'one-on-one' ? '1:1 session' : 'Group session'} · {formatCurrency(bookingSession?.price || 0)}
@@ -1305,8 +1319,8 @@ const Mentor: React.FC = () => {
                                 value={bookingNote}
                                 onChange={(e) => setBookingNote(e.target.value)}
                                 placeholder="Tell the mentor what you need help with..."
-                                className="w-full resize-none rounded-xl bg-transparent px-4 py-3 text-sm text-white/90 outline-none placeholder:text-white/25"
-                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                className="w-full bg-neutral-900 resize-none rounded-xl px-4 py-3 text-sm text-white/90 outline-none placeholder:text-white/25"
+                                bg-neutral-900
                             />
                         </div>
 

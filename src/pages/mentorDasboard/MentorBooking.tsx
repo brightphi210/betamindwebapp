@@ -20,12 +20,14 @@ import {
 import LoadingOverlay from "../../component/LoadingOverlay";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import {
+    useAcceptBooking,
     useCreateGroupSession,
     useCreateIndividualSession,
     useDeleteGroupSession,
     useDeleteIndividualSession,
     useEditGroupSession,
     useEditIndividualSession,
+    useRejectBooking,
 } from "../../hooks/mutations/allMutation";
 import { useGetMentorGroupSessions, useGetMentorIndividualSession, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
 import { useGlobalContext } from "../../providers/GlobalContext";
@@ -35,11 +37,13 @@ import { useGlobalContext } from "../../providers/GlobalContext";
 // ─────────────────────────────────────────────
 type Availability = "weekdays" | "weekends";
 type ResponseTime = "immediate" | number;
-type BookingStatus = "pending_confirmation" | "confirmed";
+type BookingStatus = "pending" | "accepted";
 
 interface Booking {
     id: string;
     menteeName: string;
+    menteeFirstName: string;
+    menteeLastName: string;
     menteeAvatar: string;
     meetingLink: string;
     status: BookingStatus;
@@ -98,31 +102,47 @@ type GroupSessionFormValues = {
     meetingLink?: string;
 };
 
-// ─────────────────────────────────────────────
-// API shape (matches the /individual-sessions payload you shared)
-// ─────────────────────────────────────────────
+
+interface MenteeApiObject {
+    id?: string;
+    first_name?: string;
+    last_name?: string;
+    avatar?: string | null;
+    [key: string]: unknown;
+}
+
 interface IndividualSessionApiResponse {
     id: number;
     mentor: string;
-    mentor_name: string;
-    mentee: string | null;
-    mentee_name: string | null;
+    mentor_name?: string;
+    mentee: MenteeApiObject | string | null;
+    mentee_name?: string | null;
+    mentee_avatar?: string | null;
     duration_days: number;
     duration_minutes: number;
     price: string;
     response_time: "immediate" | number | string;
-    status: "pending" | "confirmed" | "cancelled" | string;
+    status: "pending" | "accepted" | "cancelled" | string;
     availability: Availability;
-    meeting_link: string;
+    meeting_link: string | null;
     notes: string;
+    booked: boolean;
+    booking_id?: number | string | null;
+    booking?: {
+        id?: number | string;
+        status?: string;
+        mentee_name?: string;
+        mentee_avatar?: string;
+        meeting_link?: string;
+        created_at?: string;
+        booked_for?: string;
+        [key: string]: unknown;
+    } | null;
     created_at: string;
-    updated_at: string;
+    updated_at?: string;
 }
 
-/**
- * The backend seems to return either a single object or a list (a mentor can
- * only ever have one individual session, so we defensively unwrap a list too).
- */
+
 const unwrapIndividualSession = (
     raw: IndividualSessionApiResponse | IndividualSessionApiResponse[] | null | undefined
 ): IndividualSessionApiResponse | null => {
@@ -131,27 +151,92 @@ const unwrapIndividualSession = (
     return raw;
 };
 
+const resolveBookingId = (api: IndividualSessionApiResponse): string | null => {
+    const nestedId = api.booking?.id;
+    if (nestedId !== undefined && nestedId !== null && String(nestedId).trim() !== "") {
+        return String(nestedId);
+    }
+    if (api.booking_id !== undefined && api.booking_id !== null && String(api.booking_id).trim() !== "") {
+        return String(api.booking_id);
+    }
+    // Last resort: some backends reuse the individual-session id as the booking id
+    if (api.booked === true && api.id !== undefined && api.id !== null) {
+        return String(api.id);
+    }
+    return null;
+};
+
+/** Extract first/last name + avatar from the API mentee field (object or legacy string). */
+const resolveMenteeInfo = (api: IndividualSessionApiResponse) => {
+    const nested = api.booking;
+    const menteeObj =
+        api.mentee && typeof api.mentee === "object" ? (api.mentee as MenteeApiObject) : null;
+
+    const firstName =
+        (typeof menteeObj?.first_name === "string" ? menteeObj.first_name : "") ||
+        "";
+    const lastName =
+        (typeof menteeObj?.last_name === "string" ? menteeObj.last_name : "") ||
+        "";
+
+    const fullFromObject = [firstName, lastName].filter(Boolean).join(" ").trim();
+
+    const menteeName =
+        fullFromObject ||
+        (typeof nested?.mentee_name === "string" ? nested.mentee_name : "") ||
+        (typeof api.mentee_name === "string" ? api.mentee_name : "") ||
+        "Mentee";
+
+    const menteeAvatar =
+        (typeof menteeObj?.avatar === "string" && menteeObj.avatar) ||
+        (typeof nested?.mentee_avatar === "string" && nested.mentee_avatar) ||
+        (typeof api.mentee_avatar === "string" && api.mentee_avatar) ||
+        "";
+
+
+    return {
+        menteeName,
+        menteeFirstName: firstName || menteeName.split(" ")[0] || "",
+        menteeLastName: lastName || menteeName.split(" ").slice(1).join(" ") || "",
+        menteeAvatar,
+    };
+};
+
 const mapApiSessionToLocal = (
     api: IndividualSessionApiResponse,
-    mentorAvatar = `https://i.pravatar.cc/150?u=${api.mentor}`
+    mentorAvatar = ""
 ): OneOnOneSession => {
     const parsedPrice = Number(api.price);
 
-    const booking: Booking | null = api.mentee
-        ? {
-            id: String(api.id),
-            menteeName: api.mentee_name ?? "Mentee",
-            menteeAvatar: `https://i.pravatar.cc/150?u=${api.mentee}`,
-            meetingLink: api.meeting_link ?? "",
-            status: api.status === "confirmed" ? "confirmed" : "pending_confirmation",
-            bookedFor: new Date(api.created_at).toLocaleString("en-US", {
-                month: "short",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-            }),
-        }
-        : null;
+    const hasBooking = api.booked === true;
+    const bookingId = resolveBookingId(api);
+
+    const nested = api.booking;
+    const statusRaw = nested?.status ?? api.status;
+    const bookedForRaw = nested?.booked_for ?? nested?.created_at ?? api.created_at;
+
+    const { menteeName, menteeFirstName, menteeLastName, menteeAvatar } = resolveMenteeInfo(api);
+
+    const booking: Booking | null =
+        hasBooking && bookingId
+            ? {
+                id: bookingId,
+                menteeName,
+                menteeFirstName,
+                menteeLastName,
+                menteeAvatar,
+                meetingLink: nested?.meeting_link ?? api.meeting_link ?? "",
+                status: statusRaw === "accepted" ? "accepted" : "pending",
+                bookedFor: bookedForRaw
+                    ? new Date(bookedForRaw).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                    })
+                    : "",
+            }
+            : null;
 
     return {
         id: String(api.id),
@@ -162,7 +247,7 @@ const mapApiSessionToLocal = (
         responseTime: api.response_time === "immediate" ? "immediate" : Number(api.response_time) || 1,
         durationMinutes: api.duration_minutes,
         daysDuration: api.duration_days,
-        mentorAvatar: mentorAvatar || `https://i.pravatar.cc/150?u=${api.mentor}`,
+        mentorAvatar: mentorAvatar || "",
         meetingLink: api.meeting_link ?? "",
         booking,
     };
@@ -209,7 +294,7 @@ const mapApiGroupSessionToLocal = (api: any): GroupSession => {
             ? api.registrants.map((r: any) => ({
                 id: String(r.id ?? `${api.id ?? "reg"}-${Math.random()}`),
                 name: r.name ?? "Participant",
-                avatar: r.avatar || r.image || `https://i.pravatar.cc/150?u=${r.id ?? Math.random()}`,
+                avatar: r.avatar || r.image || "",
             }))
             : [],
     };
@@ -305,9 +390,7 @@ const SUGGESTED_NOTES = [
     "Follow-up needed on action items discussed during the call.",
 ];
 
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
+
 const formatDate = (iso: string) =>
     new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
@@ -346,53 +429,54 @@ const EmptyState = ({ label, onCreate }: { label: string; onCreate?: () => void 
     </div>
 );
 
-/* ── Booking status button for 1-1 card ── */
+
 const BookingStatusButton = ({
     booking,
-    onConfirm,
+    onAccept,
+    onDecline,
     onJoin,
-    onSimulateBooking,
 }: {
     booking: Booking | null;
-    onConfirm: () => void;
+    onAccept: () => void;
+    onDecline: () => void;
     onJoin: () => void;
-    onSimulateBooking: () => void;
 }) => {
     if (!booking) {
         return (
-            <div className="flex flex-col items-end gap-1">
-                <button
-                    type="button"
-                    disabled
-                    className="flex w-full cursor-not-allowed items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold text-white/35"
-                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
-                >
-                    <FiLock size={12} />
-                    Not Booked Yet
-                </button>
-                {/* Demo-only helper to simulate a mentee booking this slot */}
-                <button
-                    type="button"
-                    onClick={onSimulateBooking}
-                    className="text-[10px] w-full text-white/25 underline decoration-dotted hover:text-white/50"
-                >
-                    Simulate mentee booking (demo)
-                </button>
-            </div>
+            <button
+                type="button"
+                disabled
+                className="flex cursor-not-allowed items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold text-white/35"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+                <FiLock size={12} />
+                Not Booked Yet
+            </button>
         );
     }
 
-    if (booking.status === "pending_confirmation") {
+    if (booking.status === "pending") {
         return (
-            <button
-                type="button"
-                onClick={onConfirm}
-                className="flex items-center gap-1.5 rounded px-3.5 py-2 text-xs font-bold text-black"
-                style={{ background: "#a6ff00" }}
-            >
-                <FiCheckCircle size={13} />
-                Confirm Booking
-            </button>
+            <div className="flex gap-2" style={{ minWidth: 220 }}>
+                <button
+                    type="button"
+                    onClick={onAccept}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded px-3.5 py-2 text-xs font-bold text-black"
+                    style={{ background: "#a6ff00" }}
+                >
+                    <FiCheckCircle size={13} />
+                    Accept
+                </button>
+                <button
+                    type="button"
+                    onClick={onDecline}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded px-3.5 py-2 text-xs font-bold text-white"
+                    style={{ background: "rgba(255,255,255,0.06)" }}
+                >
+                    <FiX size={13} />
+                    Decline
+                </button>
+            </div>
         );
     }
 
@@ -414,22 +498,28 @@ const OneOnOneCard = ({
     session,
     onEdit,
     onDelete,
-    onConfirmBooking,
     onJoinClass,
-    onSimulateBooking,
+    onAcceptBooking,
+    onDeclineBooking,
 }: {
     session: OneOnOneSession;
     onEdit: () => void;
     onDelete: () => void;
-    onConfirmBooking: () => void;
     onJoinClass: () => void;
-    onSimulateBooking: () => void;
+    onAcceptBooking: () => void;
+    onDeclineBooking: () => void;
 }) => (
     <div className="overflow-hidden rounded-2xl" style={{ background: cardBg, border: cardBorder }}>
         <div className="p-4 sm:p-5">
             <div className="flex items-center gap-4">
                 <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg sm:h-16 sm:w-16">
-                    <img src={session.mentorAvatar} alt="Mentor" className="h-full w-full object-cover" />
+                    {session.mentorAvatar ? (
+                        <img src={session.mentorAvatar} alt="Mentor" className="h-full w-full object-cover" />
+                    ) : (
+                        <div className="flex h-full w-full items-center justify-center text-white/40" style={{ background: "rgba(255,255,255,0.08)" }}>
+                            <FiUser size={22} />
+                        </div>
+                    )}
                 </div>
 
                 <div className="min-w-0 flex-1">
@@ -478,14 +568,14 @@ const OneOnOneCard = ({
             <div className="mt-4 flex flex-wrap lg:items-center justify-between gap-3 border-t border-white/5 pt-4">
                 <span className="text-[11px] text-white/40">
                     {!session.booking && "No mentee has booked this slot yet"}
-                    {session.booking?.status === "pending_confirmation" && `${session.booking.menteeName} requested a booking`}
-                    {session.booking?.status === "confirmed" && `Confirmed with ${session.booking.menteeName}`}
+                    {session.booking?.status === "pending" && `${session.booking.menteeName} requested a booking`}
+                    {session.booking?.status === "accepted" && `Accepted by ${session.booking.menteeName}`}
                 </span>
                 <BookingStatusButton
                     booking={session.booking}
-                    onConfirm={onConfirmBooking}
+                    onAccept={onAcceptBooking}
+                    onDecline={onDeclineBooking}
                     onJoin={onJoinClass}
-                    onSimulateBooking={onSimulateBooking}
                 />
             </div>
         </div>
@@ -579,14 +669,25 @@ const GroupCard = ({
                             {visibleAvatars.length > 0 ? (
                                 <>
                                     {visibleAvatars.map((r) => (
-                                        <img
-                                            key={r.id}
-                                            src={r.avatar}
-                                            alt={r.name}
-                                            title={r.name}
-                                            className="h-7 w-7 rounded-full border-2 object-cover"
-                                            style={{ borderColor: "rgba(10,13,9,0.95)" }}
-                                        />
+                                        r.avatar ? (
+                                            <img
+                                                key={r.id}
+                                                src={r.avatar}
+                                                alt={r.name}
+                                                title={r.name}
+                                                className="h-7 w-7 rounded-full border-2 object-cover"
+                                                style={{ borderColor: "rgba(10,13,9,0.95)" }}
+                                            />
+                                        ) : (
+                                            <div
+                                                key={r.id}
+                                                title={r.name}
+                                                className="flex h-7 w-7 items-center justify-center rounded-full border-2 text-[9px] font-bold text-white/80"
+                                                style={{ background: "rgba(255,255,255,0.1)", borderColor: "rgba(10,13,9,0.95)" }}
+                                            >
+                                                {(r.name || "?").charAt(0).toUpperCase()}
+                                            </div>
+                                        )
                                     ))}
                                     {remaining > 0 && (
                                         <div
@@ -663,9 +764,7 @@ const modalSecondaryBtnStyle = { background: "rgba(255,255,255,0.06)" };
 
 const RADIO_DURATIONS = [30, 45, 60, 90, 120, 150, 180];
 
-// ─────────────────────────────────────────────
-// Forms
-// ─────────────────────────────────────────────
+
 const OneOnOneFormModal = ({
     initial,
     onClose,
@@ -1039,9 +1138,7 @@ const GroupFormModal = ({
     );
 };
 
-// ─────────────────────────────────────────────
-// Join Class Modal
-// ─────────────────────────────────────────────
+
 const DeleteConfirmModal = ({
     onClose,
     onConfirm,
@@ -1059,7 +1156,7 @@ const DeleteConfirmModal = ({
             </button>
         </div>
 
-        <div className="rounded-xl px-4 py-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="rounded-xl px-4 py-4 bg-neutral-900">
             <p className="text-sm leading-relaxed text-white/70">
                 This will permanently remove your one-on-one session from your public mentor profile.
             </p>
@@ -1094,7 +1191,7 @@ const DeleteGroupSessionModal = ({
             </button>
         </div>
 
-        <div className="rounded-xl px-4 py-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="rounded-xl px-4 py-4 bg-neutral-900">
             <p className="text-sm leading-relaxed text-white/70">
                 This will permanently remove this group session and make it unavailable to new registrations.
             </p>
@@ -1129,13 +1226,22 @@ const JoinClassModal = ({
             </button>
         </div>
 
-        <div className="flex flex-col items-center rounded-xl px-4 py-6" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-            <img
-                src={booking.menteeAvatar}
-                alt={booking.menteeName}
-                className="h-16 w-16 rounded-full object-cover"
-                style={{ border: "2px solid rgba(255,255,255,0.15)" }}
-            />
+        <div className="flex flex-col items-center rounded-xl px-4 py-6 bg-neutral-900">
+            {booking.menteeAvatar ? (
+                <img
+                    src={booking.menteeAvatar}
+                    alt={booking.menteeName}
+                    className="h-16 w-16 rounded-full object-cover"
+                    style={{ border: "2px solid rgba(255,255,255,0.15)" }}
+                />
+            ) : (
+                <div
+                    className="flex h-16 w-16 items-center justify-center rounded-full text-white/50"
+                    style={{ background: "rgba(255,255,255,0.08)", border: "2px solid rgba(255,255,255,0.15)" }}
+                >
+                    <FiUser size={28} />
+                </div>
+            )}
             <p className="mt-3 text-base font-bold text-white">{booking.menteeName}</p>
             <p className="text-xs text-white/40">{booking.bookedFor}</p>
         </div>
@@ -1158,9 +1264,7 @@ const JoinClassModal = ({
     </AnimatedModal>
 );
 
-// ─────────────────────────────────────────────
-// Done With Session Modal (add a note)
-// ─────────────────────────────────────────────
+
 const DoneSessionModal = ({
     menteeName,
     onClose,
@@ -1214,7 +1318,7 @@ const DoneSessionModal = ({
                     rows={4}
                     required
                     className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    bg-neutral-900
                 />
 
                 <div className="flex gap-3 pt-1">
@@ -1254,26 +1358,32 @@ const GroupDetailsModal = ({
             </div>
 
             <div className="mb-4 h-36 w-full overflow-hidden rounded-xl">
-                <img src={session.image} alt={session.name} className="h-full w-full object-cover" />
+                {session.image ? (
+                    <img src={session.image} alt={session.name} className="h-full w-full object-cover" />
+                ) : (
+                    <div className="flex h-full w-full items-center justify-center text-white/40" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        No image
+                    </div>
+                )}
             </div>
 
             <h4 className="text-base font-bold text-white">{session.name}</h4>
             <p className="mt-1.5 text-sm leading-relaxed text-white/55">{session.description}</p>
 
             <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
                     <p className="flex items-center gap-1.5 text-white/40"><FiCalendar size={12} /> Dates</p>
                     <p className="mt-1 font-semibold text-white/85">{formatDate(session.startDate)} – {formatDate(session.endDate)}</p>
                 </div>
-                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
                     <p className="flex items-center gap-1.5 text-white/40"><FiClock size={12} /> Daily Time</p>
                     <p className="mt-1 font-semibold text-white/85">{formatTime(session.dailyTime)}</p>
                 </div>
-                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
                     <p className="text-white/40">Price</p>
                     <p className="mt-1 font-semibold text-white/85">{formatPrice(session.price)}</p>
                 </div>
-                <div className="rounded-lg px-3 py-2.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
                     <p className="text-white/40">Capacity</p>
                     <p className="mt-1 font-semibold text-white/85">{total}/{session.capacity} · {spotsLeft > 0 ? `${spotsLeft} left` : "Full"}</p>
                 </div>
@@ -1287,7 +1397,13 @@ const GroupDetailsModal = ({
                     )}
                     {session.registrants.map((r) => (
                         <div key={r.id} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2" style={{ background: "rgba(255,255,255,0.03)" }}>
-                            <img src={r.avatar} alt={r.name} className="h-8 w-8 rounded-full object-cover" />
+                            {r.avatar ? (
+                                <img src={r.avatar} alt={r.name} className="h-8 w-8 rounded-full object-cover" />
+                            ) : (
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white/60" style={{ background: "rgba(255,255,255,0.08)" }}>
+                                    {(r.name || "?").charAt(0).toUpperCase()}
+                                </div>
+                            )}
                             <p className="text-sm text-white/80">{r.name}</p>
                         </div>
                     ))}
@@ -1330,6 +1446,10 @@ const MentorSessions = () => {
 
     const [showJoinClass, setShowJoinClass] = useState(false);
     const [showDoneSession, setShowDoneSession] = useState(false);
+    const [acceptOpen, setAcceptOpen] = useState(false);
+    const [declineOpen, setDeclineOpen] = useState(false);
+    const [acceptNote, setAcceptNote] = useState("");
+    const [declineReason, setDeclineReason] = useState("");
 
     const canCreateOneOnOne = !oneOnOne;
     const canCreateGroup = groups.length < 3;
@@ -1342,10 +1462,13 @@ const MentorSessions = () => {
     const { mutate: deleteGroupSession, isPending: isDeletingGroupSession } = useDeleteGroupSession(groupDeleteId);
     const { mentorIndividualSession, isLoading: isloadingMentorIndividualSession } = useGetMentorIndividualSession();
     const { mentorGroupSessions, isLoading: isLoadingMentorGroupSessions } = useGetMentorGroupSessions();
-
-    console.log("mentorIndividualSession", mentorGroupSessions?.data?.results);
+    const bookingId = oneOnOne?.booking?.id ?? "";
+    const { mutate: acceptBooking, isPending: isAcceptingBooking } = useAcceptBooking(bookingId);
+    const { mutate: rejectBooking, isPending: isRejectingBooking } = useRejectBooking(bookingId);
 
     const apiOneOnOneSession = unwrapIndividualSession(mentorIndividualSession?.data);
+    console.log("apiOneOnOneSession", oneOnOne);
+    console.log("Individual", mentorIndividualSession?.data);
 
     useEffect(() => {
         if (!apiOneOnOneSession) {
@@ -1510,27 +1633,48 @@ const MentorSessions = () => {
     };
 
     // ── Booking flow handlers ──
-    const handleSimulateBooking = () => {
-        if (!oneOnOne) return;
-        setOneOnOne({
-            ...oneOnOne,
-            booking: {
-                id: `bk-${Date.now()}`,
-                menteeName: "Zainab Musa",
-                menteeAvatar: "https://i.pravatar.cc/150?img=44",
-                meetingLink: oneOnOne.meetingLink || "https://meet.google.com/demo-link",
-                status: "pending_confirmation",
-                bookedFor: "Today, 3:00 PM",
-            },
-        });
+    const handleOpenAccept = () => setAcceptOpen(true);
+    const handleOpenDecline = () => setDeclineOpen(true);
+
+    const handleConfirmAccept = () => {
+        if (!oneOnOne?.booking || isAcceptingBooking || !bookingId) return;
+        acceptBooking(
+            { session_type: "individual", note: acceptNote },
+            {
+                onSuccess: () => {
+                    setOneOnOne({
+                        ...oneOnOne,
+                        booking: { ...oneOnOne.booking!, status: "accepted" },
+                    });
+                    setAcceptOpen(false);
+                    setAcceptNote("");
+                    addToast("Booking accepted", "success");
+                },
+                onError: (err: unknown) => {
+                    const apiError = err as any;
+                    addToast(flattenApiErrors(apiError?.response?.data ?? err), "error");
+                },
+            }
+        );
     };
 
-    const handleConfirmBooking = () => {
-        if (!oneOnOne?.booking) return;
-        setOneOnOne({
-            ...oneOnOne,
-            booking: { ...oneOnOne.booking, status: "confirmed" },
-        });
+    const handleConfirmDecline = () => {
+        if (!oneOnOne?.booking || isRejectingBooking || !bookingId) return;
+        rejectBooking(
+            { session_type: "individual", reason: declineReason },
+            {
+                onSuccess: () => {
+                    setOneOnOne({ ...oneOnOne, booking: null });
+                    setDeclineOpen(false);
+                    setDeclineReason("");
+                    addToast("Booking declined", "success");
+                },
+                onError: (err: unknown) => {
+                    const apiError = err as any;
+                    addToast(flattenApiErrors(apiError?.response?.data ?? err), "error");
+                },
+            }
+        );
     };
 
     const handleJoinClass = () => setShowJoinClass(true);
@@ -1541,7 +1685,7 @@ const MentorSessions = () => {
     };
 
     const handleSubmitNote = (_note: string) => {
-        // In a real app this note would be persisted against the booking/session record.
+        // Note is local-only for now; booking is cleared after the session ends.
         if (oneOnOne) {
             setOneOnOne({ ...oneOnOne, booking: null });
         }
@@ -1557,6 +1701,8 @@ const MentorSessions = () => {
                 isCreatingGroupSession ||
                 isEditingGroupSession ||
                 isDeletingGroupSession ||
+                isAcceptingBooking ||
+                isRejectingBooking ||
                 isloadingMentorIndividualSession ||
                 isLoadingMentorGroupSessions
             } />
@@ -1594,9 +1740,9 @@ const MentorSessions = () => {
                         session={oneOnOne}
                         onEdit={() => { setEditingOneOnOne(oneOnOne); setShowOneOnOneForm(true); }}
                         onDelete={handleDeleteOneOnOne}
-                        onConfirmBooking={handleConfirmBooking}
+                        onAcceptBooking={handleOpenAccept}
+                        onDeclineBooking={handleOpenDecline}
                         onJoinClass={handleJoinClass}
-                        onSimulateBooking={handleSimulateBooking}
                     />
                 ) : (
                     <EmptyState
@@ -1714,6 +1860,118 @@ const MentorSessions = () => {
                     onClose={() => setShowDoneSession(false)}
                     onSubmit={handleSubmitNote}
                 />
+            )}
+            {acceptOpen && oneOnOne?.booking && (
+                <AnimatedModal onClose={() => setAcceptOpen(false)}>
+                    <div className="mb-5 flex items-center justify-between">
+                        <h3 className="text-base font-bold text-white">Accept Booking</h3>
+                        <button type="button" onClick={() => setAcceptOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                            <FiX size={16} />
+                        </button>
+                    </div>
+
+                    {/* Mentee profile from API */}
+                    <div
+                        className="mb-4 text-center gap-3 rounded-xl px-4 pt-4"
+                    >
+                        {oneOnOne.booking.menteeAvatar ? (
+                            <img
+                                src={oneOnOne.booking.menteeAvatar}
+                                alt={oneOnOne.booking.menteeName}
+                                className="h-24 w-24 shrink-0 p-1 border-3 border-neutral-800 rounded-full object-cover m-auto"
+                            />
+                        ) : (
+                            <div
+                                className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full text-white/50"
+                                style={{ background: "rgba(255,255,255,0.08)", border: "2px solid rgba(255,255,255,0.15)" }}
+                            >
+                                <FiUser size={20} />
+                            </div>
+                        )}
+                        <div className="min-w-0">
+                            <p className="text-base font-bold text-white truncate pt-1">
+                                {[oneOnOne.booking.menteeFirstName, oneOnOne.booking.menteeLastName]
+                                    .filter(Boolean)
+                                    .join(" ") || oneOnOne.booking.menteeName}
+                            </p>
+                            <p className="text-sm text-neutral-500">
+                                Mentee
+                            </p>
+
+                        </div>
+                    </div>
+
+                    <textarea
+                        value={acceptNote}
+                        onChange={(e) => setAcceptNote(e.target.value)}
+                        className="h-28 w-full rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none"
+                        placeholder="Optional note"
+                    />
+                    <p className="mt-1 text-xs text-white/40">Add an optional note for the mentee.</p>
+
+
+                    <div className="mt-5 flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setAcceptOpen(false)}
+                            disabled={isAcceptingBooking}
+                            className={modalSecondaryBtn}
+                            style={modalSecondaryBtnStyle}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleConfirmAccept}
+                            disabled={isAcceptingBooking}
+                            className={`${modalPrimaryBtn} disabled:opacity-60`}
+                            style={modalPrimaryBtnStyle}
+                        >
+                            {isAcceptingBooking ? "Accepting..." : "Confirm"}
+                        </button>
+                    </div>
+                </AnimatedModal>
+            )}
+
+            {declineOpen && oneOnOne?.booking && (
+                <AnimatedModal onClose={() => setDeclineOpen(false)}>
+                    <div className="mb-5 flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-white">Decline Booking</h3>
+                        <button type="button" onClick={() => setDeclineOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                            <FiX size={16} />
+                        </button>
+                    </div>
+
+                    <p className="mb-3 text-xs text-white/40">Provide a reason for declining this booking.</p>
+
+                    <textarea
+                        value={declineReason}
+                        onChange={(e) => setDeclineReason(e.target.value)}
+                        className="h-28 w-full rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none"
+                        placeholder="Reason for declining"
+                    />
+
+                    <div className="mt-5 flex gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setDeclineOpen(false)}
+                            disabled={isRejectingBooking}
+                            className={modalSecondaryBtn}
+                            style={modalSecondaryBtnStyle}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleConfirmDecline}
+                            disabled={isRejectingBooking}
+                            className={`${modalPrimaryBtn} disabled:opacity-60`}
+                            style={{ ...modalPrimaryBtnStyle, background: "#f87171" }}
+                        >
+                            {isRejectingBooking ? "Declining..." : "Confirm"}
+                        </button>
+                    </div>
+                </AnimatedModal>
             )}
         </div>
     );

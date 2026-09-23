@@ -264,35 +264,55 @@ export const useBookMentorship = () => {
 
 
 
-export const useAcceptBooking = () => {
+export const useAcceptBooking = (id: any) => {
   const queryClient = useQueryClient()
-
-  const bookMentorship = useMutation({
+  const acceptBooking = useMutation({
     mutationFn: async (data: any) => {
       const token = (await localStorage.getItem("betamindToken")) || ""
-      return post_requests('bookings/', data, token)
+      console.log("Booking id", id)
+      return post_requests(`bookings/${id}/acknowledge/`, data, token)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bookMentorship", "mentorProfile"] })
+      queryClient.invalidateQueries({ queryKey: ["bookings", "bookMentorship", "mentorProfile", "individualSessions"] })
     },
+
   })
 
-  return bookMentorship
+  return acceptBooking
 }
 
 
-export const useRejectBooking = () => {
+export const useRejectBooking = (id: any) => {
   const queryClient = useQueryClient()
-
-  const bookMentorship = useMutation({
+  const rejectBooking = useMutation({
     mutationFn: async (data: any) => {
       const token = (await localStorage.getItem("betamindToken")) || ""
-      return post_requests('bookings/', data, token)
+      return post_requests(`bookings/${id}/decline/`, data, token)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bookMentorship", "mentorProfile"] })
+      queryClient.invalidateQueries({ queryKey: ["bookings", "bookMentorship", "mentorProfile", "individualSessions"] })
     },
   })
 
-  return bookMentorship
+  return rejectBooking
+}
+
+
+
+
+
+export const useAddBankDetails = () => {
+  const queryClient = useQueryClient()
+
+  const addBankDetails = useMutation({
+    mutationFn: async (data: any) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return post_requests('bank-details/', data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bank"] })
+    },
+  })
+
+  return addBankDetails
 }

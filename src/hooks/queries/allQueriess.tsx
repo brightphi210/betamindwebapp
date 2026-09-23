@@ -282,7 +282,7 @@ export const useGetUserSession = () => {
         queryKey: ["userSession"],
         queryFn: async () => {
             const token = (await localStorage.getItem("betamindToken")) || "";
-            return get_requests(`bookings/mine/`, token);
+            return get_requests(`bookings/`, token);
         },
     });
 
@@ -306,6 +306,47 @@ export const useGetMentorGroupSessions = () => {
 
     return {
         mentorGroupSessions: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};
+
+
+
+// ============== WALLET =================
+
+export const useGetWallet = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["wallet"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`wallet/`, token);
+        },
+    });
+
+    return {
+        walletData: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};
+
+
+export const useGetBankDetails = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["bank"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`bank-details/`, token);
+        },
+    });
+
+    return {
+        bankData: data,
         isLoading,
         isError,
         isFetched,
