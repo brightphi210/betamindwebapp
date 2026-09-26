@@ -20,20 +20,8 @@ import Button from "../../component/ui/Button";
 import { useAddBankDetails } from "../../hooks/mutations/allMutation";
 import { useGetBankDetails, useGetWallet } from "../../hooks/queries/allQueriess";
 
-// ─── Endpoints ───────────────────────────────────────────────────────────────
-// Bank list: Paystack's /bank endpoint is readable without a secret key, so we
-// call it directly. Account resolve needs your secret key, so it MUST go through
-// your own backend.
-//
-// IMPORTANT: set VITE_API_BASE_URL to your API origin (e.g. https://api.yoursite.com).
-// A bare "/api/..." path hits the Vite dev server in development, which returns
-// index.html — that's an HTML body, res.json() throws, and the account name
-// silently never appears.
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? "";
 const PAYSTACK_BANKS_URL = "https://api.paystack.co/bank?country=nigeria&perPage=100";
-const RESOLVE_ENDPOINT = `${API_BASE}/api/banks/resolve`;
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 type Transaction = {
     id: string;
     type: "payout" | "earning";
