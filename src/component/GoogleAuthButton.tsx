@@ -23,8 +23,6 @@ const GoogleAuthButton = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [buttonWidth, setButtonWidth] = useState<number>();
 
-  // Measure the container and keep the real Google button's width in sync,
-  // instead of trying to force it via CSS (which the library ignores after mount).
   useEffect(() => {
     if (!containerRef.current) return;
     const el = containerRef.current;
@@ -48,6 +46,8 @@ const GoogleAuthButton = ({
       {
         onSuccess: (data: any) => {
           localStorage.setItem("betamindToken", data?.data?.tokens?.access);
+          localStorage.setItem("refresh", data?.data?.tokens?.refresh);
+          console.log('Data', data?.data)
           navigate("/dashboard/overview");
         },
         onError: (e: any) => {
