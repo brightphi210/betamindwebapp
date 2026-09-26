@@ -316,9 +316,6 @@ export const useStartGroupSession = (id: any) => {
 // /api/v1/group-sessions/{id}/start/
 
 
-
-
-
 export const useAddBankDetails = () => {
   const queryClient = useQueryClient()
 
@@ -333,4 +330,21 @@ export const useAddBankDetails = () => {
   })
 
   return addBankDetails
+}
+
+
+export const usePurchaseProducts = () => {
+  const queryClient = useQueryClient()
+
+  const purchaseProduct = useMutation({
+    mutationFn: async (data: any) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return post_requests('purchases/', data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] })
+    },
+  })
+
+  return purchaseProduct
 }

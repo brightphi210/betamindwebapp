@@ -10,10 +10,14 @@ import {
     FiLink,
     FiLoader,
     FiPackage,
+    FiPlus,
     FiTag,
+    FiTrash2,
     FiType,
     FiX,
 } from "react-icons/fi";
+import ReactQuill from "react-quill-new";
+import "react-quill-new/dist/quill.snow.css";
 import { useOutletContext } from "react-router-dom";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
@@ -27,6 +31,12 @@ import { type MentorDashboardContext } from "./MentorDashboardLayout";
 // ---------- Types ----------
 
 type Step = "form" | "success";
+
+type CourseModuleDraft = {
+    id: string; // local-only key for React lists, not sent to the API
+    title: string;
+    description: string; // Quill HTML
+};
 
 const PRODUCT_TYPES: ProductType[] = ["Book", "Course", "Manual", "Template", "Workbook", "Toolkit"];
 
@@ -42,13 +52,51 @@ const PRODUCT_CATEGORIES = [
     "Education",
 ];
 
-const isTextEmpty = (text: string) => !text || text.trim().length === 0;
+// Quill leaves behind "<p><br></p>" for an empty editor, so a plain
+// string-empty check isn't enough — strip tags before checking length.
+const isTextEmpty = (html: string) => {
+    if (!html) return true;
+    const stripped = html.replace(/<(.|\n)*?>/g, "").trim();
+    return stripped.length === 0;
+};
 
 const formatPrice = (price: string) => {
     const numeric = parseFloat(price);
     if (!numeric || numeric <= 0) return "Free";
     const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
     return `$${trimmed}`;
+};
+
+const makeModuleId = () => Math.random().toString(36).slice(2, 10);
+
+// A fuller, more flexible toolbar: headings, font size, color/background,
+// alignment, sub/superscript, indent, blockquote, code, lists, link, image.
+const quillModules = {
+    toolbar: [
+        [{ header: [1, 2, 3, 4, false] }],
+        [{ size: ["small", false, "large", "huge"] }],
+        ["bold", "italic", "underline", "strike"],
+        [{ color: [] }, { background: [] }],
+        [{ script: "sub" }, { script: "super" }],
+        [{ list: "ordered" }, { list: "bullet" }],
+        [{ indent: "-1" }, { indent: "+1" }],
+        [{ align: [] }],
+        ["blockquote", "code-block"],
+        ["link", "image"],
+        ["clean"],
+    ],
+};
+
+// A lighter toolbar for per-module descriptions inside a course — keeps the
+// UI from feeling cluttered when there are several modules on screen at once.
+const moduleQuillModules = {
+    toolbar: [
+        [{ header: [3, 4, false] }],
+        ["bold", "italic", "underline"],
+        [{ list: "ordered" }, { list: "bullet" }],
+        ["blockquote", "link"],
+        ["clean"],
+    ],
 };
 
 // ---------- API error parsing ----------
@@ -61,6 +109,7 @@ const FIELD_LABELS: Record<string, string> = {
     category: "Category",
     cover_image: "Thumbnail",
     product_type: "Product type",
+    course_content: "Course content",
 };
 
 function parseProductError(error: any): string {
@@ -145,27 +194,93 @@ const SelectRow: React.FC<{
     </div>
 );
 
-const TextAreaField: React.FC<{
-    value: string;
-    onChange: (v: string) => void;
-    placeholder: string;
-    rows?: number;
-    maxLength?: number;
-}> = ({ value, onChange, placeholder, rows = 5, maxLength }) => (
-    <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={rows}
-        maxLength={maxLength}
-        className="w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 outline-none resize-none"
-        style={{ background: cardBg, border: cardBorder }}
-    />
+// Renders formatted (HTML) rich text produced by the Quill editor — used both
+// in the live preview modal and could be reused wherever description shows up.
+const RichTextDisplay: React.FC<{ html: string }> = ({ html }) => (
+    <div className="rich-text-content text-sm text-white/60 leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
 );
 
-const TextDisplay: React.FC<{ text: string }> = ({ text }) => (
-    <p className="whitespace-pre-wrap text-sm text-white/60 leading-relaxed">{text}</p>
-);
+// ---------- Course content editor (used only when type === "Course") ----------
+
+const CourseContentEditor: React.FC<{
+    modules: CourseModuleDraft[];
+    onChange: (modules: CourseModuleDraft[]) => void;
+}> = ({ modules, onChange }) => {
+    const addModule = () => {
+        onChange([...modules, { id: makeModuleId(), title: "", description: "" }]);
+    };
+
+    const updateModule = (id: string, patch: Partial<CourseModuleDraft>) => {
+        onChange(modules.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+    };
+
+    const removeModule = (id: string) => {
+        onChange(modules.filter((m) => m.id !== id));
+    };
+
+    return (
+        <div>
+            <div className="flex items-center justify-between mb-2">
+                <SectionLabel hint="Break your course into modules. Each module gets its own title and formatted description.">
+                    Course Content
+                </SectionLabel>
+            </div>
+
+            <div className="flex flex-col gap-4">
+                {modules.map((m, i) => (
+                    <div
+                        key={m.id}
+                        className="rounded-xl p-4"
+                        style={{ background: "rgba(255,255,255,0.02)", border: cardBorder }}
+                    >
+                        <div className="flex items-center gap-3 mb-3">
+                            <span
+                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-black"
+                                style={{ background: "#a6ff00" }}
+                            >
+                                {i + 1}
+                            </span>
+                            <input
+                                value={m.title}
+                                onChange={(e) => updateModule(m.id, { title: e.target.value })}
+                                placeholder={`Module ${i + 1} title`}
+                                className="flex-1 bg-transparent outline-none text-white text-sm font-semibold placeholder-white/30"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => removeModule(m.id)}
+                                className="p-1.5 rounded-md text-white/30 hover:text-red-400 hover:bg-red-400/10 shrink-0"
+                                title="Remove module"
+                            >
+                                <FiTrash2 size={15} />
+                            </button>
+                        </div>
+
+                        <div className="quill-dark-wrapper quill-dark-wrapper--compact rounded-lg overflow-hidden" style={{ border: cardBorder }}>
+                            <ReactQuill
+                                theme="snow"
+                                value={m.description}
+                                onChange={(v) => updateModule(m.id, { description: v })}
+                                modules={moduleQuillModules}
+                                placeholder="What does this module cover?"
+                            />
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <button
+                type="button"
+                onClick={addModule}
+                className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg py-3 text-xs font-semibold text-white/60 hover:text-white transition-colors"
+                style={{ background: "rgba(255,255,255,0.02)", border: `1px dashed rgba(255,255,255,0.15)` }}
+            >
+                <FiPlus size={14} />
+                Add Module
+            </button>
+        </div>
+    );
+};
 
 // ---------- Preview modal ----------
 
@@ -177,120 +292,163 @@ const ProductPreviewModal: React.FC<{
     link: string;
     description: string;
     thumbnail: string | null;
+    courseModules: CourseModuleDraft[];
     isSubmitting: boolean;
     onClose: () => void;
     onConfirm: () => void;
-}> = ({ type, category, title, price, link, description, thumbnail, isSubmitting, onClose, onConfirm }) => (
-    <div
-        className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 py-8 backdrop-blur-sm"
-        onClick={onClose}
-    >
+}> = ({
+    type,
+    category,
+    title,
+    price,
+    link,
+    description,
+    thumbnail,
+    courseModules,
+    isSubmitting,
+    onClose,
+    onConfirm,
+}) => (
         <div
-            className="w-full max-w-xl rounded-2xl shadow-2xl max-h-[85vh] flex flex-col"
-            style={{
-                background: "rgba(10,13,9,0.55)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                backdropFilter: "blur(24px)",
-                WebkitBackdropFilter: "blur(24px)",
-            }}
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 py-8 backdrop-blur-sm"
+            onClick={onClose}
         >
-            <div className="flex items-start justify-between p-6 pb-0 shrink-0">
-                <div>
-                    <h3 className="text-white text-xl font-black mb-1">Preview</h3>
-                    <p className="text-white/40 text-xs">This is how mentees will see it before purchase.</p>
-                </div>
-                <button
-                    type="button"
-                    onClick={onClose}
-                    className="p-2 rounded-lg hover:bg-white/5 text-white/50 hover:text-white shrink-0"
-                >
-                    <FiX size={18} />
-                </button>
-            </div>
-
-            <div className="overflow-y-auto flex-1 p-6">
-                <div className="mb-5 flex flex-wrap items-center gap-2">
-                    <span
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
-                        style={{ background: "rgba(166,255,0,0.12)", color: "#a6ff00" }}
-                    >
-                        <FiPackage size={12} />
-                        {type}
-                    </span>
-                    <span
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
-                        style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
-                    >
-                        <FiGrid size={12} />
-                        {category}
-                    </span>
-                </div>
-
-                {thumbnail ? (
-                    <img src={thumbnail} alt={title} className="w-full aspect-square rounded-xl mb-5 object-cover" />
-                ) : (
-                    <div
-                        className="w-full aspect-square rounded-xl mb-5 flex items-center justify-center"
-                        style={{ background: "rgba(255,255,255,0.03)" }}
-                    >
-                        <FiImage size={32} className="text-white/20" />
+            <div
+                className="w-full max-w-xl rounded-2xl shadow-2xl max-h-[85vh] flex flex-col"
+                style={{
+                    background: "rgba(10,13,9,0.55)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    backdropFilter: "blur(24px)",
+                    WebkitBackdropFilter: "blur(24px)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-start justify-between p-6 pb-0 shrink-0">
+                    <div>
+                        <h3 className="text-white text-xl font-black mb-1">Preview</h3>
+                        <p className="text-white/40 text-xs">This is how mentees will see it before purchase.</p>
                     </div>
-                )}
-
-                <h2 className="text-white text-2xl font-black mb-2 break-words">{title || "Untitled"}</h2>
-
-                <div className="flex items-center gap-2 mb-6">
-                    <span
-                        className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold"
-                        style={{
-                            background: formatPrice(price) === "Free" ? "rgba(255,255,255,0.06)" : "rgba(166,255,0,0.1)",
-                            color: formatPrice(price) === "Free" ? "rgba(255,255,255,0.6)" : "#a6ff00",
-                        }}
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-2 rounded-lg hover:bg-white/5 text-white/50 hover:text-white shrink-0"
                     >
-                        <FiTag size={12} />
-                        {formatPrice(price)}
-                    </span>
-                    {link && (
+                        <FiX size={18} />
+                    </button>
+                </div>
+
+                <div className="overflow-y-auto flex-1 p-6">
+                    <div className="mb-5 flex flex-wrap items-center gap-2">
                         <span
-                            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold truncate max-w-[220px]"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+                            style={{ background: "rgba(166,255,0,0.12)", color: "#a6ff00" }}
+                        >
+                            <FiPackage size={12} />
+                            {type}
+                        </span>
+                        <span
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
                             style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
                         >
-                            <FiLink size={12} />
-                            <span className="truncate">{link.replace(/^https?:\/\//, "")}</span>
+                            <FiGrid size={12} />
+                            {category}
                         </span>
+                    </div>
+
+                    {thumbnail ? (
+                        <img src={thumbnail} alt={title} className="w-full aspect-square rounded-xl mb-5 object-cover" />
+                    ) : (
+                        <div
+                            className="w-full aspect-square rounded-xl mb-5 flex items-center justify-center"
+                            style={{ background: "rgba(255,255,255,0.03)" }}
+                        >
+                            <FiImage size={32} className="text-white/20" />
+                        </div>
+                    )}
+
+                    <h2 className="text-white text-2xl font-black mb-2 break-words">{title || "Untitled"}</h2>
+
+                    <div className="flex items-center gap-2 mb-6">
+                        <span
+                            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold"
+                            style={{
+                                background: formatPrice(price) === "Free" ? "rgba(255,255,255,0.06)" : "rgba(166,255,0,0.1)",
+                                color: formatPrice(price) === "Free" ? "rgba(255,255,255,0.6)" : "#a6ff00",
+                            }}
+                        >
+                            <FiTag size={12} />
+                            {formatPrice(price)}
+                        </span>
+                        {link && (
+                            <span
+                                className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold truncate max-w-[220px]"
+                                style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
+                            >
+                                <FiLink size={12} />
+                                <span className="truncate">{link.replace(/^https?:\/\//, "")}</span>
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="mb-6">
+                        <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">Description</h3>
+                        <RichTextDisplay html={description} />
+                    </div>
+
+                    {courseModules.length > 0 && (
+                        <div>
+                            <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
+                                Course Content · {courseModules.length} module{courseModules.length === 1 ? "" : "s"}
+                            </h3>
+                            <div className="flex flex-col gap-3">
+                                {courseModules.map((m, i) => (
+                                    <div
+                                        key={m.id}
+                                        className="rounded-xl p-4"
+                                        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
+                                    >
+                                        <div className="flex items-center gap-2.5 mb-2">
+                                            <span
+                                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-black"
+                                                style={{ background: "#a6ff00" }}
+                                            >
+                                                {i + 1}
+                                            </span>
+                                            <p className="text-white text-sm font-semibold truncate">
+                                                {m.title || `Module ${i + 1}`}
+                                            </p>
+                                        </div>
+                                        <RichTextDisplay html={m.description} />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     )}
                 </div>
 
-                <div className="mb-2">
-                    <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">Description</h3>
-                    <TextDisplay text={description} />
+                <div
+                    className="flex items-center gap-3 p-6 pt-4 shrink-0"
+                    style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                        className="px-4 py-3 rounded-xl text-sm font-semibold text-white/70 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
+                        style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+                    >
+                        Back to Edit
+                    </button>
+                    <Button variant="green" className="flex-1" disabled={isSubmitting} onClick={onConfirm}>
+                        <span className="flex items-center justify-center gap-2">
+                            {isSubmitting ? <FiLoader size={15} className="animate-spin" /> : null}
+                            {isSubmitting ? "Creating..." : "Create Product"}
+                        </span>
+                    </Button>
                 </div>
             </div>
-
-            <div
-                className="flex items-center gap-3 p-6 pt-4 shrink-0"
-                style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
-            >
-                <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={isSubmitting}
-                    className="px-4 py-3 rounded-xl text-sm font-semibold text-white/70 hover:bg-white/[0.04] transition-colors disabled:opacity-40"
-                    style={{ border: "1px solid rgba(255,255,255,0.12)" }}
-                >
-                    Back to Edit
-                </button>
-                <Button variant="green" className="flex-1" disabled={isSubmitting} onClick={onConfirm}>
-                    <span className="flex items-center justify-center gap-2">
-                        {isSubmitting ? <FiLoader size={15} className="animate-spin" /> : null}
-                        {isSubmitting ? "Creating..." : "Create Product"}
-                    </span>
-                </Button>
-            </div>
         </div>
-    </div>
-);
+    );
 
 // ---------- Page ----------
 
@@ -308,12 +466,15 @@ const MentorProductCreate: React.FC = () => {
     const [title, setTitle] = useState("");
     const [price, setPrice] = useState("");
     const [link, setLink] = useState("");
-    const [description, setDescription] = useState("");
+    const [description, setDescription] = useState(""); // Quill HTML
+    const [courseModules, setCourseModules] = useState<CourseModuleDraft[]>([]);
 
     const [thumbnail, setThumbnail] = useState<string | null>(null);
     const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
 
     const [showPreview, setShowPreview] = useState(false);
+
+    const isCourse = type === "Course";
 
     const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -323,6 +484,12 @@ const MentorProductCreate: React.FC = () => {
         }
     };
 
+    // For a course, require at least one module with a title and non-empty description
+    // in addition to the usual fields; for everything else, course content is irrelevant.
+    const courseModulesValid =
+        !isCourse ||
+        (courseModules.length > 0 && courseModules.every((m) => m.title.trim() && !isTextEmpty(m.description)));
+
     const isValid = !!(
         type &&
         category &&
@@ -330,7 +497,8 @@ const MentorProductCreate: React.FC = () => {
         price !== "" &&
         Number(price) >= 0 &&
         link.trim() &&
-        !isTextEmpty(description)
+        !isTextEmpty(description) &&
+        courseModulesValid
     );
 
     const handleCreate = () => {
@@ -344,6 +512,11 @@ const MentorProductCreate: React.FC = () => {
         formData.append("description", description);
         formData.append("price", price);
         formData.append("is_published", "false");
+
+        if (isCourse) {
+            const payload = courseModules.map((m) => ({ title: m.title, description: m.description }));
+            formData.append("course_content", JSON.stringify(payload));
+        }
 
         if (thumbnailFile) formData.append("cover_image", thumbnailFile);
 
@@ -486,13 +659,23 @@ const MentorProductCreate: React.FC = () => {
                         </div>
 
                         <div>
-                            <SectionLabel>Description</SectionLabel>
-                            <TextAreaField
-                                value={description}
-                                onChange={setDescription}
-                                placeholder="What will mentees get from this?"
-                            />
+                            <SectionLabel hint="Use the toolbar to format your description — headings, colors, alignment, links, images and more.">
+                                Description
+                            </SectionLabel>
+                            <div className="quill-dark-wrapper rounded-xl overflow-hidden" style={{ border: cardBorder }}>
+                                <ReactQuill
+                                    theme="snow"
+                                    value={description}
+                                    onChange={setDescription}
+                                    modules={quillModules}
+                                    placeholder="What will mentees get from this?"
+                                />
+                            </div>
                         </div>
+
+                        {isCourse && (
+                            <CourseContentEditor modules={courseModules} onChange={setCourseModules} />
+                        )}
 
                         <Button
                             variant="green"
@@ -505,6 +688,11 @@ const MentorProductCreate: React.FC = () => {
                                 Preview Product
                             </span>
                         </Button>
+                        {isCourse && !courseModulesValid && (
+                            <p className="text-xs text-red-400/80 -mt-3">
+                                Add at least one module with a title and description to continue.
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>
@@ -518,11 +706,133 @@ const MentorProductCreate: React.FC = () => {
                     link={link}
                     description={description}
                     thumbnail={thumbnail}
+                    courseModules={isCourse ? courseModules : []}
                     isSubmitting={isPending}
                     onClose={() => setShowPreview(false)}
                     onConfirm={handleCreate}
                 />
             )}
+
+            <style>{`
+        /* Dark-theme skin for the Quill editor */
+        .quill-dark-wrapper .ql-toolbar.ql-snow {
+          border: none;
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.02);
+          flex-wrap: wrap;
+        }
+        .quill-dark-wrapper .ql-container.ql-snow {
+          border: none;
+          background: rgba(255,255,255,0.02);
+          font-family: inherit;
+        }
+        .quill-dark-wrapper .ql-editor {
+          color: #fff;
+          min-height: 160px;
+          font-size: 0.875rem;
+          line-height: 1.6;
+        }
+        .quill-dark-wrapper--compact .ql-editor {
+          min-height: 100px;
+        }
+        .quill-dark-wrapper .ql-editor.ql-blank::before {
+          color: rgba(255,255,255,0.3);
+          font-style: normal;
+        }
+        .quill-dark-wrapper .ql-editor pre.ql-syntax {
+          background: rgba(0,0,0,0.4);
+          color: #d4ffb0;
+          border-radius: 8px;
+          padding: 0.75em;
+        }
+        .quill-dark-wrapper .ql-editor blockquote {
+          border-left: 3px solid rgba(166,255,0,0.4);
+          padding-left: 0.75em;
+          color: rgba(255,255,255,0.6);
+        }
+        .quill-dark-wrapper .ql-snow .ql-stroke {
+          stroke: rgba(255,255,255,0.55);
+        }
+        .quill-dark-wrapper .ql-snow .ql-fill {
+          fill: rgba(255,255,255,0.55);
+        }
+        .quill-dark-wrapper .ql-snow .ql-picker {
+          color: rgba(255,255,255,0.55);
+        }
+        .quill-dark-wrapper .ql-snow .ql-picker-options {
+          background: #171717;
+          border-color: rgba(255,255,255,0.1);
+        }
+        .quill-dark-wrapper .ql-snow .ql-picker.ql-expanded .ql-picker-label {
+          border-color: rgba(255,255,255,0.15);
+          color: #fff;
+        }
+        .quill-dark-wrapper .ql-snow.ql-toolbar button:hover .ql-stroke,
+        .quill-dark-wrapper .ql-snow .ql-toolbar button:hover .ql-stroke {
+          stroke: #a6ff00;
+        }
+        .quill-dark-wrapper .ql-snow.ql-toolbar button.ql-active .ql-stroke,
+        .quill-dark-wrapper .ql-snow .ql-toolbar button.ql-active .ql-stroke {
+          stroke: #a6ff00;
+        }
+        .quill-dark-wrapper .ql-snow .ql-tooltip {
+          background: #171717;
+          color: #fff;
+          border: 1px solid rgba(255,255,255,0.1);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+        .quill-dark-wrapper .ql-snow .ql-tooltip input[type="text"] {
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.15);
+          color: #fff;
+        }
+        .quill-dark-wrapper .ql-snow .ql-tooltip a.ql-action::after,
+        .quill-dark-wrapper .ql-snow .ql-tooltip a.ql-remove::before {
+          color: #a6ff00;
+        }
+
+        /* Rendering of the saved rich-text HTML (preview modal / product page) */
+        .rich-text-content p { margin: 0 0 0.75em; }
+        .rich-text-content p:last-child { margin-bottom: 0; }
+        .rich-text-content strong { color: rgba(255,255,255,0.85); }
+        .rich-text-content a { color: #a6ff00; text-decoration: underline; }
+        .rich-text-content ul, .rich-text-content ol { margin: 0 0 0.75em; padding-left: 1.25em; }
+        .rich-text-content li { margin-bottom: 0.25em; }
+        .rich-text-content img { max-width: 100%; border-radius: 8px; margin: 0.5em 0; }
+        .rich-text-content blockquote {
+          border-left: 3px solid rgba(166,255,0,0.4);
+          padding-left: 0.75em;
+          margin: 0 0 0.75em;
+          color: rgba(255,255,255,0.5);
+        }
+        .rich-text-content pre {
+          background: rgba(0,0,0,0.4);
+          color: #d4ffb0;
+          border-radius: 8px;
+          padding: 0.75em;
+          overflow-x: auto;
+          margin: 0 0 0.75em;
+        }
+        .rich-text-content h1, .rich-text-content h2, .rich-text-content h3, .rich-text-content h4 {
+          color: #fff;
+          font-weight: 700;
+          margin: 0.5em 0 0.4em;
+        }
+
+        input::placeholder {
+          transition: color 0.3s ease;
+        }
+
+        input:focus::placeholder {
+          color: rgba(255, 255, 255, 0.3);
+        }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+      `}</style>
         </div>
     );
 };

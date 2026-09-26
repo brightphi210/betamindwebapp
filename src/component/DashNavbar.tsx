@@ -28,8 +28,6 @@ const NAV_ITEMS = [
     { id: 'bookings', name: 'MyBookings', icon: <FiBookOpen className="" />, path: '/dashboard/bookings' },
 ];
 
-const MY_PRODUCTS_PATH = '/dashboard/products';
-
 // Mobile bottom tab bar: keep it focused on core actions and let the More menu hold
 // secondary destinations like Bookings / Mentor Profile.
 const MOBILE_PRIMARY_IDS = ['home', 'events'];
@@ -87,9 +85,7 @@ const DashNavbar = () => {
 
     const mobilePrimaryItems = NAV_ITEMS.filter((item) => MOBILE_PRIMARY_IDS.includes(item.id));
     const mobileSecondaryItems = NAV_ITEMS.filter((item) => MOBILE_SECONDARY_IDS.includes(item.id));
-    const desktopNavItems = userProfile?.is_mentor
-        ? [...NAV_ITEMS, { id: 'my-products', name: 'My Products', icon: <FiBookOpen className="" />, path: MY_PRODUCTS_PATH }]
-        : NAV_ITEMS;
+    const desktopNavItems = NAV_ITEMS;
 
     return (
         <>
@@ -340,10 +336,10 @@ const DashNavbar = () => {
                         </div>
                     </div>
                 </div>
-            </nav>
+            </nav >
 
             {/* Mobile bottom tab bar — replaces the old side drawer */}
-            <nav
+            < nav
                 className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch py-2.5"
                 style={{
                     background: 'rgba(255,255,255,0.05)',
@@ -351,31 +347,34 @@ const DashNavbar = () => {
                     WebkitBackdropFilter: 'blur(24px) saturate(150%)',
                     boxShadow: '0 -8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
                     paddingBottom: 'env(safe-area-inset-bottom)',
-                }}
+                }
+                }
             >
                 {/* subtle top glass highlight */}
-                <div
+                < div
                     className="absolute top-0 left-0 right-0 h-px p-0.5"
                     style={{ background: 'linear-gradient(90deg, transparent, rgba(166,255,0,0.25), transparent)' }}
                 />
 
-                {mobilePrimaryItems.map((item) => {
-                    const isActive = location.pathname === item.path;
-                    return (
-                        <Link
-                            key={item.id}
-                            to={item.path}
-                            className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] transition-colors duration-200"
-                            style={{
-                                color: isActive ? '#a6ff00' : 'rgba(255,255,255,.55)',
-                                fontWeight: isActive ? 600 : 400,
-                            }}
-                        >
-                            <span className="text-2xl">{item.icon}</span>
-                            <span>{item.name}</span>
-                        </Link>
-                    );
-                })}
+                {
+                    mobilePrimaryItems.map((item) => {
+                        const isActive = location.pathname === item.path;
+                        return (
+                            <Link
+                                key={item.id}
+                                to={item.path}
+                                className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] transition-colors duration-200"
+                                style={{
+                                    color: isActive ? '#a6ff00' : 'rgba(255,255,255,.55)',
+                                    fontWeight: isActive ? 600 : 400,
+                                }}
+                            >
+                                <span className="text-2xl">{item.icon}</span>
+                                <span>{item.name}</span>
+                            </Link>
+                        );
+                    })
+                }
 
                 {/* Direct link to the create-event page; the More menu handles secondary actions */}
                 <Link
@@ -392,23 +391,25 @@ const DashNavbar = () => {
                     Create
                 </Link>
 
-                {mobileSecondaryItems.map((item) => {
-                    const isActive = location.pathname === item.path;
-                    return (
-                        <Link
-                            key={item.id}
-                            to={item.path}
-                            className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] transition-colors duration-200"
-                            style={{
-                                color: isActive ? '#a6ff00' : 'rgba(255,255,255,.55)',
-                                fontWeight: isActive ? 600 : 400,
-                            }}
-                        >
-                            <span className="text-2xl">{item.icon}</span>
-                            <span>{item.name}</span>
-                        </Link>
-                    );
-                })}
+                {
+                    mobileSecondaryItems.map((item) => {
+                        const isActive = location.pathname === item.path;
+                        return (
+                            <Link
+                                key={item.id}
+                                to={item.path}
+                                className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] transition-colors duration-200"
+                                style={{
+                                    color: isActive ? '#a6ff00' : 'rgba(255,255,255,.55)',
+                                    fontWeight: isActive ? 600 : 400,
+                                }}
+                            >
+                                <span className="text-2xl">{item.icon}</span>
+                                <span>{item.name}</span>
+                            </Link>
+                        );
+                    })
+                }
 
                 {/* Dots — opens a bottom-sheet menu with smooth transitions */}
                 <div className="relative flex-1" ref={moreMenuRef}>
@@ -428,7 +429,7 @@ const DashNavbar = () => {
                         More
                     </button>
                 </div>
-            </nav>
+            </nav >
 
             <div
                 className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-300 ease-out ${showMoreMenu ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
@@ -479,15 +480,6 @@ const DashNavbar = () => {
                             Bookings
                         </Link>
 
-                        <Link
-                            to={MY_PRODUCTS_PATH}
-                            onClick={() => setShowMoreMenu(false)}
-                            className="flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm text-white transition-colors"
-                            style={{ background: 'rgba(255,255,255,0.04)' }}
-                        >
-                            <FiBookOpen />
-                            My Products
-                        </Link>
                     </div>
 
                     <div className="my-4 h-px w-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
