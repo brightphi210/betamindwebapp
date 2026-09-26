@@ -13,6 +13,8 @@ import {
     FiX,
 } from 'react-icons/fi';
 import { Link, useParams } from 'react-router-dom';
+import PoweredByBadge from '../../component/PowereByBadge';
+import PublicNavbar from '../../component/PublicNavbar';
 import Button from '../../component/ui/Button';
 import { useRegisterEvents } from '../../hooks/mutations/allMutation';
 import { useGetEvent } from '../../hooks/queries/allQueriess';
@@ -84,7 +86,7 @@ const PartyIcon = () => (
 );
 
 const PublicEventSkeleton: React.FC = () => (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-20">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 py-10 sm:py-20">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-16">
             <div>
                 <div
@@ -302,7 +304,9 @@ const EventPublicPage: React.FC = () => {
     if (isLoading) {
         return (
             <div className="w-full min-h-screen" style={{ background: pageBg }}>
+                <PublicNavbar />
                 <PublicEventSkeleton />
+                <PoweredByBadge />
             </div>
         );
     }
@@ -310,7 +314,9 @@ const EventPublicPage: React.FC = () => {
     if (isError || (isFetched && !event)) {
         return (
             <div className="w-full min-h-screen" style={{ background: pageBg }}>
+                <PublicNavbar />
                 <NotFoundState />
+                <PoweredByBadge />
             </div>
         );
     }
@@ -342,7 +348,8 @@ const EventPublicPage: React.FC = () => {
 
     return (
         <div className="w-full min-h-screen" style={{ background: pageBg }}>
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-20">
+            <PublicNavbar />
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 lg:pt-28 pt-24">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-16">
                     {/* Left column */}
                     <div>
@@ -557,6 +564,8 @@ const EventPublicPage: React.FC = () => {
                     onClose={() => setShowInviteModal(false)}
                 />
             )}
+
+            <PoweredByBadge />
         </div>
     );
 };

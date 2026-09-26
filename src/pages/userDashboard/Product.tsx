@@ -11,6 +11,8 @@ import {
 } from "react-icons/fi";
 import { Link, useParams } from "react-router-dom";
 import LoadingOverlay from "../../component/LoadingOverlay";
+import PoweredByBadge from "../../component/PowereByBadge";
+import PublicNavbar from "../../component/PublicNavbar";
 import Button from "../../component/ui/Button";
 import { useGetSingleDigitalProduct } from "../../hooks/queries/allQueriess";
 
@@ -62,6 +64,7 @@ const ProductNotFound: React.FC = () => (
                 "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
         }}
     >
+        <PublicNavbar />
         <h1 className="text-white text-2xl font-black mb-2">Product Not Found</h1>
         <p className="text-white/40 text-sm mb-8">We couldn't find the item you're looking for.</p>
         <Link
@@ -72,6 +75,7 @@ const ProductNotFound: React.FC = () => (
             <FiArrowLeft size={16} />
             Back to Explore
         </Link>
+        <PoweredByBadge />
     </div>
 );
 
@@ -116,7 +120,9 @@ const Product: React.FC = () => {
                         "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
                 }}
             >
+                <PublicNavbar />
                 <LoadingOverlay visible />
+                <PoweredByBadge />
             </div>
         );
     }
@@ -144,14 +150,8 @@ const Product: React.FC = () => {
                     "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
             }}
         >
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-                <Link
-                    to="/dashboard/explore"
-                    className="inline-flex items-center gap-1.5 text-white/40 hover:text-white/70 text-sm font-semibold mb-6 transition-colors"
-                >
-                    <FiArrowLeft size={14} />
-                    Explore
-                </Link>
+            <PublicNavbar />
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 pt-28">
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 items-start">
                     {/* Left */}
@@ -392,6 +392,8 @@ const Product: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            <PoweredByBadge />
         </div>
     );
 };

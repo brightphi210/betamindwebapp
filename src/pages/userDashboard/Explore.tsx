@@ -411,9 +411,12 @@ const NoEventsState: React.FC = () => (
 );
 
 // ─── Digital product card ───────────────────────────────────────────────────
+// Opens in a new tab/page rather than navigating the current SPA route.
 export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) => (
     <Link
         to={`/dashboard/products/${product.id}`}
+        target="_blank"
+        rel="noopener noreferrer"
         className="rounded-md overflow-hidden flex flex-col transition-colors hover:bg-white/3 cursor-pointer"
         style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
     >

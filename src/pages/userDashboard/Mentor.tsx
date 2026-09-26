@@ -495,9 +495,12 @@ const SessionDetailsModal: React.FC<{ session: MentorPublicSession; isClosing?: 
     </div>
 );
 
+// Opens in a new tab/page rather than navigating the current SPA route.
 const MentorProductCard: React.FC<{ product: MentorProduct }> = ({ product }) => (
     <Link
         to={`/dashboard/products/${product.id}`}
+        target="_blank"
+        rel="noopener noreferrer"
         className="rounded-md overflow-hidden flex flex-col transition-colors hover:bg-white/3 cursor-pointer"
         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
     >

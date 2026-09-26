@@ -46,7 +46,7 @@ const GoogleAuthButton = ({
       {
         onSuccess: (data: any) => {
           localStorage.setItem("betamindToken", data?.data?.tokens?.access);
-          localStorage.setItem("refresh", data?.data?.tokens?.refresh);
+          localStorage.setItem("betamindRefresh", data?.data?.tokens?.refresh);
           console.log('Data', data?.data)
           navigate("/dashboard/overview");
         },
