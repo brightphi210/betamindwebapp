@@ -8,6 +8,7 @@ import {
     FiExternalLink,
     FiImage,
     FiLink,
+    FiPackage,
     FiPlayCircle,
     FiPlus,
     FiShare2,
@@ -19,28 +20,23 @@ import {
 import { Link, useNavigate, useOutletContext } from "react-router-dom";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
-import { useGetMentorDigitalProduct } from "../../hooks/queries/allQueriess";
-// TODO: swap in your real delete mutation hook if the name/path differs,
-// e.g. useDeleteDigitalProduct from "../../hooks/mutations/allMutation".
 import { useDeleteDigitalProduct } from "../../hooks/mutations/allMutation";
+import { useGetMentorDigitalProduct } from "../../hooks/queries/allQueriess";
 import { useGlobalContext } from "../../providers/GlobalContext";
 import { type MentorDashboardContext } from "./MentorDashboardLayout";
 
-// If Explore.tsx is reachable from here, prefer importing these instead of
-// redeclaring them, so the two pages never drift apart:
-// import { type ApiDigitalProduct } from "../Explore";
-
-type ProductType = "Course" | "Book";
+export type ProductType = "Course" | "Book" | "Manual" | "Template" | "Workbook" | "Toolkit";
 type ProductStatus = "published" | "draft";
 
-// Shape returned by the digital-products endpoint — mirrors Explore.tsx's
-// ApiDigitalProduct exactly, since it's the same hook/response.
+type ApiProductType = "course" | "book" | "manual" | "template" | "workbook" | "toolkit";
+
 type ApiDigitalProduct = {
     id: string;
     mentor: string;
     user_name: string;
     link: string;
-    product_type: "course" | "book";
+    product_type: ApiProductType;
+    category?: string;
     title: string;
     description: string;
     course_content: { title: string; description: string }[] | null;
@@ -52,8 +48,6 @@ type ApiDigitalProduct = {
     created_at: string;
 };
 
-// Card-friendly shape this page renders — same fields the old MOCK_PRODUCTS
-// had, just sourced from the API now instead of being hardcoded.
 type Product = {
     id: string;
     type: ProductType;
@@ -67,14 +61,16 @@ type Product = {
     description?: string;
 };
 
+const toTitleCase = (s: string): ProductType =>
+    (s.charAt(0).toUpperCase() + s.slice(1)) as ProductType;
+
 const mapApiProductToMentorProduct = (p: ApiDigitalProduct): Product => ({
     id: p.id,
-    type: p.product_type === "course" ? "Course" : "Book",
+    type: toTitleCase(p.product_type),
     title: p.title,
     price: Number(p.price) || 0,
     thumbnail: p.cover_image,
     status: p.is_published ? "published" : "draft",
-    // Not returned by this endpoint yet — default to 0 until the API exposes them.
     sold: 0,
     rating: 0,
     link: p.link,
@@ -84,6 +80,17 @@ const mapApiProductToMentorProduct = (p: ApiDigitalProduct): Product => ({
 const STATUS_STYLES: Record<ProductStatus, { color: string; bg: string; label: string }> = {
     published: { color: "#a6ff00", bg: "rgba(166,255,0,0.1)", label: "Published" },
     draft: { color: "#fbbf24", bg: "rgba(251,191,36,0.1)", label: "Draft" },
+};
+
+const productIcon = (type: ProductType, size = 20) => {
+    switch (type) {
+        case "Course":
+            return <FiPlayCircle size={size} className="text-white/15" />;
+        case "Book":
+            return <FiBookOpen size={size} className="text-white/15" />;
+        default:
+            return <FiPackage size={size} className="text-white/15" />;
+    }
 };
 
 // ---------- Product row ----------
@@ -116,7 +123,6 @@ const ProductRow: React.FC<{
             className="flex cursor-pointer items-center gap-4 rounded-xl p-3 text-left transition-colors hover:bg-white/[0.03] sm:gap-5 sm:p-4"
             style={{ background: cardBg, border: cardBorder }}
         >
-            {/* Thumbnail */}
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg sm:h-20 sm:w-20">
                 {product.thumbnail ? (
                     <img src={product.thumbnail} alt={product.title} className="h-full w-full object-cover" />
@@ -125,23 +131,24 @@ const ProductRow: React.FC<{
                         className="flex h-full w-full items-center justify-center"
                         style={{ background: "rgba(255,255,255,0.03)" }}
                     >
-                        {product.type === "Course" ? (
-                            <FiPlayCircle size={20} className="text-white/15" />
-                        ) : (
-                            <FiBookOpen size={20} className="text-white/15" />
-                        )}
+                        {productIcon(product.type, 20)}
                     </div>
                 )}
             </div>
 
-            {/* Info */}
             <div className="min-w-0 flex-1">
                 <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span
                         className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold text-white/70"
                         style={{ background: "rgba(255,255,255,0.06)" }}
                     >
-                        {product.type === "Course" ? <FiPlayCircle size={11} /> : <FiBookOpen size={11} />}
+                        {product.type === "Course" ? (
+                            <FiPlayCircle size={11} />
+                        ) : product.type === "Book" ? (
+                            <FiBookOpen size={11} />
+                        ) : (
+                            <FiPackage size={11} />
+                        )}
                         {product.type}
                     </span>
                     <span
@@ -166,7 +173,6 @@ const ProductRow: React.FC<{
                 </div>
             </div>
 
-            {/* Actions */}
             <div className="flex shrink-0 items-center gap-2">
                 <button
                     type="button"
@@ -208,12 +214,12 @@ const ProductRowSkeleton: React.FC = () => (
 
 const EmptyState: React.FC<{ onCreate: () => void }> = ({ onCreate }) => (
     <Link
-        to={'/dashboard/mentor/product/create'}
+        to="/dashboard/mentor/product/create"
         className="col-span-full flex flex-col items-center justify-center rounded-xl px-4 py-14 text-center"
         style={{ background: cardBg, border: "1px dashed rgba(255,255,255,0.1)" }}
     >
         <FiShoppingBag size={22} className="mb-3 text-white/20" />
-        <p className="mb-4 text-sm text-white/40">You haven't listed any courses or books yet.</p>
+        <p className="mb-4 text-sm text-white/40">You haven't listed any digital products yet.</p>
         <Button variant="green" onClick={onCreate}>
             <span className="flex items-center gap-2">
                 <FiPlus size={15} />
@@ -256,11 +262,7 @@ const ProductDrawer: React.FC<{
 
     return (
         <div className="fixed inset-0 z-50 flex justify-end">
-            <div
-                className="absolute inset-0 bg-black/65 backdrop-blur-sm"
-                onClick={onClose}
-                aria-hidden="true"
-            />
+            <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
             <div
                 className="relative flex h-full w-full max-w-md flex-col overflow-y-auto shadow-2xl animate-[slideIn_0.25s_ease-out]"
                 style={{ background: "#0a0d09", borderLeft: "1px solid rgba(255,255,255,0.1)" }}
@@ -317,7 +319,13 @@ const ProductDrawer: React.FC<{
                             className="absolute left-3 top-3 flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold"
                             style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
                         >
-                            {product.type === "Course" ? <FiPlayCircle size={13} /> : <FiBookOpen size={13} />}
+                            {product.type === "Course" ? (
+                                <FiPlayCircle size={13} />
+                            ) : product.type === "Book" ? (
+                                <FiBookOpen size={13} />
+                            ) : (
+                                <FiPackage size={13} />
+                            )}
                             {product.type}
                         </span>
                         <span
@@ -355,7 +363,7 @@ const ProductDrawer: React.FC<{
 
                     <div className="mb-6">
                         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/30">
-                            {product.type === "Course" ? "Course Link" : "Book Link"}
+                            Access Link
                         </p>
                         {product.link ? (
                             <div
@@ -425,7 +433,7 @@ const ProductDrawer: React.FC<{
                     to { transform: translateX(0); }
                 }
             `}</style>
-        </div >
+        </div>
     );
 };
 
@@ -443,9 +451,7 @@ const MentorProducts = () => {
         ? digitalProduct.data
         : digitalProduct?.data?.results ?? [];
 
-    const myRawProducts = rawProducts;
-
-    const products: Product[] = myRawProducts.map(mapApiProductToMentorProduct);
+    const products: Product[] = rawProducts.map(mapApiProductToMentorProduct);
 
     const handleEdit = (product: Product) => {
         navigate(`/dashboard/mentor/product/edit/${product.id}`);
@@ -455,7 +461,6 @@ const MentorProducts = () => {
         const confirmed = window.confirm(`Delete "${product.title}"? This can't be undone.`);
         if (!confirmed) return;
 
-        // cast to any to satisfy mutate type when id is passed as variable
         deleteProduct(product.id as any, {
             onSuccess: () => {
                 addToast("Product deleted", "success");
@@ -477,10 +482,10 @@ const MentorProducts = () => {
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h2 className="mb-1 text-xl font-bold text-white sm:text-2xl">Products</h2>
-                    <p className="text-sm text-white/40">Manage the courses and books you sell to mentees.</p>
+                    <p className="text-sm text-white/40">Manage the digital products you sell to mentees.</p>
                 </div>
                 {products.length > 0 && (
-                    <Link to={'/dashboard/mentor/product/create'}>
+                    <Link to="/dashboard/mentor/product/create">
                         <Button variant="green">
                             <span className="flex items-center gap-2">
                                 <FiPlus size={15} />

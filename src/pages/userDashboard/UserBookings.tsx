@@ -44,7 +44,7 @@ const toTabKey = (raw?: string | null): TabKey => {
             normalized === "completed" ||
             normalized === "declined"
         ) {
-            if (value === "accepted" || value === "confirmed" || value === "active") {
+            if (value === "accepted" || value === "confirmed" || value === "active" || value === "ongoing") {
                 return "upcoming";
             }
             return normalized as TabKey;

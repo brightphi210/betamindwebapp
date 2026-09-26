@@ -25,7 +25,7 @@ const NAV_ITEMS = [
     { id: 'events', name: 'Events', icon: <FiCalendar className="" />, path: '/dashboard/events' },
     { id: 'explore', name: 'Explore', icon: <FiCompass className="" />, path: '/dashboard/explore' },
     { id: 'wallet', name: 'Wallet', icon: <FiCreditCard className="" />, path: '/dashboard/wallet' },
-    { id: 'bookings', name: 'My Bookings', icon: <FiBookOpen className="" />, path: '/dashboard/bookings' },
+    { id: 'bookings', name: 'MyBookings', icon: <FiBookOpen className="" />, path: '/dashboard/bookings' },
 ];
 
 const MY_PRODUCTS_PATH = '/dashboard/products';
@@ -41,18 +41,26 @@ const DashNavbar = () => {
     const [showMoreMenu, setShowMoreMenu] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
     const moreMenuRef = useRef<HTMLDivElement>(null);
+    const moreSheetRef = useRef<HTMLDivElement>(null);
 
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
     const userProfile = myProfile?.data;
-    console.log("userProfile", userProfile);
-
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
                 setShowProfileMenu(false);
             }
-            if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+            // The bottom-sheet panel is portal-less but sits outside moreMenuRef (the
+            // trigger button), so it needs its own ref checked here too - otherwise a
+            // mousedown on a Link inside the sheet counts as "outside" and closes the
+            // menu before the click/navigation can register.
+            if (
+                moreMenuRef.current &&
+                !moreMenuRef.current.contains(e.target as Node) &&
+                moreSheetRef.current &&
+                !moreSheetRef.current.contains(e.target as Node)
+            ) {
                 setShowMoreMenu(false);
             }
         };
@@ -429,11 +437,11 @@ const DashNavbar = () => {
                     backdropFilter: 'blur(5px) saturate(140%)',
                     WebkitBackdropFilter: 'blur(5px) saturate(140%)',
                 }}
-                onClick={() => setShowMoreMenu(false)}
             >
                 <div
                     className={`absolute bottom-0 bg-neutral-950 left-0 right-0 mx-auto w-full max-w-md rounded-t-[28px] border-t border-white/10 px-5 pb-8 pt-4 shadow-2xl transition-all duration-300 ease-out ${showMoreMenu ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
                     onClick={(e) => e.stopPropagation()}
+                    ref={moreSheetRef}
                     style={{
                         backdropFilter: 'blur(24px) saturate(150%)',
                         WebkitBackdropFilter: 'blur(24px) saturate(150%)',
@@ -464,7 +472,8 @@ const DashNavbar = () => {
                         <Link
                             to="/dashboard/bookings"
                             onClick={() => setShowMoreMenu(false)}
-                            className="flex justify-center items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black"
+                            className="flex justify-center items-center gap-2 rounded-md px-5 py-3 text-sm font-semibold text-white transition-colors"
+                            style={{ background: 'rgba(255,255,255,0.04)' }}
                         >
                             <FiBookOpen />
                             Bookings
@@ -497,8 +506,7 @@ const DashNavbar = () => {
                             <Link
                                 to="/mentor-onboarding"
                                 onClick={() => setShowMoreMenu(false)}
-                                className="flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm text-white transition-colors"
-                                style={{ background: 'rgba(255,255,255,0.04)' }}
+                                className="flex items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black"
                             >
                                 <FiUser />
                                 Become a Mentor

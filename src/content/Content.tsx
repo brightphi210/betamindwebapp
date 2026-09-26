@@ -13,7 +13,6 @@ import Mentor from '../pages/userDashboard/Mentor'
 import MentorOnboardingSuccess from '../pages/userDashboard/Mentoronboardingsuccess'
 import Notifications from '../pages/userDashboard/Notifications'
 import Overview from '../pages/userDashboard/Overview'
-import Product from '../pages/userDashboard/Product'
 import SearchPage from '../pages/userDashboard/Search'
 import SessionBookedSuccess from '../pages/userDashboard/SessionBookedSuccess'
 import SettingsPage from '../pages/userDashboard/Settings'
@@ -51,7 +50,6 @@ const Content = () => {
                 </Route>
 
                 <Route path='/dashboard/mentors/:id' element={<Mentor />} />
-                <Route path="/dashboard/products/:id" element={<Product />} />
                 <Route path='*' element={<NotFound />} />
             </Routes>
         </div>

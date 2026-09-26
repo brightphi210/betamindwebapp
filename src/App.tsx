@@ -11,6 +11,7 @@ import Onboarding from "./pages/Onboarding";
 import EventPublicPage from "./pages/userDashboard/EventPublicPage";
 import MentorDashboard from "./pages/userDashboard/MentorDashboard";
 import MentorOnboarding from "./pages/userDashboard/MentorOnboarding";
+import Product from "./pages/userDashboard/Product";
 import PublicProfile from "./pages/userDashboard/PublicProfile";
 import AuthProvider from "./providers/AuthProvider";
 import { GlobalProvider } from "./providers/GlobalContext";
@@ -34,6 +35,8 @@ const App = () => {
                 <Route path='profile-public' element={<PublicProfile />} />
                 <Route path="/mentor-onboarding" element={<MentorOnboarding />} />
                 <Route path="/events/:id" element={<EventPublicPage />} />
+                <Route path="/dashboard/products/:id" element={<Product />} />
+
                 <Route
                   path="/mentor-dashboard"
                   element={

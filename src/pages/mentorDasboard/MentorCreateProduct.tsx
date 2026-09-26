@@ -1,19 +1,18 @@
 import React, { useRef, useState } from "react";
 import {
-    FiBookOpen,
     FiCamera,
+    FiChevronDown,
     FiDollarSign,
     FiEye,
-    FiFilm,
+    FiGrid,
     FiImage,
+    FiLayers,
     FiLink,
     FiLoader,
-    FiPlayCircle,
-    FiPlus,
+    FiPackage,
     FiTag,
-    FiTrash2,
     FiType,
-    FiX
+    FiX,
 } from "react-icons/fi";
 import { useOutletContext } from "react-router-dom";
 import LoadingOverlay from "../../component/LoadingOverlay";
@@ -29,21 +28,19 @@ import { type MentorDashboardContext } from "./MentorDashboardLayout";
 
 type Step = "form" | "success";
 
-type Module = {
-    id: string;
-    title: string;
-    description: string; // plain text
-};
+const PRODUCT_TYPES: ProductType[] = ["Book", "Course", "Manual", "Template", "Workbook", "Toolkit"];
 
-const MAX_VIDEO_BYTES = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_SECONDS = 120; // 2 minutes
-const MAX_OVERVIEW_CHARS = 250; // matches backend `summary` field max_length
-
-const makeModule = (): Module => ({
-    id: `mod_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    title: "",
-    description: "",
-});
+const PRODUCT_CATEGORIES = [
+    "Technology",
+    "Design",
+    "Business",
+    "Marketing",
+    "Finance",
+    "Career Growth",
+    "Health & Wellness",
+    "Personal Development",
+    "Education",
+];
 
 const isTextEmpty = (text: string) => !text || text.trim().length === 0;
 
@@ -56,24 +53,16 @@ const formatPrice = (price: string) => {
 
 // ---------- API error parsing ----------
 
-// Human-readable labels for backend field names, used when surfacing
-// DRF validation errors (e.g. { summary: ["Ensure this field has no
-// more than 250 characters."] }) to the mentor.
 const FIELD_LABELS: Record<string, string> = {
     title: "Title",
     price: "Price",
-    link: "Link",
+    link: "Access link",
     description: "Description",
-    summary: "Overview",
-    course_content: "Course content",
+    category: "Category",
     cover_image: "Thumbnail",
-    video: "Video",
     product_type: "Product type",
 };
 
-// Flattens any DRF error response shape into one human-readable message.
-// Handles: { field: ["msg"] }, { field: { nested: ["msg"] } },
-// { detail: "msg" }, { non_field_errors: ["msg"] }, and plain strings.
 function parseProductError(error: any): string {
     const data = error?.response?.data;
     if (!data) return "Could not create product. Please try again.";
@@ -94,7 +83,7 @@ function parseProductError(error: any): string {
     return "Could not create product. Please try again.";
 }
 
-// ---------- Small building blocks (matched to EventCreate) ----------
+// ---------- Small building blocks ----------
 
 const SectionLabel: React.FC<{ children: React.ReactNode; hint?: string }> = ({ children, hint }) => (
     <div className="mb-2">
@@ -126,7 +115,36 @@ const IconInputRow: React.FC<{
     </div>
 );
 
-// Plain textarea, replacing the old Quill rich-text field.
+const SelectRow: React.FC<{
+    icon: React.ReactNode;
+    value: string;
+    onChange: (v: string) => void;
+    placeholder: string;
+    options: readonly string[];
+}> = ({ icon, value, onChange, placeholder, options }) => (
+    <div className="w-full rounded-lg px-4 py-3.5" style={{ background: cardBg, border: cardBorder }}>
+        <div className="flex items-center gap-3">
+            <span className="text-white/40 shrink-0">{icon}</span>
+            <select
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                className={`flex-1 cursor-pointer appearance-none bg-transparent text-sm outline-none ${value ? "text-white" : "text-white/30"
+                    }`}
+            >
+                <option value="" disabled className="bg-neutral-900 text-white/50">
+                    {placeholder}
+                </option>
+                {options.map((opt) => (
+                    <option key={opt} value={opt} className="bg-neutral-900 text-white">
+                        {opt}
+                    </option>
+                ))}
+            </select>
+            <FiChevronDown size={16} className="pointer-events-none shrink-0 text-white/40" />
+        </div>
+    </div>
+);
+
 const TextAreaField: React.FC<{
     value: string;
     onChange: (v: string) => void;
@@ -145,73 +163,28 @@ const TextAreaField: React.FC<{
     />
 );
 
-// Read-only render of plain text (description, module descriptions, book
-// overview), used inside the preview modal. Preserves line breaks the
-// mentor typed since it's no longer HTML.
 const TextDisplay: React.FC<{ text: string }> = ({ text }) => (
     <p className="whitespace-pre-wrap text-sm text-white/60 leading-relaxed">{text}</p>
 );
 
-// ---------- Module row (Course content) ----------
-
-const ModuleRow: React.FC<{
-    index: number;
-    module: Module;
-    onChange: (patch: Partial<Module>) => void;
-    onRemove: () => void;
-    canRemove: boolean;
-}> = ({ index, module, onChange, onRemove, canRemove }) => (
-    <div className="rounded-xl p-4" style={{ background: cardBg, border: cardBorder }}>
-        <div className="mb-3 flex items-center justify-between gap-3">
-            <span
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-black"
-                style={{ background: "#a6ff00" }}
-            >
-                {index + 1}
-            </span>
-            <input
-                value={module.title}
-                onChange={(e) => onChange({ title: e.target.value })}
-                placeholder={`Module ${index + 1} title`}
-                className="flex-1 rounded-lg px-3 py-2 bg-transparent outline-none text-white text-sm placeholder-white/30"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-            />
-            {canRemove && (
-                <button
-                    type="button"
-                    onClick={onRemove}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/40 hover:text-red-400"
-                    style={{ background: "rgba(255,255,255,0.04)" }}
-                >
-                    <FiTrash2 size={14} />
-                </button>
-            )}
-        </div>
-        <TextAreaField
-            value={module.description}
-            onChange={(v) => onChange({ description: v })}
-            placeholder="What will mentees learn in this module?"
-        />
-    </div>
-);
-
-// ---------- Preview modal (styled after Events.tsx's GuestsModal) ----------
+// ---------- Preview modal ----------
 
 const ProductPreviewModal: React.FC<{
-    type: ProductType;
+    type: string;
+    category: string;
     title: string;
     price: string;
     link: string;
     description: string;
     thumbnail: string | null;
-    video: string | null;
-    modules: Module[];
-    overview: string;
     isSubmitting: boolean;
     onClose: () => void;
     onConfirm: () => void;
-}> = ({ type, title, price, link, description, thumbnail, video, modules, overview, isSubmitting, onClose, onConfirm }) => (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 py-8 backdrop-blur-sm" onClick={onClose}>
+}> = ({ type, category, title, price, link, description, thumbnail, isSubmitting, onClose, onConfirm }) => (
+    <div
+        className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 py-8 backdrop-blur-sm"
+        onClick={onClose}
+    >
         <div
             className="w-full max-w-xl rounded-2xl shadow-2xl max-h-[85vh] flex flex-col"
             style={{
@@ -222,7 +195,6 @@ const ProductPreviewModal: React.FC<{
             }}
             onClick={(e) => e.stopPropagation()}
         >
-            {/* Header */}
             <div className="flex items-start justify-between p-6 pb-0 shrink-0">
                 <div>
                     <h3 className="text-white text-xl font-black mb-1">Preview</h3>
@@ -237,15 +209,23 @@ const ProductPreviewModal: React.FC<{
                 </button>
             </div>
 
-            {/* Scrollable body */}
             <div className="overflow-y-auto flex-1 p-6">
-                <span
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-5"
-                    style={{ background: "rgba(166,255,0,0.12)", color: "#a6ff00" }}
-                >
-                    {type === "Course" ? <FiPlayCircle size={12} /> : <FiBookOpen size={12} />}
-                    {type}
-                </span>
+                <div className="mb-5 flex flex-wrap items-center gap-2">
+                    <span
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+                        style={{ background: "rgba(166,255,0,0.12)", color: "#a6ff00" }}
+                    >
+                        <FiPackage size={12} />
+                        {type}
+                    </span>
+                    <span
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+                        style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
+                    >
+                        <FiGrid size={12} />
+                        {category}
+                    </span>
+                </div>
 
                 {thumbnail ? (
                     <img src={thumbnail} alt={title} className="w-full aspect-square rounded-xl mb-5 object-cover" />
@@ -257,8 +237,6 @@ const ProductPreviewModal: React.FC<{
                         <FiImage size={32} className="text-white/20" />
                     </div>
                 )}
-
-                {video && <video src={video} controls className="w-full aspect-video rounded-xl mb-5 bg-black object-cover" />}
 
                 <h2 className="text-white text-2xl font-black mb-2 break-words">{title || "Untitled"}</h2>
 
@@ -284,45 +262,16 @@ const ProductPreviewModal: React.FC<{
                     )}
                 </div>
 
-                <div className="mb-6">
+                <div className="mb-2">
                     <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">Description</h3>
                     <TextDisplay text={description} />
                 </div>
-
-                {type === "Course" ? (
-                    <div className="mb-2">
-                        <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
-                            Course Content · {modules.length} module{modules.length === 1 ? "" : "s"}
-                        </h3>
-                        <div className="flex flex-col gap-3">
-                            {modules.map((m, i) => (
-                                <div key={m.id} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: cardBorder }}>
-                                    <div className="flex items-center gap-2.5 mb-2">
-                                        <span
-                                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-black"
-                                            style={{ background: "#a6ff00" }}
-                                        >
-                                            {i + 1}
-                                        </span>
-                                        <p className="text-white text-sm font-semibold truncate">{m.title || `Module ${i + 1}`}</p>
-                                    </div>
-                                    <TextDisplay text={m.description} />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="mb-2">
-                        <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">Overview</h3>
-                        <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: cardBorder }}>
-                            <TextDisplay text={overview} />
-                        </div>
-                    </div>
-                )}
             </div>
 
-            {/* Footer actions */}
-            <div className="flex items-center gap-3 p-6 pt-4 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+            <div
+                className="flex items-center gap-3 p-6 pt-4 shrink-0"
+                style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
+            >
                 <button
                     type="button"
                     onClick={onClose}
@@ -335,7 +284,7 @@ const ProductPreviewModal: React.FC<{
                 <Button variant="green" className="flex-1" disabled={isSubmitting} onClick={onConfirm}>
                     <span className="flex items-center justify-center gap-2">
                         {isSubmitting ? <FiLoader size={15} className="animate-spin" /> : null}
-                        {isSubmitting ? "Creating..." : `Create ${type}`}
+                        {isSubmitting ? "Creating..." : "Create Product"}
                     </span>
                 </Button>
             </div>
@@ -353,9 +302,9 @@ const MentorProductCreate: React.FC = () => {
     const [step, setStep] = useState<Step>("form");
 
     const thumbnailInputRef = useRef<HTMLInputElement>(null);
-    const videoInputRef = useRef<HTMLInputElement>(null);
 
-    const [type, setType] = useState<ProductType>("Course");
+    const [type, setType] = useState<ProductType | "">("");
+    const [category, setCategory] = useState("");
     const [title, setTitle] = useState("");
     const [price, setPrice] = useState("");
     const [link, setLink] = useState("");
@@ -363,14 +312,6 @@ const MentorProductCreate: React.FC = () => {
 
     const [thumbnail, setThumbnail] = useState<string | null>(null);
     const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
-
-    const [video, setVideo] = useState<string | null>(null);
-    const [videoFile, setVideoFile] = useState<File | null>(null);
-    const [videoError, setVideoError] = useState<string | null>(null);
-    const [checkingVideo, setCheckingVideo] = useState(false);
-
-    const [modules, setModules] = useState<Module[]>([makeModule()]);
-    const [overview, setOverview] = useState("");
 
     const [showPreview, setShowPreview] = useState(false);
 
@@ -382,93 +323,29 @@ const MentorProductCreate: React.FC = () => {
         }
     };
 
-    const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setVideoError(null);
-
-        if (file.size > MAX_VIDEO_BYTES) {
-            setVideoError(`Video is ${(file.size / (1024 * 1024)).toFixed(1)}MB — must be under 10MB.`);
-            if (videoInputRef.current) videoInputRef.current.value = "";
-            return;
-        }
-
-        const objectUrl = URL.createObjectURL(file);
-        setCheckingVideo(true);
-
-        const probe = document.createElement("video");
-        probe.preload = "metadata";
-        probe.onloadedmetadata = () => {
-            setCheckingVideo(false);
-            if (probe.duration > MAX_VIDEO_SECONDS) {
-                setVideoError(`Video is ${Math.ceil(probe.duration / 60)} min long — must be 2 minutes or less.`);
-                URL.revokeObjectURL(objectUrl);
-                if (videoInputRef.current) videoInputRef.current.value = "";
-                return;
-            }
-            setVideo(objectUrl);
-            setVideoFile(file);
-        };
-        probe.onerror = () => {
-            setCheckingVideo(false);
-            setVideoError("Couldn't read this video file. Please try a different file.");
-            URL.revokeObjectURL(objectUrl);
-            if (videoInputRef.current) videoInputRef.current.value = "";
-        };
-        probe.src = objectUrl;
-    };
-
-    const removeVideo = () => {
-        if (video) URL.revokeObjectURL(video);
-        setVideo(null);
-        setVideoFile(null);
-        setVideoError(null);
-        if (videoInputRef.current) videoInputRef.current.value = "";
-    };
-
-    const addModule = () => setModules((prev) => [...prev, makeModule()]);
-    const removeModule = (id: string) => setModules((prev) => prev.filter((m) => m.id !== id));
-    const patchModule = (id: string, patch: Partial<Module>) =>
-        setModules((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
-
-    const contentValid =
-        type === "Course"
-            ? modules.length > 0 && modules.every((m) => m.title.trim() && !isTextEmpty(m.description))
-            : !isTextEmpty(overview);
-
     const isValid = !!(
+        type &&
+        category &&
         title.trim() &&
-        price &&
-        Number(price) > 0 &&
+        price !== "" &&
+        Number(price) >= 0 &&
         link.trim() &&
-        !isTextEmpty(description) &&
-        contentValid
+        !isTextEmpty(description)
     );
 
-    // Maps our form state onto the digital-product API shape:
-    // { product_type, link, course_content?, title, description, price, summary?, is_published, cover_image, video }
     const handleCreate = () => {
-        if (!isValid) return;
+        if (!isValid || !type) return;
 
         const formData = new FormData();
-        formData.append("product_type", type === "Course" ? "course" : "book");
+        formData.append("product_type", type.toLowerCase());
+        formData.append("category", category);
         formData.append("title", title);
         formData.append("link", link);
         formData.append("description", description);
         formData.append("price", price);
         formData.append("is_published", "false");
 
-        if (type === "Course") {
-            formData.append(
-                "course_content",
-                JSON.stringify(modules.map(({ title: t, description: d }) => ({ title: t, description: d })))
-            );
-        } else {
-            formData.append("summary", overview);
-        }
-
         if (thumbnailFile) formData.append("cover_image", thumbnailFile);
-        if (videoFile) formData.append("video", videoFile);
 
         mutate(formData, {
             onSuccess: () => {
@@ -481,8 +358,7 @@ const MentorProductCreate: React.FC = () => {
         });
     };
 
-    // ─── Success screen ─────────────────────────────────────────────────
-    if (step === "success") {
+    if (step === "success" && type) {
         return <MentorProductSuccess type={type} title={title} />;
     }
 
@@ -497,12 +373,12 @@ const MentorProductCreate: React.FC = () => {
             <LoadingOverlay visible={isPending} />
             <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
                 <div className="mb-8">
-                    <h2 className="mb-1 text-xl font-bold text-white sm:text-2xl">Create Product</h2>
-                    <p className="text-sm text-white/40">List a course or book for mentees to purchase.</p>
+                    <h2 className="mb-1 text-xl font-bold text-white sm:text-2xl">Digital Products</h2>
+                    <p className="text-sm text-white/40">List a digital product for mentees to purchase.</p>
                 </div>
 
                 <div className="flex flex-col gap-10 lg:flex-row">
-                    {/* Left: media uploads */}
+                    {/* Left: thumbnail */}
                     <div className="w-full shrink-0 lg:w-[280px]">
                         <SectionLabel>Thumbnail</SectionLabel>
                         <div
@@ -513,7 +389,10 @@ const MentorProductCreate: React.FC = () => {
                             {thumbnail ? (
                                 <img src={thumbnail} alt="Product thumbnail" className="h-full w-full object-cover" />
                             ) : (
-                                <div className="flex h-full w-full flex-col items-center justify-center gap-2" style={{ background: cardBg }}>
+                                <div
+                                    className="flex h-full w-full flex-col items-center justify-center gap-2"
+                                    style={{ background: cardBg }}
+                                >
                                     <FiImage size={26} className="text-white/20" />
                                     <p className="text-xs text-white/30">Add thumbnail</p>
                                 </div>
@@ -528,80 +407,60 @@ const MentorProductCreate: React.FC = () => {
                             >
                                 <FiCamera size={15} />
                             </button>
-                            <input ref={thumbnailInputRef} type="file" accept="image/*" className="hidden" onChange={handleThumbnailChange} />
+                            <input
+                                ref={thumbnailInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleThumbnailChange}
+                            />
                         </div>
                         {thumbnail && (
                             <button
                                 onClick={() => {
                                     setThumbnail(null);
                                     setThumbnailFile(null);
+                                    if (thumbnailInputRef.current) thumbnailInputRef.current.value = "";
                                 }}
                                 className="mt-2 w-full text-xs text-white/40 transition-colors hover:text-white/70"
                             >
                                 Remove image
                             </button>
                         )}
-
-                        <div className="mt-6">
-                            <SectionLabel hint="Max 2 minutes, under 10MB.">Preview Video</SectionLabel>
-                            {video ? (
-                                <div className="overflow-hidden rounded-2xl" style={{ border: cardBorder }}>
-                                    <video src={video} controls className="aspect-video w-full bg-black object-cover" />
-                                    <div className="flex items-center justify-between px-3 py-2.5" style={{ background: cardBg, borderTop: cardBorder }}>
-                                        <span className="truncate text-xs text-white/50">{videoFile?.name}</span>
-                                        <button onClick={removeVideo} className="ml-2 shrink-0 text-white/40 hover:text-red-400">
-                                            <FiTrash2 size={13} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={() => videoInputRef.current?.click()}
-                                    disabled={checkingVideo}
-                                    className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-2xl"
-                                    style={{ background: cardBg, border: `1px dashed rgba(255,255,255,0.15)` }}
-                                >
-                                    {checkingVideo ? (
-                                        <FiLoader size={22} className="animate-spin text-white/30" />
-                                    ) : (
-                                        <FiFilm size={22} className="text-white/20" />
-                                    )}
-                                    <p className="text-xs text-white/30">{checkingVideo ? "Checking video..." : "Upload preview video"}</p>
-                                </button>
-                            )}
-                            <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoChange} />
-                            {videoError && <p className="mt-2 text-xs text-red-400">{videoError}</p>}
-                        </div>
                     </div>
 
                     {/* Right: form */}
                     <div className="min-w-0 flex-1 space-y-5">
                         <div>
-                            <SectionLabel>Type</SectionLabel>
-                            <div className="flex gap-2">
-                                {(["Course", "Book"] as ProductType[]).map((t) => {
-                                    const active = type === t;
-                                    return (
-                                        <button
-                                            key={t}
-                                            type="button"
-                                            onClick={() => setType(t)}
-                                            className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${active ? "bg-[#a6ff00] text-black" : "text-white/60 hover:text-white"
-                                                }`}
-                                            style={active ? undefined : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-                                        >
-                                            {t === "Course" ? <FiPlayCircle size={14} /> : <FiBookOpen size={14} />}
-                                            {t}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                            <SectionLabel>Product Type</SectionLabel>
+                            <SelectRow
+                                icon={<FiLayers size={17} />}
+                                value={type}
+                                onChange={(v) => setType(v as ProductType)}
+                                placeholder="Select product type"
+                                options={PRODUCT_TYPES}
+                            />
+                        </div>
+
+                        <div>
+                            <SectionLabel>Category</SectionLabel>
+                            <SelectRow
+                                icon={<FiGrid size={17} />}
+                                value={category}
+                                onChange={setCategory}
+                                placeholder="Select a category"
+                                options={PRODUCT_CATEGORIES}
+                            />
                         </div>
 
                         <div>
                             <SectionLabel>Title</SectionLabel>
-                            <IconInputRow icon={<FiType size={17} />} value={title} onChange={setTitle} placeholder="e.g. System Design From Scratch" />
+                            <IconInputRow
+                                icon={<FiType size={17} />}
+                                value={title}
+                                onChange={setTitle}
+                                placeholder="e.g. System Design From Scratch"
+                            />
                         </div>
 
                         <div>
@@ -610,91 +469,55 @@ const MentorProductCreate: React.FC = () => {
                                 icon={<FiDollarSign size={17} />}
                                 value={price}
                                 onChange={(v) => setPrice(v.replace(/[^0-9.]/g, ""))}
-                                placeholder="e.g. 49"
+                                placeholder="e.g. 49 or 0 for free"
                                 inputMode="numeric"
                             />
                         </div>
 
                         <div>
-                            <SectionLabel>{type === "Course" ? "Course Link" : "Book Link"}</SectionLabel>
+                            <SectionLabel>Access Link</SectionLabel>
                             <IconInputRow
                                 icon={<FiLink size={17} />}
                                 value={link}
                                 onChange={setLink}
-                                placeholder={
-                                    type === "Course" ? "https://yourplatform.com/course-name" : "https://yourstore.com/book-name"
-                                }
-                                subtext={`Where mentees go to ${type === "Course" ? "take the course" : "get the book"} after purchase.`}
+                                placeholder="https://drive.google.com/your-product"
+                                subtext="Where mentees go to access this product after purchase."
                             />
                         </div>
 
                         <div>
                             <SectionLabel>Description</SectionLabel>
-                            <TextAreaField value={description} onChange={setDescription} placeholder="What will mentees get from this?" />
+                            <TextAreaField
+                                value={description}
+                                onChange={setDescription}
+                                placeholder="What will mentees get from this?"
+                            />
                         </div>
 
-                        {type === "Course" ? (
-                            <div>
-                                <div className="mb-2 flex items-center justify-between">
-                                    <SectionLabel hint="Break the course into modules mentees will move through.">Course Content</SectionLabel>
-                                </div>
-                                <div className="space-y-3">
-                                    {modules.map((m, i) => (
-                                        <ModuleRow
-                                            key={m.id}
-                                            index={i}
-                                            module={m}
-                                            onChange={(patch) => patchModule(m.id, patch)}
-                                            onRemove={() => removeModule(m.id)}
-                                            canRemove={modules.length > 1}
-                                        />
-                                    ))}
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={addModule}
-                                    className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-[#a6ff00] hover:underline"
-                                >
-                                    <FiPlus size={13} />
-                                    Add Module
-                                </button>
-                            </div>
-                        ) : (
-                            <div>
-                                <SectionLabel hint="Give mentees a sense of what the book covers.">Overview / Summary</SectionLabel>
-                                <TextAreaField
-                                    value={overview}
-                                    onChange={(v) => setOverview(v.slice(0, MAX_OVERVIEW_CHARS))}
-                                    placeholder="Summarize what the book is about..."
-                                    maxLength={MAX_OVERVIEW_CHARS}
-                                />
-                                <p className={`mt-1 text-right text-xs ${overview.length >= MAX_OVERVIEW_CHARS ? "text-red-400" : "text-white/30"}`}>
-                                    {overview.length}/{MAX_OVERVIEW_CHARS}
-                                </p>
-                            </div>
-                        )}
-
-                        <Button variant="green" className="w-full" disabled={!isValid || isPending} onClick={() => setShowPreview(true)}>
+                        <Button
+                            variant="green"
+                            className="w-full"
+                            disabled={!isValid || isPending}
+                            onClick={() => setShowPreview(true)}
+                        >
                             <span className="flex items-center justify-center gap-2">
                                 <FiEye size={15} />
-                                Preview {type}
+                                Preview Product
                             </span>
                         </Button>
                     </div>
                 </div>
             </div>
 
-            {showPreview && (
+            {showPreview && type && (
                 <ProductPreviewModal
                     type={type}
+                    category={category}
                     title={title}
                     price={price}
                     link={link}
                     description={description}
                     thumbnail={thumbnail}
-                    video={video}
-                    modules={modules}
-                    overview={overview}
                     isSubmitting={isPending}
                     onClose={() => setShowPreview(false)}
                     onConfirm={handleCreate}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
     FiArrowLeft,
     FiBookOpen,
@@ -6,27 +6,30 @@ import {
     FiDollarSign,
     FiExternalLink,
     FiLayers,
+    FiPackage,
     FiPlayCircle,
-} from 'react-icons/fi';
-import { Link, useParams } from 'react-router-dom';
-import LoadingOverlay from '../../component/LoadingOverlay';
-import Button from '../../component/ui/Button';
-import { useGetSingleDigitalProduct } from '../../hooks/queries/allQueriess';
+} from "react-icons/fi";
+import { Link, useParams } from "react-router-dom";
+import LoadingOverlay from "../../component/LoadingOverlay";
+import Button from "../../component/ui/Button";
+import { useGetSingleDigitalProduct } from "../../hooks/queries/allQueriess";
 
-// ─── Types (matches the digital-product API response) ───────────────────────
 type ApiCourseModule = {
     title: string;
-    description: string; // plain text
+    description: string;
 };
+
+type ApiProductType = "course" | "book" | "manual" | "template" | "workbook" | "toolkit";
 
 type ApiProduct = {
     id: string;
     mentor: string;
     user_name: string;
     link: string;
-    product_type: 'course' | 'book';
+    product_type: ApiProductType;
+    category?: string;
     title: string;
-    description: string; // plain text
+    description: string;
     course_content: ApiCourseModule[] | null;
     cover_image: string | null;
     price: string;
@@ -38,39 +41,33 @@ type ApiProduct = {
 
 const formatPrice = (price: string) => {
     const numeric = parseFloat(price);
-    if (!numeric || numeric <= 0) return 'Free';
+    if (!numeric || numeric <= 0) return "Free";
     const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
     return `$${trimmed}`;
 };
 
-// Read-only render of the mentor's plain-text content (description, module
-// descriptions, book summary). Preserves line breaks the mentor typed.
-// break-words/overflow-wrap prevents long unbroken strings (e.g. pasted
-// links) from pushing past the column and overlapping the sticky purchase
-// panel on the right.
+const toTitleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 const RichText: React.FC<{ html: string }> = ({ html }) => (
     <p className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
         {html}
     </p>
 );
 
-// ─── Not found / error state ─────────────────────────────────────────────────
 const ProductNotFound: React.FC = () => (
     <div
         className="w-full min-h-screen flex flex-col items-center justify-center px-6 text-center"
         style={{
             background:
-                'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
+                "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
         }}
     >
         <h1 className="text-white text-2xl font-black mb-2">Product Not Found</h1>
-        <p className="text-white/40 text-sm mb-8">
-            We couldn't find the item you're looking for.
-        </p>
+        <p className="text-white/40 text-sm mb-8">We couldn't find the item you're looking for.</p>
         <Link
             to="/dashboard/explore"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm text-black transition-transform hover:scale-[1.02]"
-            style={{ background: '#a6ff00' }}
+            style={{ background: "#a6ff00" }}
         >
             <FiArrowLeft size={16} />
             Back to Explore
@@ -78,7 +75,6 @@ const ProductNotFound: React.FC = () => (
     </div>
 );
 
-// ─── Stat pill (mirrors "Pricing" / "Content" boxes) ────────────────────────
 const StatPill: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({
     icon,
     label,
@@ -86,11 +82,11 @@ const StatPill: React.FC<{ icon: React.ReactNode; label: string; value: string }
 }) => (
     <div
         className="flex items-center gap-3 rounded-xl px-4 py-3"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
     >
         <div
             className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: 'rgba(166,255,0,0.1)', color: '#a6ff00' }}
+            style={{ background: "rgba(166,255,0,0.1)", color: "#a6ff00" }}
         >
             {icon}
         </div>
@@ -101,17 +97,15 @@ const StatPill: React.FC<{ icon: React.ReactNode; label: string; value: string }
     </div>
 );
 
-// ─── Page ────────────────────────────────────────────────────────────────────
 const Product: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { product: response, isLoading, isError } = useGetSingleDigitalProduct(id);
     const product: ApiProduct | undefined = response?.data;
-    console.log('This is Product', product)
 
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
+    const [name, setName] = useState("");
+    const [email, setEmail] = useState("");
     const [hasDiscount, setHasDiscount] = useState(false);
-    const [discountCode, setDiscountCode] = useState('');
+    const [discountCode, setDiscountCode] = useState("");
 
     if (isLoading) {
         return (
@@ -119,7 +113,7 @@ const Product: React.FC = () => {
                 className="w-full min-h-screen relative"
                 style={{
                     background:
-                        'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
+                        "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
                 }}
             >
                 <LoadingOverlay visible />
@@ -129,17 +123,17 @@ const Product: React.FC = () => {
 
     if (isError || !product) return <ProductNotFound />;
 
-    const isCourse = product.product_type === 'course';
+    const isCourse = product.product_type === "course";
+    const typeLabel = toTitleCase(product.product_type);
     const price = formatPrice(product.price);
-    const viewLabel = isCourse ? 'View Course' : 'View eBook';
+    const viewLabel = isCourse ? "View Course" : `View ${typeLabel}`;
 
     const handleSubmit = () => {
-        // Hook this up to your payment flow
-        console.log('Purchasing', product.title, { name, email, discountCode, redirectTo: product.link });
+        console.log("Purchasing", product.title, { name, email, discountCode, redirectTo: product.link });
     };
 
     const scrollToPreview = () => {
-        document.getElementById('product-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById("product-preview")?.scrollIntoView({ behavior: "smooth", block: "start" });
     };
 
     return (
@@ -147,11 +141,10 @@ const Product: React.FC = () => {
             className="w-full min-h-screen"
             style={{
                 background:
-                    'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
+                    "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
             }}
         >
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-                {/* Back link */}
                 <Link
                     to="/dashboard/explore"
                     className="inline-flex items-center gap-1.5 text-white/40 hover:text-white/70 text-sm font-semibold mb-6 transition-colors"
@@ -160,16 +153,12 @@ const Product: React.FC = () => {
                     Explore
                 </Link>
 
-                {/* min-w-0 on both grid children stops long text (description,
-                    course content) from forcing the left column wider than its
-                    track, which is what was pushing it over the sticky purchase
-                    panel on the right. */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-10 items-start">
-                    {/* ── Left: product image + info ── */}
+                    {/* Left */}
                     <div className="min-w-0">
                         <div
                             className="rounded-2xl overflow-hidden mb-6"
-                            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
                         >
                             {product.cover_image ? (
                                 <img
@@ -181,8 +170,10 @@ const Product: React.FC = () => {
                                 <div className="w-full aspect-square flex items-center justify-center">
                                     {isCourse ? (
                                         <FiPlayCircle size={40} className="text-white/15" />
-                                    ) : (
+                                    ) : product.product_type === "book" ? (
                                         <FiBookOpen size={40} className="text-white/15" />
+                                    ) : (
+                                        <FiPackage size={40} className="text-white/15" />
                                     )}
                                 </div>
                             )}
@@ -191,10 +182,16 @@ const Product: React.FC = () => {
                         <div className="flex items-center gap-2 mb-4 flex-wrap">
                             <span
                                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
-                                style={{ background: 'rgba(166,255,0,0.1)', color: '#a6ff00' }}
+                                style={{ background: "rgba(166,255,0,0.1)", color: "#a6ff00" }}
                             >
-                                {isCourse ? <FiPlayCircle size={12} /> : <FiBookOpen size={12} />}
-                                Digital Product
+                                {isCourse ? (
+                                    <FiPlayCircle size={12} />
+                                ) : product.product_type === "book" ? (
+                                    <FiBookOpen size={12} />
+                                ) : (
+                                    <FiPackage size={12} />
+                                )}
+                                {typeLabel}
                             </span>
 
                             {product.video && (
@@ -202,7 +199,7 @@ const Product: React.FC = () => {
                                     type="button"
                                     onClick={scrollToPreview}
                                     className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors hover:bg-white/10"
-                                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)' }}
+                                    style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.8)" }}
                                 >
                                     <FiPlayCircle size={12} />
                                     Watch preview
@@ -215,7 +212,7 @@ const Product: React.FC = () => {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors hover:bg-white/10"
-                                    style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)' }}
+                                    style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.8)" }}
                                 >
                                     <FiExternalLink size={12} />
                                     {viewLabel}
@@ -233,19 +230,18 @@ const Product: React.FC = () => {
                                 label="Content"
                                 value={
                                     isCourse
-                                        ? `${product.course_content?.length ?? 0} module${product.course_content?.length === 1 ? '' : 's'}`
-                                        : '1 eBook'
+                                        ? `${product.course_content?.length ?? 0} module${product.course_content?.length === 1 ? "" : "s"
+                                        }`
+                                        : `1 ${typeLabel}`
                                 }
                             />
                         </div>
 
-                        {/* Preview video — rendered inline on the page (no modal), same
-                            treatment as the mentor profile's intro video block. */}
                         {product.video && (
                             <div id="product-preview" className="scroll-mt-24 mb-8 bg-[rgba(255,255,255,0.03)] rounded-md p-2">
                                 <div
                                     className="rounded-lg overflow-hidden"
-                                    style={{ border: '1px solid rgba(255,255,255,0.08)', aspectRatio: '16 / 9' }}
+                                    style={{ border: "1px solid rgba(255,255,255,0.08)", aspectRatio: "16 / 9" }}
                                 >
                                     <video
                                         src={product.video}
@@ -267,23 +263,31 @@ const Product: React.FC = () => {
                             <div>
                                 <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
                                     Course Content
-                                    {product.course_content?.length ? ` · ${product.course_content.length} module${product.course_content.length === 1 ? '' : 's'}` : ''}
+                                    {product.course_content?.length
+                                        ? ` · ${product.course_content.length} module${product.course_content.length === 1 ? "" : "s"
+                                        }`
+                                        : ""}
                                 </h3>
                                 <div className="flex flex-col gap-3">
                                     {(product.course_content ?? []).map((m, i) => (
                                         <div
                                             key={`${m.title}-${i}`}
                                             className="rounded-xl p-4 min-w-0"
-                                            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                            style={{
+                                                background: "rgba(255,255,255,0.02)",
+                                                border: "1px solid rgba(255,255,255,0.08)",
+                                            }}
                                         >
                                             <div className="flex items-center gap-2.5 mb-2 min-w-0">
                                                 <span
                                                     className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-black"
-                                                    style={{ background: '#a6ff00' }}
+                                                    style={{ background: "#a6ff00" }}
                                                 >
                                                     {i + 1}
                                                 </span>
-                                                <p className="text-white text-sm font-semibold truncate min-w-0">{m.title || `Module ${i + 1}`}</p>
+                                                <p className="text-white text-sm font-semibold truncate min-w-0">
+                                                    {m.title || `Module ${i + 1}`}
+                                                </p>
                                             </div>
                                             <RichText html={m.description} />
                                         </div>
@@ -293,10 +297,15 @@ const Product: React.FC = () => {
                         ) : (
                             product.summary && (
                                 <div>
-                                    <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">Overview</h3>
+                                    <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">
+                                        Overview
+                                    </h3>
                                     <div
                                         className="rounded-xl p-4 min-w-0"
-                                        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                        style={{
+                                            background: "rgba(255,255,255,0.02)",
+                                            border: "1px solid rgba(255,255,255,0.08)",
+                                        }}
                                     >
                                         <RichText html={product.summary} />
                                     </div>
@@ -305,14 +314,12 @@ const Product: React.FC = () => {
                         )}
                     </div>
 
-                    {/* ── Right: purchase panel ── */}
+                    {/* Right – purchase panel */}
                     <div
                         className="rounded-2xl p-6 sm:p-8 lg:sticky lg:top-8 min-w-0"
-                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}
+                        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
                     >
-                        <h2 className="text-white text-lg sm:text-xl font-bold mb-1">
-                            Purchase {product.title}
-                        </h2>
+                        <h2 className="text-white text-lg sm:text-xl font-bold mb-1">Purchase {product.title}</h2>
                         <p className="text-white/40 text-sm mb-6">Complete the quick form below to proceed</p>
 
                         <div className="flex flex-col gap-3 mb-6">
@@ -322,7 +329,7 @@ const Product: React.FC = () => {
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 className="w-full rounded-lg px-4 py-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-[#a6ff00]/50 transition-colors"
-                                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)" }}
                             />
                             <input
                                 type="email"
@@ -330,7 +337,7 @@ const Product: React.FC = () => {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="w-full rounded-lg px-4 py-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-[#a6ff00]/50 transition-colors"
-                                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)" }}
                             />
                         </div>
 
@@ -353,22 +360,22 @@ const Product: React.FC = () => {
                                 value={discountCode}
                                 onChange={(e) => setDiscountCode(e.target.value)}
                                 className="w-full rounded-lg px-4 py-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-[#a6ff00]/50 transition-colors mb-4"
-                                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)" }}
                             />
                         )}
 
                         <div
                             className="rounded-xl overflow-hidden mb-6"
-                            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
                         >
                             <div className="flex items-center justify-between px-4 py-3.5">
                                 <span className="text-white/70 text-sm truncate">{product.title}</span>
                                 <span className="text-white text-sm font-semibold shrink-0">{price}</span>
                             </div>
-                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }} />
+                            <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }} />
                             <div className="flex items-center justify-between px-4 py-3.5">
                                 <span className="text-white font-bold text-sm">Total</span>
-                                <span className="font-bold text-sm" style={{ color: '#a6ff00' }}>
+                                <span className="font-bold text-sm" style={{ color: "#a6ff00" }}>
                                     {price}
                                 </span>
                             </div>

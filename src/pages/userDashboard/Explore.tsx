@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 import {
     FiAlertTriangle,
     FiArrowRight,
@@ -12,15 +12,16 @@ import {
     FiDollarSign,
     FiEdit3,
     FiMapPin,
+    FiPackage,
     FiPenTool,
     FiPlayCircle,
     FiTag,
     FiTrendingUp,
     FiUsers,
-} from 'react-icons/fi';
-import { Link } from 'react-router-dom';
-import LoadingOverlay from '../../component/LoadingOverlay';
-import { useGetAllEvents, useGetDigitalProduct, useGetMentors } from '../../hooks/queries/allQueriess';
+} from "react-icons/fi";
+import { Link } from "react-router-dom";
+import LoadingOverlay from "../../component/LoadingOverlay";
+import { useGetAllEvents, useGetDigitalProduct, useGetMentors } from "../../hooks/queries/allQueriess";
 import {
     AvatarStack,
     EventMetaBadges,
@@ -28,7 +29,7 @@ import {
     mapApiEventToRegistered,
     type ApiEvent,
     type RegisteredEvent,
-} from './Overview';
+} from "./Overview";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export interface Topic {
@@ -40,7 +41,7 @@ export interface Topic {
 }
 
 export interface MentorSocial {
-    platform: 'instagram' | 'x' | 'linkedin' | 'youtube';
+    platform: "instagram" | "x" | "linkedin" | "youtube";
     url: string;
 }
 
@@ -58,14 +59,16 @@ export interface Mentor {
     yearsExperience?: number;
 }
 
-// Shape returned by the digital-products endpoint (course_content is only
-// populated for courses, summary only for books).
+export type ProductType = "Course" | "Book" | "Manual" | "Template" | "Workbook" | "Toolkit";
+export type ApiProductType = "course" | "book" | "manual" | "template" | "workbook" | "toolkit";
+
 export interface ApiDigitalProduct {
     id: string;
     mentor: string;
     user_name: string;
     link: string;
-    product_type: 'course' | 'book';
+    product_type: ApiProductType;
+    category?: string;
     title: string;
     description: string;
     course_content: { title: string; description: string }[] | null;
@@ -77,54 +80,50 @@ export interface ApiDigitalProduct {
     created_at: string;
 }
 
-// Card-friendly shape ProductCard renders. Kept separate from
-// ApiDigitalProduct so ProductCard doesn't need to know about the API's
-// field names (cover_image vs thumbnail, product_type vs type, etc).
 export interface DigitalProduct {
     id: string;
-    type: 'Course' | 'Book';
+    type: ProductType;
     title: string;
     author: string;
     thumbnail: string | null;
     price: string;
     rating?: number;
+    category?: string;
 }
 
 const formatPrice = (price: string) => {
     const numeric = parseFloat(price);
-    if (!numeric || numeric <= 0) return 'Free';
+    if (!numeric || numeric <= 0) return "Free";
     const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
     return `$${trimmed}`;
 };
 
+const toTitleCase = (s: string): ProductType =>
+    (s.charAt(0).toUpperCase() + s.slice(1)) as ProductType;
+
 export const mapApiProductToCard = (p: ApiDigitalProduct): DigitalProduct => ({
     id: p.id,
-    type: p.product_type === 'course' ? 'Course' : 'Book',
+    type: toTitleCase(p.product_type),
     title: p.title,
     author: p.user_name,
     thumbnail: p.cover_image,
     price: formatPrice(p.price),
+    category: p.category,
 });
 
-// ─── Real topic derivation ──────────────────────────────────────────────────
-// Cosmetic icon/color per known category name — purely presentational, not
-// data. Any category not in this map still renders, just with a neutral
-// default look, so new categories mentors add never break the UI.
+// ─── Topic derivation (unchanged) ───────────────────────────────────────────
 const CATEGORY_STYLES: Record<string, { icon: React.ReactNode; color: string }> = {
-    design: { icon: <FiPenTool size={25} />, color: '#f472b6' },
-    engineering: { icon: <FiCode size={25} />, color: '#facc15' },
-    growth: { icon: <FiTrendingUp size={25} />, color: '#4ade80' },
-    finance: { icon: <FiDollarSign size={25} />, color: '#a78bfa' },
-    writing: { icon: <FiEdit3 size={25} />, color: '#60a5fa' },
-    business: { icon: <FiBriefcase size={25} />, color: '#fb923c' },
-    photography: { icon: <FiCamera size={25} />, color: '#5eead4' },
-    product: { icon: <FiBarChart2 size={25} />, color: '#f87171' },
+    design: { icon: <FiPenTool size={25} />, color: "#f472b6" },
+    engineering: { icon: <FiCode size={25} />, color: "#facc15" },
+    growth: { icon: <FiTrendingUp size={25} />, color: "#4ade80" },
+    finance: { icon: <FiDollarSign size={25} />, color: "#a78bfa" },
+    writing: { icon: <FiEdit3 size={25} />, color: "#60a5fa" },
+    business: { icon: <FiBriefcase size={25} />, color: "#fb923c" },
+    photography: { icon: <FiCamera size={25} />, color: "#5eead4" },
+    product: { icon: <FiBarChart2 size={25} />, color: "#f87171" },
 };
-const DEFAULT_CATEGORY_STYLE = { icon: <FiTag size={25} />, color: '#94a3b8' };
+const DEFAULT_CATEGORY_STYLE = { icon: <FiTag size={25} />, color: "#94a3b8" };
 
-// Builds the "Browse by Topics" chips straight from real mentor data — counts
-// are however many mentors actually carry each category, no placeholder
-// numbers. Shared by Explore and Search so both pages list the same set.
 export const buildTopicsFromMentors = (mentors: any[]): Topic[] => {
     const counts = new Map<string, number>();
     mentors.forEach((m) => {
@@ -141,9 +140,9 @@ export const buildTopicsFromMentors = (mentors: any[]): Topic[] => {
         .map(([name, count]) => {
             const style = CATEGORY_STYLES[name.toLowerCase()] ?? DEFAULT_CATEGORY_STYLE;
             return {
-                id: name.toLowerCase().replace(/\s+/g, '-'),
+                id: name.toLowerCase().replace(/\s+/g, "-"),
                 name,
-                count: `${count} Mentor${count === 1 ? '' : 's'}`,
+                count: `${count} Mentor${count === 1 ? "" : "s"}`,
                 icon: style.icon,
                 color: style.color,
             };
@@ -163,7 +162,7 @@ const TopicCard: React.FC<{ topic: Topic }> = ({ topic }) => (
     <Link
         to={`/dashboard/search?category=${encodeURIComponent(topic.name)}`}
         className="flex items-center gap-4 rounded-xl p-3 sm:p-5 text-left transition-colors hover:bg-white/[0.04] cursor-pointer lg:w-full w-fit"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
     >
         <div style={{ color: topic.color }}>{topic.icon}</div>
         <div className="min-w-0">
@@ -180,19 +179,19 @@ export const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
         <Link
             to={`/dashboard/mentors/${mentor.id}`}
             className="rounded-xl lg:p-5 p-3 flex flex-col"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(205,220,57,.08)" }}
         >
             <div className="flex items-start justify-between mb-4">
                 <img
                     src={mentor?.avatar}
                     alt={mentor?.name}
                     className="w-14 h-14 rounded-xl object-cover"
-                    style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                    style={{ border: "1px solid rgba(255,255,255,0.1)" }}
                 />
                 <button
                     onClick={(e) => e.preventDefault()}
                     className="px-4 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer shrink-0"
-                    style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)' }}
+                    style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.85)" }}
                 >
                     Follow
                 </button>
@@ -200,9 +199,7 @@ export const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
 
             <h3 className="text-white font-bold text-base mb-1">{mentor?.nick_name || mentor?.name}</h3>
 
-            {mentor?.occupation && (
-                <p className="text-white/30 text-xs mb-2">{mentor.occupation}</p>
-            )}
+            {mentor?.occupation && <p className="text-white/30 text-xs mb-2">{mentor.occupation}</p>}
 
             <p className="text-white/40 text-sm leading-relaxed lg:mb-4 mb-2 line-clamp-2">{mentor?.bio}</p>
 
@@ -212,7 +209,7 @@ export const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
                         <span
                             key={category}
                             className="inline-block w-fit px-2.5 py-1 rounded-md text-xs font-semibold capitalize"
-                            style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
+                            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
                         >
                             {category}
                         </span>
@@ -226,7 +223,7 @@ export const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
 const MentorCardSkeleton: React.FC = () => (
     <div
         className="rounded-2xl lg:p-5 p-3 flex flex-col animate-pulse"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(205,220,57,.08)" }}
     >
         <div className="flex items-start justify-between mb-4">
             <div className="w-14 h-14 rounded-xl bg-white/5" />
@@ -241,33 +238,26 @@ const MentorCardSkeleton: React.FC = () => (
 const NoMentorsState: React.FC = () => (
     <div
         className="flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl col-span-full"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)" }}
     >
         <FiUsers size={22} className="text-white/20 mb-3" />
         <p className="text-white/40 text-sm">No mentors available right now</p>
     </div>
 );
 
-// ─── Event card ─────────────────────────────────────────────────────────────
-// Mobile: row layout matching the Events dashboard mobile card (time/title
-// /location/price on the left, thumbnail on the right, action pill + guest
-// avatars underneath). Desktop/tablet: unchanged vertical card, reusing
-// formatTicketPrice / EventMetaBadges / AvatarStack from Overview.tsx so
-// pricing, badges, and attendees stay in sync with the rest of the app.
+// ─── Event card (unchanged from your version) ───────────────────────────────
 export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
     <>
-        {/* ── Mobile row (matches Events dashboard mobile layout) ── */}
+        {/* Mobile row */}
         <Link
             to={event.publicUrl}
             className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                     <p className="text-white/50 text-sm mb-1">{event.time}</p>
-                    <h3 className="text-white font-bold text-lg break-words mb-2 line-clamp-2">
-                        {event.title}
-                    </h3>
+                    <h3 className="text-white font-bold text-lg break-words mb-2 line-clamp-2">{event.title}</h3>
 
                     {event.location ? (
                         <div className="flex items-center gap-2 text-white/40 text-sm mb-1.5">
@@ -311,21 +301,17 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
             </div>
         </Link>
 
-        {/* ── Desktop/tablet card (unchanged) ── */}
+        {/* Desktop/tablet */}
         <Link
             to={event.publicUrl}
             className="hidden sm:flex rounded-md overflow-hidden flex-col transition-colors hover:bg-white/3 cursor-pointer"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
             <div className="relative">
-                <img
-                    src={event.thumbnail}
-                    alt={event.title}
-                    className="w-full h-40 sm:h-48 object-cover"
-                />
+                <img src={event.thumbnail} alt={event.title} className="w-full h-40 sm:h-48 object-cover" />
                 <span
                     className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
-                    style={{ background: 'rgba(0,0,0,0.55)', color: '#fff', backdropFilter: 'blur(4px)' }}
+                    style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
                 >
                     <FiCalendar size={13} />
                     {event.dateLabel}
@@ -333,9 +319,12 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
                 <span
                     className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-semibold"
                     style={{
-                        background: formatTicketPrice(event.ticketPrice) === 'Free' ? 'rgba(0,0,0,0.55)' : 'rgba(166,255,0,0.9)',
-                        color: formatTicketPrice(event.ticketPrice) === 'Free' ? '#fff' : '#000',
-                        backdropFilter: 'blur(4px)',
+                        background:
+                            formatTicketPrice(event.ticketPrice) === "Free"
+                                ? "rgba(0,0,0,0.55)"
+                                : "rgba(166,255,0,0.9)",
+                        color: formatTicketPrice(event.ticketPrice) === "Free" ? "#fff" : "#000",
+                        backdropFilter: "blur(4px)",
                     }}
                 >
                     {formatTicketPrice(event.ticketPrice)}
@@ -381,11 +370,9 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
 
 const EventCardSkeleton: React.FC = () => (
     <>
-        {/* Mobile row skeleton — mirrors the mobile EventCard shape so
-            loading state doesn't jump when data arrives. */}
         <div
             className="flex sm:hidden flex-col gap-0 rounded-xl p-4 animate-pulse"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0 space-y-2">
@@ -399,10 +386,9 @@ const EventCardSkeleton: React.FC = () => (
             <div className="h-9 w-28 rounded-md bg-white/5 mt-3" />
         </div>
 
-        {/* Desktop/tablet skeleton (unchanged) */}
         <div
             className="hidden sm:flex rounded-xl overflow-hidden flex-col animate-pulse"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
             <div className="w-full h-40 sm:h-48 bg-white/5" />
             <div className="p-4 sm:p-5 flex flex-col gap-2.5">
@@ -417,7 +403,7 @@ const EventCardSkeleton: React.FC = () => (
 const NoEventsState: React.FC = () => (
     <div
         className="flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl col-span-full"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)" }}
     >
         <FiCalendar size={22} className="text-white/20 mb-3" />
         <p className="text-white/40 text-sm">No upcoming events right now</p>
@@ -429,45 +415,47 @@ export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) 
     <Link
         to={`/dashboard/products/${product.id}`}
         className="rounded-md overflow-hidden flex flex-col transition-colors hover:bg-white/3 cursor-pointer"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
     >
         <div className="relative">
             {product.thumbnail ? (
-                <img
-                    src={product.thumbnail}
-                    alt={product.title}
-                    className="w-full h-40 sm:h-48 object-cover"
-                />
+                <img src={product.thumbnail} alt={product.title} className="w-full h-40 sm:h-48 object-cover" />
             ) : (
                 <div
                     className="w-full h-40 sm:h-48 flex items-center justify-center"
-                    style={{ background: 'rgba(255,255,255,0.03)' }}
+                    style={{ background: "rgba(255,255,255,0.03)" }}
                 >
-                    {product.type === 'Course' ? (
+                    {product.type === "Course" ? (
                         <FiPlayCircle size={28} className="text-white/15" />
-                    ) : (
+                    ) : product.type === "Book" ? (
                         <FiBookOpen size={28} className="text-white/15" />
+                    ) : (
+                        <FiPackage size={28} className="text-white/15" />
                     )}
                 </div>
             )}
             <span
                 className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
-                style={{ background: 'rgba(0,0,0,0.55)', color: '#fff', backdropFilter: 'blur(4px)' }}
+                style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
             >
-                {product.type === 'Course' ? <FiPlayCircle size={13} /> : <FiBookOpen size={13} />}
+                {product.type === "Course" ? (
+                    <FiPlayCircle size={13} />
+                ) : product.type === "Book" ? (
+                    <FiBookOpen size={13} />
+                ) : (
+                    <FiPackage size={13} />
+                )}
                 {product.type}
             </span>
         </div>
         <div className="p-4 sm:p-5 flex flex-col flex-1">
             <h3 className="text-white font-bold text-base mb-1 break-words">{product.title}</h3>
-            <div className='flex justify-between items-center pt-2'>
+            <div className="flex justify-between items-center pt-2">
                 <p className="text-white/40 text-xs">{product.author}</p>
                 <span className="text-white font-bold text-sm">{product.price}</span>
             </div>
             <div className="mt-3">
-                <button
-                    className=" cursor-pointer w-full text-center tems-center bg-white gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
-                >
+                <button className="cursor-pointer w-full text-center bg-white gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]">
                     View Product
                 </button>
             </div>
@@ -478,7 +466,7 @@ export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) 
 const ProductCardSkeleton: React.FC = () => (
     <div
         className="rounded-md overflow-hidden flex flex-col animate-pulse"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
     >
         <div className="w-full h-40 sm:h-48 bg-white/5" />
         <div className="p-4 sm:p-5 flex flex-col gap-2.5">
@@ -491,10 +479,10 @@ const ProductCardSkeleton: React.FC = () => (
 const NoProductsState: React.FC = () => (
     <div
         className="flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl col-span-full"
-        style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)" }}
     >
         <FiBookOpen size={22} className="text-white/20 mb-3" />
-        <p className="text-white/40 text-sm">No courses or books available right now</p>
+        <p className="text-white/40 text-sm">No digital products available right now</p>
     </div>
 );
 
@@ -507,6 +495,7 @@ const Explore: React.FC = () => {
     const { allEvents, isLoading: eventsLoading } = useGetAllEvents();
 
     const { digitalProduct, isLoading: productLoading } = useGetDigitalProduct();
+    console.log('This is Digital Product', digitalProduct?.data)
     const rawProducts: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data)
         ? digitalProduct.data
         : digitalProduct?.data?.results ?? [];
@@ -514,14 +503,13 @@ const Explore: React.FC = () => {
         .filter((p) => p.is_published)
         .map(mapApiProductToCard);
 
-
     const rawEvents: ApiEvent[] = Array.isArray(allEvents?.data)
         ? allEvents.data
         : allEvents?.data?.results ?? [];
 
     const upcomingEvents = rawEvents
         .map(mapApiEventToRegistered)
-        .filter((e) => e.status === 'upcoming')
+        .filter((e) => e.status === "upcoming")
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return (
@@ -529,23 +517,20 @@ const Explore: React.FC = () => {
             className="w-full min-h-screen"
             style={{
                 background:
-                    'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
+                    "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
             }}
         >
             <LoadingOverlay visible={mentorsLoading} />
 
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-                {/* Header */}
                 <div className="mb-14">
                     <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Explore</h1>
                     <p className="text-white/40 text-base max-w-2xl">
-                        Find topics you care about, connect with mentors, or pick up a course or book to
-                        level up.
+                        Find topics you care about, connect with mentors, or pick up a course or book to level up.
                     </p>
                 </div>
 
-                {/* Browse by Topics — categories and counts computed live from
-                    mentors' actual `categories` field, not placeholder data */}
+                {/* Topics */}
                 <section className="mb-16">
                     <SectionHeader title="Browse by Topics" />
                     {mentorsLoading ? (
@@ -554,7 +539,10 @@ const Explore: React.FC = () => {
                                 <div
                                     key={i}
                                     className="h-16 rounded-xl animate-pulse"
-                                    style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}
+                                    style={{
+                                        background: "rgba(255,255,255,0.02)",
+                                        border: "1px solid rgba(255,255,255,0.08)",
+                                    }}
                                 />
                             ))}
                         </div>
@@ -569,14 +557,17 @@ const Explore: React.FC = () => {
                     ) : (
                         <div
                             className="flex flex-col items-center justify-center text-center py-8 px-4 rounded-xl"
-                            style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)' }}
+                            style={{
+                                background: "rgba(255,255,255,0.02)",
+                                border: "1px dashed rgba(255,255,255,0.1)",
+                            }}
                         >
                             <p className="text-white/40 text-sm">No categories yet</p>
                         </div>
                     )}
                 </section>
 
-                {/* Mentors — wired to real data via useGetMentors, same source Overview.tsx uses */}
+                {/* Mentors */}
                 <section className="mb-16">
                     <SectionHeader title="Featured Mentors" subtitle="Learn 1:1 from people who've done it" />
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
@@ -590,10 +581,7 @@ const Explore: React.FC = () => {
                     </div>
                 </section>
 
-                {/* Events — card grid, below Mentors. Wired to real data via
-                    useGetAllEvents; shares the ApiEvent/RegisteredEvent shape
-                    and mapping used across the app. Mobile is single-column
-                    since EventCard now renders a full-width row on mobile. */}
+                {/* Events */}
                 <section className="mb-16">
                     <SectionHeader title="Events You Can Explore" subtitle="Join a session hosted by the community" />
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-2">
@@ -607,10 +595,9 @@ const Explore: React.FC = () => {
                     </div>
                 </section>
 
-                {/* Digital Products — wired to real data via useGetDigitalProduct;
-                    only published products are shown to mentees. */}
+                {/* Digital Products */}
                 <section>
-                    <SectionHeader title="Courses & Books" subtitle="Self-paced learning from top mentors" />
+                    <SectionHeader title="Courses & Digital Products" subtitle="Self-paced learning from top mentors" />
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {productLoading ? (
                             Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)
@@ -624,20 +611,10 @@ const Explore: React.FC = () => {
             </div>
 
             <style>{`
-        .topics-scroll::-webkit-scrollbar {
-          height: 6px;
-        }
-        .topics-scroll::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .topics-scroll::-webkit-scrollbar-thumb {
-          background: rgba(205, 220, 57, 0.2);
-          border-radius: 999px;
-        }
-        .topics-scroll {
-          scrollbar-width: thin;
-          scrollbar-color: rgba(205, 220, 57, 0.2) transparent;
-        }
+        .topics-scroll::-webkit-scrollbar { height: 6px; }
+        .topics-scroll::-webkit-scrollbar-track { background: transparent; }
+        .topics-scroll::-webkit-scrollbar-thumb { background: rgba(205, 220, 57, 0.2); border-radius: 999px; }
+        .topics-scroll { scrollbar-width: thin; scrollbar-color: rgba(205, 220, 57, 0.2) transparent; }
       `}</style>
         </div>
     );

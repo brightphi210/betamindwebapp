@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
 
-export type ProductType = "Course" | "Book";
+export type ProductType = "Course" | "Book" | "Manual" | "Template" | "Workbook" | "Toolkit";
 
 // ---------- Bubble splash background (matches MentorOnboardingSuccess) ----------
 

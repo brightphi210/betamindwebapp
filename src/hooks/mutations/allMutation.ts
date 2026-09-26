@@ -298,6 +298,24 @@ export const useRejectBooking = (id: any) => {
 }
 
 
+export const useStartGroupSession = (id: any) => {
+  const queryClient = useQueryClient()
+  const startGroupSession = useMutation({
+    mutationFn: async (data: any) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return post_requests(`group-sessions/${id}/start/`, data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings", "bookMentorship"] })
+    },
+  })
+
+  return startGroupSession
+}
+
+// /api/v1/group-sessions/{id}/start/
+
+
 
 
 

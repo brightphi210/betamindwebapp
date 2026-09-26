@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+    FiAlertTriangle,
     FiCalendar,
     FiCheck,
     FiCheckCircle,
@@ -10,6 +11,7 @@ import {
     FiLink,
     FiLock,
     FiMessageSquare,
+    FiPlay,
     FiPlus,
     FiTrash2,
     FiUser,
@@ -28,6 +30,7 @@ import {
     useEditGroupSession,
     useEditIndividualSession,
     useRejectBooking,
+    useStartGroupSession,
 } from "../../hooks/mutations/allMutation";
 import { useGetMentorGroupSessions, useGetMentorIndividualSession, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
 import { useGlobalContext } from "../../providers/GlobalContext";
@@ -36,7 +39,7 @@ import { useGlobalContext } from "../../providers/GlobalContext";
 // Types
 // ─────────────────────────────────────────────
 type Availability = "weekdays" | "weekends";
-type ResponseTime = "immediate" | number;
+type ResponseTime = "immediate" | "within_24h" | "within_48h";
 type BookingStatus = "pending" | "accepted";
 
 interface Booking {
@@ -47,7 +50,7 @@ interface Booking {
     menteeAvatar: string;
     meetingLink: string;
     status: BookingStatus;
-    bookedFor: string; // display date/time string
+    bookedFor: string;
 }
 
 interface OneOnOneSession {
@@ -102,7 +105,6 @@ type GroupSessionFormValues = {
     meetingLink?: string;
 };
 
-
 interface MenteeApiObject {
     id?: string;
     first_name?: string;
@@ -121,7 +123,7 @@ interface IndividualSessionApiResponse {
     duration_days: number;
     duration_minutes: number;
     price: string;
-    response_time: "immediate" | number | string;
+    response_time: ResponseTime | string | number;
     status: "pending" | "accepted" | "cancelled" | string;
     availability: Availability;
     meeting_link: string | null;
@@ -142,7 +144,6 @@ interface IndividualSessionApiResponse {
     updated_at?: string;
 }
 
-
 const unwrapIndividualSession = (
     raw: IndividualSessionApiResponse | IndividualSessionApiResponse[] | null | undefined
 ): IndividualSessionApiResponse | null => {
@@ -159,25 +160,21 @@ const resolveBookingId = (api: IndividualSessionApiResponse): string | null => {
     if (api.booking_id !== undefined && api.booking_id !== null && String(api.booking_id).trim() !== "") {
         return String(api.booking_id);
     }
-    // Last resort: some backends reuse the individual-session id as the booking id
     if (api.booked === true && api.id !== undefined && api.id !== null) {
         return String(api.id);
     }
     return null;
 };
 
-/** Extract first/last name + avatar from the API mentee field (object or legacy string). */
 const resolveMenteeInfo = (api: IndividualSessionApiResponse) => {
     const nested = api.booking;
     const menteeObj =
         api.mentee && typeof api.mentee === "object" ? (api.mentee as MenteeApiObject) : null;
 
     const firstName =
-        (typeof menteeObj?.first_name === "string" ? menteeObj.first_name : "") ||
-        "";
+        (typeof menteeObj?.first_name === "string" ? menteeObj.first_name : "") || "";
     const lastName =
-        (typeof menteeObj?.last_name === "string" ? menteeObj.last_name : "") ||
-        "";
+        (typeof menteeObj?.last_name === "string" ? menteeObj.last_name : "") || "";
 
     const fullFromObject = [firstName, lastName].filter(Boolean).join(" ").trim();
 
@@ -193,7 +190,6 @@ const resolveMenteeInfo = (api: IndividualSessionApiResponse) => {
         (typeof api.mentee_avatar === "string" && api.mentee_avatar) ||
         "";
 
-
     return {
         menteeName,
         menteeFirstName: firstName || menteeName.split(" ")[0] || "",
@@ -202,19 +198,30 @@ const resolveMenteeInfo = (api: IndividualSessionApiResponse) => {
     };
 };
 
+const normalizeResponseTime = (raw: unknown): ResponseTime => {
+    if (raw === "immediate" || raw === "within_24h" || raw === "within_48h") {
+        return raw;
+    }
+    // Legacy number support (hours) → map to closest allowed value
+    const n = Number(raw);
+    if (Number.isFinite(n)) {
+        if (n <= 0) return "immediate";
+        if (n <= 24) return "within_24h";
+        return "within_48h";
+    }
+    return "immediate";
+};
+
 const mapApiSessionToLocal = (
     api: IndividualSessionApiResponse,
     mentorAvatar = ""
 ): OneOnOneSession => {
     const parsedPrice = Number(api.price);
-
     const hasBooking = api.booked === true;
     const bookingId = resolveBookingId(api);
-
     const nested = api.booking;
     const statusRaw = nested?.status ?? api.status;
     const bookedForRaw = nested?.booked_for ?? nested?.created_at ?? api.created_at;
-
     const { menteeName, menteeFirstName, menteeLastName, menteeAvatar } = resolveMenteeInfo(api);
 
     const booking: Booking | null =
@@ -244,7 +251,7 @@ const mapApiSessionToLocal = (
         note: api.notes ?? "",
         price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
         availability: api.availability,
-        responseTime: api.response_time === "immediate" ? "immediate" : Number(api.response_time) || 1,
+        responseTime: normalizeResponseTime(api.response_time),
         durationMinutes: api.duration_minutes,
         daysDuration: api.duration_days,
         mentorAvatar: mentorAvatar || "",
@@ -259,7 +266,7 @@ const mapLocalToCreatePayload = (
     duration_days: data.daysDuration,
     duration_minutes: data.durationMinutes,
     price: data.price.toString(),
-    response_time: data.responseTime,
+    response_time: data.responseTime, // "immediate" | "within_24h" | "within_48h"
     availability: data.availability,
     meeting_link: data.meetingLink,
     notes: data.note,
@@ -267,11 +274,12 @@ const mapLocalToCreatePayload = (
 
 const mapApiGroupSessionToLocal = (api: any): GroupSession => {
     const rawDailyTime = api.daily_time ?? api.time ?? "14:00";
-    const normalizedDailyTime = typeof rawDailyTime === "string"
-        ? rawDailyTime.includes("T")
-            ? rawDailyTime.split("T")[1]?.slice(0, 5) ?? rawDailyTime
-            : rawDailyTime.slice(0, 5)
-        : "14:00";
+    const normalizedDailyTime =
+        typeof rawDailyTime === "string"
+            ? rawDailyTime.includes("T")
+                ? rawDailyTime.split("T")[1]?.slice(0, 5) ?? rawDailyTime
+                : rawDailyTime.slice(0, 5)
+            : "14:00";
 
     const capacity = Number(api.max_participants ?? api.capacity ?? 0);
     const spotsLeft = Number(api.spots_left ?? Math.max(0, capacity));
@@ -300,14 +308,21 @@ const mapApiGroupSessionToLocal = (api: any): GroupSession => {
     };
 };
 
+// How many people have registered for a group session.
+// Falls back to capacity - spotsLeft in case the API doesn't return the registrants list.
+const getRegisteredCount = (session: GroupSession) =>
+    Math.max(session.registrants.length, Math.max(0, session.capacity - session.spotsLeft));
+
+// A group session can only be started while it's still pending and has at least one registrant.
+const canStartGroupSession = (session: GroupSession) =>
+    (session.status || "pending").toLowerCase() === "pending" && getRegisteredCount(session) > 0;
+
 const flattenApiErrors = (data: unknown): string => {
     if (!data) return "Something went wrong. Please try again.";
     if (typeof data === "string") return data;
-
     if (Array.isArray(data)) {
         return data.map((item) => flattenApiErrors(item)).filter(Boolean).join(" \n ");
     }
-
     if (typeof data === "object") {
         const entries = Object.entries(data as Record<string, unknown>);
         const messages = entries.flatMap(([key, value]) => {
@@ -318,18 +333,15 @@ const flattenApiErrors = (data: unknown): string => {
             }
             return typeof value === "string" ? [value] : [];
         });
-
         if (messages.length > 0) return messages.join(" \n ");
         return JSON.stringify(data);
     }
-
     return String(data);
 };
 
 const formatModalValidationErrors = (data: unknown): string => {
     if (!data) return "Something went wrong. Please try again.";
     if (typeof data === "string") return data;
-
     if (Array.isArray(data)) {
         const formatted = data
             .map((item) => formatModalValidationErrors(item))
@@ -337,26 +349,21 @@ const formatModalValidationErrors = (data: unknown): string => {
             .flatMap((line) => line.split("\n"));
         return formatted.join("\n");
     }
-
     if (typeof data === "object") {
         const entries = Object.entries(data as Record<string, unknown>);
         const parts: string[] = [];
-
         for (const [key, value] of entries) {
             if (value === null || value === undefined) continue;
-
             if (key === "non_field_errors") {
                 const message = formatModalValidationErrors(value).trim();
                 if (message) parts.push(message);
                 continue;
             }
-
             if (Array.isArray(value)) {
                 const message = formatModalValidationErrors(value).trim();
                 if (message) parts.push(`${key}: ${message}`);
                 continue;
             }
-
             if (typeof value === "object") {
                 const nested = formatModalValidationErrors(value).trim();
                 if (nested) {
@@ -369,16 +376,13 @@ const formatModalValidationErrors = (data: unknown): string => {
                 }
                 continue;
             }
-
             if (typeof value === "string" && value.trim()) {
                 parts.push(`${key}: ${value}`);
             }
         }
-
         if (parts.length > 0) return parts.join("\n");
         return JSON.stringify(data);
     }
-
     return String(data);
 };
 
@@ -390,9 +394,12 @@ const SUGGESTED_NOTES = [
     "Follow-up needed on action items discussed during the call.",
 ];
 
-
 const formatDate = (iso: string) =>
-    new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    });
 
 const formatTime = (t: string) => {
     const [h, m] = t.split(":").map(Number);
@@ -400,6 +407,7 @@ const formatTime = (t: string) => {
     const hour = h % 12 || 12;
     return `${hour}:${m.toString().padStart(2, "0")} ${ampm}`;
 };
+
 const formatPrice = (amount: number) => `₦${amount.toLocaleString()}`;
 
 const formatDuration = (mins: number) => {
@@ -409,6 +417,17 @@ const formatDuration = (mins: number) => {
     return m === 0 ? `${h} hr${h > 1 ? "s" : ""}` : `${h}h ${m}m`;
 };
 
+const RESPONSE_TIME_LABELS: Record<ResponseTime, string> = {
+    immediate: "Immediately",
+    within_24h: "Within 24 hours",
+    within_48h: "Within 48 hours",
+};
+
+const MAX_IMAGE_BYTES = 6 * 1024 * 1024; // 6 MB
+
+// ─────────────────────────────────────────────
+// Empty State
+// ─────────────────────────────────────────────
 const EmptyState = ({ label, onCreate }: { label: string; onCreate?: () => void }) => (
     <div
         className="flex flex-col items-center justify-center rounded-xl px-4 py-12 text-center"
@@ -429,7 +448,9 @@ const EmptyState = ({ label, onCreate }: { label: string; onCreate?: () => void 
     </div>
 );
 
-
+// ─────────────────────────────────────────────
+// Booking Status Button
+// ─────────────────────────────────────────────
 const BookingStatusButton = ({
     booking,
     onAccept,
@@ -493,7 +514,9 @@ const BookingStatusButton = ({
     );
 };
 
-/* ── One-on-One Card ── */
+// ─────────────────────────────────────────────
+// One-on-One Card
+// ─────────────────────────────────────────────
 const OneOnOneCard = ({
     session,
     onEdit,
@@ -516,7 +539,10 @@ const OneOnOneCard = ({
                     {session.mentorAvatar ? (
                         <img src={session.mentorAvatar} alt="Mentor" className="h-full w-full object-cover" />
                     ) : (
-                        <div className="flex h-full w-full items-center justify-center text-white/40" style={{ background: "rgba(255,255,255,0.08)" }}>
+                        <div
+                            className="flex h-full w-full items-center justify-center text-white/40"
+                            style={{ background: "rgba(255,255,255,0.08)" }}
+                        >
                             <FiUser size={22} />
                         </div>
                     )}
@@ -529,10 +555,20 @@ const OneOnOneCard = ({
                             <p className="text-sm leading-relaxed text-white/55 line-clamp-2">{session.note}</p>
                         </div>
                         <div className="flex shrink-0 gap-1.5">
-                            <button type="button" onClick={onEdit} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white" style={{ background: "rgba(255,255,255,0.05)" }}>
+                            <button
+                                type="button"
+                                onClick={onEdit}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white"
+                                style={{ background: "rgba(255,255,255,0.05)" }}
+                            >
                                 <FiEdit2 size={14} />
                             </button>
-                            <button type="button" onClick={onDelete} className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400/80 hover:bg-red-500/10 hover:text-red-400" style={{ background: "rgba(255,255,255,0.05)" }}>
+                            <button
+                                type="button"
+                                onClick={onDelete}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400/80 hover:bg-red-500/10 hover:text-red-400"
+                                style={{ background: "rgba(255,255,255,0.05)" }}
+                            >
                                 <FiTrash2 size={14} />
                             </button>
                         </div>
@@ -550,6 +586,7 @@ const OneOnOneCard = ({
                         1-1 Session
                     </span>
                     <span className="text-white/40">· {session.daysDuration} days</span>
+                    <span className="text-white/40">· {RESPONSE_TIME_LABELS[session.responseTime]}</span>
                     {session.meetingLink && (
                         <a
                             href={session.meetingLink}
@@ -582,22 +619,29 @@ const OneOnOneCard = ({
     </div>
 );
 
-/* ── Group Card (styled like the uploaded image) ── */
+// ─────────────────────────────────────────────
+// Group Card
+// ─────────────────────────────────────────────
 const GroupCard = ({
     session,
     onEdit,
     onDelete,
     onView,
+    onStart,
 }: {
     session: GroupSession;
     onEdit: () => void;
     onDelete: () => void;
     onView: () => void;
+    onStart: () => void;
 }) => {
     const total = session.registrants.length;
     const visibleAvatars = session.registrants.slice(0, 4);
     const remaining = total - visibleAvatars.length;
     const spotsLeft = session.spotsLeft;
+
+    const registeredCount = getRegisteredCount(session);
+    const canStart = canStartGroupSession(session);
 
     return (
         <div
@@ -606,13 +650,15 @@ const GroupCard = ({
             onClick={onView}
         >
             <div className="p-4 sm:p-5">
-                {/* Top row: image + title/description + actions */}
                 <div className="flex gap-4">
                     <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md sm:h-20 sm:w-20">
                         {session.image ? (
                             <img src={session.image} alt={session.name} className="h-full w-full object-cover" />
                         ) : (
-                            <div className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase tracking-[0.18em] text-white/60" style={{ background: "rgba(255,255,255,0.08)" }}>
+                            <div
+                                className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase tracking-[0.18em] text-white/60"
+                                style={{ background: "rgba(255,255,255,0.08)" }}
+                            >
                                 Group
                             </div>
                         )}
@@ -627,7 +673,10 @@ const GroupCard = ({
                             <div className="flex shrink-0 gap-1.5">
                                 <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onEdit();
+                                    }}
                                     className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white"
                                     style={{ background: "rgba(255,255,255,0.05)" }}
                                 >
@@ -635,7 +684,10 @@ const GroupCard = ({
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete();
+                                    }}
                                     className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400/80 hover:bg-red-500/10 hover:text-red-400"
                                     style={{ background: "rgba(255,255,255,0.05)" }}
                                 >
@@ -646,10 +698,9 @@ const GroupCard = ({
                     </div>
                 </div>
 
-                {/* Meta row */}
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs w-full">
-                        <p className="flex  items-center gap-1.5 text-white/50">
+                        <p className="flex items-center gap-1.5 text-white/50">
                             <FiClock size={13} />
                             {formatTime(session.dailyTime)}
                         </p>
@@ -662,13 +713,12 @@ const GroupCard = ({
                     </div>
                 </div>
 
-                {/* Registrants + capacity */}
                 <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
                     <div className="flex items-center gap-2">
                         <div className="flex -space-x-2">
                             {visibleAvatars.length > 0 ? (
                                 <>
-                                    {visibleAvatars.map((r) => (
+                                    {visibleAvatars.map((r) =>
                                         r.avatar ? (
                                             <img
                                                 key={r.id}
@@ -683,16 +733,22 @@ const GroupCard = ({
                                                 key={r.id}
                                                 title={r.name}
                                                 className="flex h-7 w-7 items-center justify-center rounded-full border-2 text-[9px] font-bold text-white/80"
-                                                style={{ background: "rgba(255,255,255,0.1)", borderColor: "rgba(10,13,9,0.95)" }}
+                                                style={{
+                                                    background: "rgba(255,255,255,0.1)",
+                                                    borderColor: "rgba(10,13,9,0.95)",
+                                                }}
                                             >
                                                 {(r.name || "?").charAt(0).toUpperCase()}
                                             </div>
                                         )
-                                    ))}
+                                    )}
                                     {remaining > 0 && (
                                         <div
                                             className="flex h-7 w-7 items-center justify-center rounded-full border-2 text-[9px] font-bold text-white/80"
-                                            style={{ background: "rgba(255,255,255,0.1)", borderColor: "rgba(10,13,9,0.95)" }}
+                                            style={{
+                                                background: "rgba(255,255,255,0.1)",
+                                                borderColor: "rgba(10,13,9,0.95)",
+                                            }}
                                         >
                                             +{remaining}
                                         </div>
@@ -706,16 +762,36 @@ const GroupCard = ({
                             {session.capacity} total · {spotsLeft > 0 ? `${spotsLeft} left` : "Full"}
                         </span>
                     </div>
-
                     <p className="text-base font-bold text-white sm:text-lg">{formatPrice(session.price)}</p>
                 </div>
+
+                {/* Start Session — only while pending and at least one person has registered */}
+                {canStart && (
+                    <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/5 pt-4">
+                        <span className="text-[11px] text-white/40">
+                            {registeredCount} registered · ready to start
+                        </span>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation(); // don't trigger the card's onView
+                                onStart();
+                            }}
+                            className="flex items-center gap-1.5 rounded px-3.5 py-2 text-xs font-bold text-black"
+                            style={{ background: "#a6ff00" }}
+                        >
+                            <FiPlay size={13} />
+                            Start Session
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
 // ─────────────────────────────────────────────
-// Animated Modal (better opacity + smooth transition)
+// Animated Modal (enter + exit)
 // ─────────────────────────────────────────────
 const AnimatedModal = ({
     children,
@@ -723,39 +799,46 @@ const AnimatedModal = ({
 }: {
     children: React.ReactNode;
     onClose: () => void;
-}) => (
-    <div
-        className="fixed inset-0 z-50 flex items-center justify-center px-4"
-        style={{ background: "rgba(0,0,0,0.9)" }}
-        onClick={onClose}
-    >
-        <div
-            className="w-full max-w-md max-h-[90vh] bg-neutral-950 overflow-y-auto rounded-2xl p-6 shadow-2xl"
-            style={{
-            }}
-            onClick={(e) => e.stopPropagation()}
-        >
-            {children}
-        </div>
+}) => {
+    const [visible, setVisible] = useState(false);
 
-        {/* Keyframes (inject once) */}
-        <style>{`
-            @keyframes modalIn {
-                from {
-                    opacity: 0;
-                    transform: scale(0.94) translateY(12px);
-                }
-                to {
-                    opacity: 1;
-                    transform: scale(1) translateY(0);
-                }
-            }
-        `}</style>
-    </div>
-);
+    useEffect(() => {
+        // Trigger enter animation on mount
+        const id = requestAnimationFrame(() => setVisible(true));
+        return () => cancelAnimationFrame(id);
+    }, []);
+
+    const handleClose = () => {
+        setVisible(false);
+        // Wait for exit animation before calling onClose
+        setTimeout(onClose, 220);
+    };
+
+    return (
+        <div
+            className="fixed inset-0 z-30 flex items-center justify-center px-4 transition-opacity duration-200"
+            style={{
+                background: "rgba(0,0,0,0.9)",
+                opacity: visible ? 1 : 0,
+            }}
+            onClick={handleClose}
+        >
+            <div
+                className="w-full max-w-md max-h-[90vh] bg-neutral-950 overflow-y-auto rounded-2xl p-6 shadow-2xl transition-all duration-200"
+                style={{
+                    opacity: visible ? 1 : 0,
+                    transform: visible ? "scale(1) translateY(0)" : "scale(0.94) translateY(12px)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {children}
+            </div>
+        </div>
+    );
+};
 
 // ─────────────────────────────────────────────
-// Shared modal button styles (white accent inside modals)
+// Shared modal button styles
 // ─────────────────────────────────────────────
 const modalPrimaryBtn = "flex flex-1 items-center justify-center gap-2 rounded py-2.5 text-sm font-bold text-black";
 const modalPrimaryBtnStyle = { background: "#ffffff" };
@@ -764,7 +847,34 @@ const modalSecondaryBtnStyle = { background: "rgba(255,255,255,0.06)" };
 
 const RADIO_DURATIONS = [30, 45, 60, 90, 120, 150, 180];
 
+// ─────────────────────────────────────────────
+// Progress Bar (used while creating / editing)
+// ─────────────────────────────────────────────
+const ProgressBar = ({ label }: { label: string }) => (
+    <div className="fixed inset-x-0 top-0 z-[60] px-4 pt-3">
+        <div className="mx-auto max-w-md overflow-hidden rounded-full bg-white/10">
+            <div
+                className="h-1.5 rounded-full bg-[#a6ff00]"
+                style={{
+                    width: "100%",
+                    animation: "progressIndeterminate 1.4s ease-in-out infinite",
+                }}
+            />
+        </div>
+        <p className="mt-2 text-center text-xs font-medium text-white/70">{label}</p>
+        <style>{`
+            @keyframes progressIndeterminate {
+                0% { transform: translateX(-100%); }
+                50% { transform: translateX(0%); }
+                100% { transform: translateX(100%); }
+            }
+        `}</style>
+    </div>
+);
 
+// ─────────────────────────────────────────────
+// One-on-One Form Modal
+// ─────────────────────────────────────────────
 const OneOnOneFormModal = ({
     initial,
     onClose,
@@ -781,11 +891,8 @@ const OneOnOneFormModal = ({
     const [note, setNote] = useState(initial?.note ?? "");
     const [price, setPrice] = useState(initial?.price?.toString() ?? "");
     const [availability, setAvailability] = useState<Availability>(initial?.availability ?? "weekdays");
-    const [responseMode, setResponseMode] = useState<"immediate" | "hours">(
-        initial?.responseTime === "immediate" ? "immediate" : "hours"
-    );
-    const [hours, setHours] = useState(
-        typeof initial?.responseTime === "number" ? initial.responseTime.toString() : "2"
+    const [responseTime, setResponseTime] = useState<ResponseTime>(
+        initial?.responseTime ?? "immediate"
     );
     const [durationMinutes, setDurationMinutes] = useState(initial?.durationMinutes?.toString() ?? "30");
     const [daysDuration] = useState(initial?.daysDuration ?? 7);
@@ -797,10 +904,10 @@ const OneOnOneFormModal = ({
             note: note.trim(),
             price: Number(price),
             availability,
-            responseTime: responseMode === "immediate" ? "immediate" : Number(hours) || 1,
+            responseTime,
             daysDuration,
             durationMinutes: Number(durationMinutes),
-            meetingLink: '',
+            meetingLink: "",
         });
     };
 
@@ -810,7 +917,12 @@ const OneOnOneFormModal = ({
                 <h3 className="text-lg font-bold text-white">
                     {initial ? "Edit" : "Create"} 1-1 Session
                 </h3>
-                <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white"
+                    style={{ background: "rgba(255,255,255,0.06)" }}
+                >
                     <FiX size={16} />
                 </button>
             </div>
@@ -861,14 +973,16 @@ const OneOnOneFormModal = ({
                             className="w-full rounded-lg px-3.5 bg-neutral-900 py-2.5 text-sm text-white/90 outline-none"
                         >
                             {RADIO_DURATIONS.map((d) => (
-                                <option key={d} value={d}>{formatDuration(d)}</option>
+                                <option key={d} value={d}>
+                                    {formatDuration(d)}
+                                </option>
                             ))}
                         </select>
                     </div>
                 </div>
 
                 <div>
-                    <label className="mb-1.5 flex items-center  gap-1.5 text-xs font-semibold text-white/70">
+                    <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white/70">
                         <FiCalendar size={13} /> Days Duration
                     </label>
                     <input
@@ -895,7 +1009,7 @@ const OneOnOneFormModal = ({
                                     value={opt}
                                     checked={availability === opt}
                                     onChange={() => setAvailability(opt)}
-                                    className="h-4.5 w-4.5  accent-green-400"
+                                    className="h-4.5 w-4.5 accent-green-400"
                                 />
                                 {opt}
                             </label>
@@ -905,49 +1019,33 @@ const OneOnOneFormModal = ({
 
                 <div>
                     <label className="mb-1.5 block text-xs font-semibold text-white/70">Response Time</label>
-                    <div className="mb-2 flex gap-4">
-                        <label
-                            className="flex cursor-pointer text-neutral-600 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold capitalize"
-                        >
-                            <input
-                                type="radio"
-                                name="responseTime"
-                                value="immediate"
-                                checked={responseMode === "immediate"}
-                                onChange={() => setResponseMode("immediate")}
-                                className="h-4.5 w-4.5  accent-green-400"
-                            />
-                            Immediately
-                        </label>
-                        <label
-                            className="flex cursor-pointer text-neutral-600 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold capitalize"
-                        >
-                            <input
-                                type="radio"
-                                name="responseTime"
-                                value="hours"
-                                checked={responseMode === "hours"}
-                                onChange={() => setResponseMode("hours")}
-                                className="h-4.5 w-4.5  accent-green-400"
-                            />
-                            Hours
-                        </label>
+                    <div className="flex flex-col gap-2">
+                        {(["immediate", "within_24h", "within_48h"] as const).map((opt) => (
+                            <label
+                                key={opt}
+                                className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-neutral-300"
+                            >
+                                <input
+                                    type="radio"
+                                    name="responseTime"
+                                    value={opt}
+                                    checked={responseTime === opt}
+                                    onChange={() => setResponseTime(opt)}
+                                    className="h-4.5 w-4.5 accent-green-400"
+                                />
+                                {RESPONSE_TIME_LABELS[opt]}
+                            </label>
+                        ))}
                     </div>
-                    {responseMode === "hours" && (
-                        <input
-                            type="number"
-                            min="1"
-                            max="72"
-                            placeholder="e.g. 2"
-                            value={hours}
-                            onChange={(e) => setHours(e.target.value)}
-                            className="w-full bg-neutral-900 rounded-lg px-3.5 py-2.5 text-sm text-white/90 outline-none"
-                        />
-                    )}
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                    <button type="submit" disabled={isSaving} className={`${modalPrimaryBtn} disabled:opacity-60`} style={modalPrimaryBtnStyle}>
+                    <button
+                        type="submit"
+                        disabled={isSaving}
+                        className={`${modalPrimaryBtn} disabled:opacity-60`}
+                        style={modalPrimaryBtnStyle}
+                    >
                         <FiCheck size={14} />
                         {isSaving ? "Saving..." : initial ? "Save changes" : "Create session"}
                     </button>
@@ -957,6 +1055,9 @@ const OneOnOneFormModal = ({
     );
 };
 
+// ─────────────────────────────────────────────
+// Group Form Modal
+// ─────────────────────────────────────────────
 const GroupFormModal = ({
     initial,
     onClose,
@@ -979,10 +1080,21 @@ const GroupFormModal = ({
     const [capacity, setCapacity] = useState(initial?.capacity?.toString() ?? "15");
     const [imagePreview, setImagePreview] = useState(initial?.image ?? "");
     const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imageError, setImageError] = useState<string>("");
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        if (file.size > MAX_IMAGE_BYTES) {
+            setImageError("Image must be 6 MB or smaller.");
+            setImageFile(null);
+            setImagePreview(initial?.image ?? "");
+            e.target.value = "";
+            return;
+        }
+
+        setImageError("");
         setImageFile(file);
         setImagePreview(URL.createObjectURL(file));
     };
@@ -990,6 +1102,8 @@ const GroupFormModal = ({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim() || !description.trim() || !price || !startDate || !endDate || !dailyTime || !capacity) return;
+        if (imageError) return;
+
         onSave({
             name: name.trim(),
             description: description.trim(),
@@ -1012,7 +1126,12 @@ const GroupFormModal = ({
                 <h3 className="text-lg font-bold text-white">
                     {initial ? "Edit" : "Create"} Group Session
                 </h3>
-                <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white"
+                    style={{ background: "rgba(255,255,255,0.06)" }}
+                >
                     <FiX size={16} />
                 </button>
             </div>
@@ -1056,8 +1175,16 @@ const GroupFormModal = ({
                         onChange={handleFileChange}
                         className="w-full rounded-lg bg-neutral-900 px-3.5 py-2.5 text-sm text-white/90 outline-none file:mr-3 file:rounded file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-black"
                     />
+                    <p className="mt-1 text-[11px] text-white/35">Max size: 6 MB</p>
+                    {imageError && (
+                        <p className="mt-1 text-xs text-red-400">{imageError}</p>
+                    )}
                     {imagePreview && (
-                        <img src={imagePreview} alt="Group session preview" className="mt-3 h-24 w-full rounded-lg object-cover" />
+                        <img
+                            src={imagePreview}
+                            alt="Group session preview"
+                            className="mt-3 h-24 w-full rounded-lg object-cover"
+                        />
                     )}
                 </div>
 
@@ -1128,7 +1255,12 @@ const GroupFormModal = ({
                 </div>
 
                 <div className="pt-2">
-                    <button type="submit" disabled={isSaving} className={`${modalPrimaryBtn} w-full disabled:opacity-60`} style={modalPrimaryBtnStyle}>
+                    <button
+                        type="submit"
+                        disabled={isSaving || !!imageError}
+                        className={`${modalPrimaryBtn} w-full disabled:opacity-60`}
+                        style={modalPrimaryBtnStyle}
+                    >
                         <FiCheck size={14} />
                         {isSaving ? "Saving..." : initial ? "Save changes" : "Create Session"}
                     </button>
@@ -1138,7 +1270,9 @@ const GroupFormModal = ({
     );
 };
 
-
+// ─────────────────────────────────────────────
+// Delete Confirm Modals
+// ─────────────────────────────────────────────
 const DeleteConfirmModal = ({
     onClose,
     onConfirm,
@@ -1151,7 +1285,12 @@ const DeleteConfirmModal = ({
     <AnimatedModal onClose={onClose}>
         <div className="mb-5 flex items-center justify-between">
             <h3 className="text-lg font-bold text-white">Delete 1-1 Session</h3>
-            <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <button
+                type="button"
+                onClick={onClose}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white"
+                style={{ background: "rgba(255,255,255,0.06)" }}
+            >
                 <FiX size={16} />
             </button>
         </div>
@@ -1166,7 +1305,13 @@ const DeleteConfirmModal = ({
             <button type="button" onClick={onClose} className={modalSecondaryBtn} style={modalSecondaryBtnStyle}>
                 Cancel
             </button>
-            <button type="button" onClick={onConfirm} disabled={isDeleting} className={`${modalPrimaryBtn} disabled:opacity-60`} style={{ ...modalPrimaryBtnStyle, background: "#f87171" }}>
+            <button
+                type="button"
+                onClick={onConfirm}
+                disabled={isDeleting}
+                className={`${modalPrimaryBtn} disabled:opacity-60`}
+                style={{ ...modalPrimaryBtnStyle, background: "#f87171" }}
+            >
                 <FiTrash2 size={14} />
                 {isDeleting ? "Deleting..." : "Delete"}
             </button>
@@ -1186,7 +1331,12 @@ const DeleteGroupSessionModal = ({
     <AnimatedModal onClose={onClose}>
         <div className="mb-5 flex items-center justify-between">
             <h3 className="text-lg font-bold text-white">Delete Group Session</h3>
-            <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <button
+                type="button"
+                onClick={onClose}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white"
+                style={{ background: "rgba(255,255,255,0.06)" }}
+            >
                 <FiX size={16} />
             </button>
         </div>
@@ -1201,7 +1351,13 @@ const DeleteGroupSessionModal = ({
             <button type="button" onClick={onClose} className={modalSecondaryBtn} style={modalSecondaryBtnStyle}>
                 Cancel
             </button>
-            <button type="button" onClick={onConfirm} disabled={isDeleting} className={`${modalPrimaryBtn} disabled:opacity-60`} style={{ ...modalPrimaryBtnStyle, background: "#f87171" }}>
+            <button
+                type="button"
+                onClick={onConfirm}
+                disabled={isDeleting}
+                className={`${modalPrimaryBtn} disabled:opacity-60`}
+                style={{ ...modalPrimaryBtnStyle, background: "#f87171" }}
+            >
                 <FiTrash2 size={14} />
                 {isDeleting ? "Deleting..." : "Delete"}
             </button>
@@ -1209,6 +1365,80 @@ const DeleteGroupSessionModal = ({
     </AnimatedModal>
 );
 
+// ─────────────────────────────────────────────
+// Start Group Session Modal
+// ─────────────────────────────────────────────
+const StartGroupSessionModal = ({
+    session,
+    onClose,
+    onConfirm,
+    isStarting,
+}: {
+    session: GroupSession | null;
+    onClose: () => void;
+    onConfirm: () => void;
+    isStarting?: boolean;
+}) => (
+    <AnimatedModal onClose={onClose}>
+        <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-white">Start Group Session</h3>
+            <button
+                type="button"
+                onClick={onClose}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white"
+                style={{ background: "rgba(255,255,255,0.06)" }}
+            >
+                <FiX size={16} />
+            </button>
+        </div>
+
+        {session && (
+            <div className="mb-4 rounded-xl bg-neutral-900 px-4 py-3">
+                <p className="text-sm font-bold text-white">{session.name}</p>
+                <p className="mt-0.5 text-xs text-white/40">
+                    {getRegisteredCount(session)} of {session.capacity} spots filled
+                </p>
+            </div>
+        )}
+
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-4">
+            <p className="flex items-center gap-2 text-sm font-semibold text-amber-300">
+                <FiAlertTriangle size={15} />
+                Registration will close
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-amber-100/80">
+                Once you start this session, no one else will be able to register for it, even if there are spots
+                left. This action can't be undone.
+            </p>
+        </div>
+
+        <div className="mt-5 flex gap-3">
+            <button
+                type="button"
+                onClick={onClose}
+                disabled={isStarting}
+                className={modalSecondaryBtn}
+                style={modalSecondaryBtnStyle}
+            >
+                Cancel
+            </button>
+            <button
+                type="button"
+                onClick={onConfirm}
+                disabled={isStarting}
+                className={`${modalPrimaryBtn} disabled:opacity-60`}
+                style={{ ...modalPrimaryBtnStyle, background: "#a6ff00" }}
+            >
+                <FiPlay size={14} />
+                {isStarting ? "Starting..." : "Start Session"}
+            </button>
+        </div>
+    </AnimatedModal>
+);
+
+// ─────────────────────────────────────────────
+// Join / Done Session Modals
+// ─────────────────────────────────────────────
 const JoinClassModal = ({
     booking,
     onClose,
@@ -1221,7 +1451,12 @@ const JoinClassModal = ({
     <AnimatedModal onClose={onClose}>
         <div className="mb-5 flex items-center justify-between">
             <h3 className="text-lg font-bold text-white">Session Details</h3>
-            <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <button
+                type="button"
+                onClick={onClose}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white"
+                style={{ background: "rgba(255,255,255,0.06)" }}
+            >
                 <FiX size={16} />
             </button>
         </div>
@@ -1264,7 +1499,6 @@ const JoinClassModal = ({
     </AnimatedModal>
 );
 
-
 const DoneSessionModal = ({
     menteeName,
     onClose,
@@ -1286,13 +1520,19 @@ const DoneSessionModal = ({
         <AnimatedModal onClose={onClose}>
             <div className="mb-5 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-white">Add Session Note</h3>
-                <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white"
+                    style={{ background: "rgba(255,255,255,0.06)" }}
+                >
                     <FiX size={16} />
                 </button>
             </div>
 
             <p className="mb-3 text-xs text-white/40">
-                Leave a quick note about your session with <span className="text-white/70">{menteeName}</span>. This helps you track progress over time.
+                Leave a quick note about your session with <span className="text-white/70">{menteeName}</span>. This
+                helps you track progress over time.
             </p>
 
             <div className="mb-4 flex flex-wrap gap-2">
@@ -1317,8 +1557,7 @@ const DoneSessionModal = ({
                     placeholder="Write your note here..."
                     rows={4}
                     required
-                    className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25"
-                    bg-neutral-900
+                    className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-white/90 outline-none placeholder:text-white/25 bg-neutral-900"
                 />
 
                 <div className="flex gap-3 pt-1">
@@ -1352,7 +1591,12 @@ const GroupDetailsModal = ({
         <AnimatedModal onClose={onClose}>
             <div className="mb-5 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-white">Group Session Details</h3>
-                <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white"
+                    style={{ background: "rgba(255,255,255,0.06)" }}
+                >
                     <FiX size={16} />
                 </button>
             </div>
@@ -1361,7 +1605,10 @@ const GroupDetailsModal = ({
                 {session.image ? (
                     <img src={session.image} alt={session.name} className="h-full w-full object-cover" />
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center text-white/40" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <div
+                        className="flex h-full w-full items-center justify-center text-white/40"
+                        style={{ background: "rgba(255,255,255,0.06)" }}
+                    >
                         No image
                     </div>
                 )}
@@ -1372,11 +1619,17 @@ const GroupDetailsModal = ({
 
             <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
                 <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
-                    <p className="flex items-center gap-1.5 text-white/40"><FiCalendar size={12} /> Dates</p>
-                    <p className="mt-1 font-semibold text-white/85">{formatDate(session.startDate)} – {formatDate(session.endDate)}</p>
+                    <p className="flex items-center gap-1.5 text-white/40">
+                        <FiCalendar size={12} /> Dates
+                    </p>
+                    <p className="mt-1 font-semibold text-white/85">
+                        {formatDate(session.startDate)} – {formatDate(session.endDate)}
+                    </p>
                 </div>
                 <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
-                    <p className="flex items-center gap-1.5 text-white/40"><FiClock size={12} /> Daily Time</p>
+                    <p className="flex items-center gap-1.5 text-white/40">
+                        <FiClock size={12} /> Daily Time
+                    </p>
                     <p className="mt-1 font-semibold text-white/85">{formatTime(session.dailyTime)}</p>
                 </div>
                 <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
@@ -1385,7 +1638,9 @@ const GroupDetailsModal = ({
                 </div>
                 <div className="rounded-lg px-3 py-2.5 bg-neutral-900">
                     <p className="text-white/40">Capacity</p>
-                    <p className="mt-1 font-semibold text-white/85">{total}/{session.capacity} · {spotsLeft > 0 ? `${spotsLeft} left` : "Full"}</p>
+                    <p className="mt-1 font-semibold text-white/85">
+                        {total}/{session.capacity} · {spotsLeft > 0 ? `${spotsLeft} left` : "Full"}
+                    </p>
                 </div>
             </div>
 
@@ -1396,11 +1651,18 @@ const GroupDetailsModal = ({
                         <p className="text-xs text-white/35">No one has registered yet.</p>
                     )}
                     {session.registrants.map((r) => (
-                        <div key={r.id} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2" style={{ background: "rgba(255,255,255,0.03)" }}>
+                        <div
+                            key={r.id}
+                            className="flex items-center gap-2.5 rounded-lg px-2.5 py-2"
+                            style={{ background: "rgba(255,255,255,0.03)" }}
+                        >
                             {r.avatar ? (
                                 <img src={r.avatar} alt={r.name} className="h-8 w-8 rounded-full object-cover" />
                             ) : (
-                                <div className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white/60" style={{ background: "rgba(255,255,255,0.08)" }}>
+                                <div
+                                    className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white/60"
+                                    style={{ background: "rgba(255,255,255,0.08)" }}
+                                >
                                     {(r.name || "?").charAt(0).toUpperCase()}
                                 </div>
                             )}
@@ -1411,7 +1673,12 @@ const GroupDetailsModal = ({
             </div>
 
             <div className="mt-5">
-                <button type="button" onClick={onClose} className={modalSecondaryBtn} style={{ ...modalSecondaryBtnStyle, width: "100%" }}>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className={modalSecondaryBtn}
+                    style={{ ...modalSecondaryBtnStyle, width: "100%" }}
+                >
                     Close
                 </button>
             </div>
@@ -1423,7 +1690,6 @@ const GroupDetailsModal = ({
 // Main Component
 // ─────────────────────────────────────────────
 const MentorSessions = () => {
-    // Individual (1-1) session now comes from the API instead of dummy data.
     const [oneOnOne, setOneOnOne] = useState<OneOnOneSession | null>(null);
     const [groups, setGroups] = useState<GroupSession[]>([]);
     const { addToast } = useGlobalContext();
@@ -1442,6 +1708,9 @@ const MentorSessions = () => {
     const [showGroupDeleteConfirm, setShowGroupDeleteConfirm] = useState(false);
     const [groupDeleteId, setGroupDeleteId] = useState("");
 
+    const [showGroupStartConfirm, setShowGroupStartConfirm] = useState(false);
+    const [groupStartId, setGroupStartId] = useState("");
+
     const [viewingGroup, setViewingGroup] = useState<GroupSession | null>(null);
 
     const [showJoinClass, setShowJoinClass] = useState(false);
@@ -1455,11 +1724,18 @@ const MentorSessions = () => {
     const canCreateGroup = groups.length < 3;
 
     const { mutate: createIndividualSession, isPending: isCreatingIndividualSession } = useCreateIndividualSession();
-    const { mutate: editIndividualSession, isPending: isEditingIndividualSession } = useEditIndividualSession(oneOnOne?.id ?? "");
-    const { mutate: deleteIndividualSession, isPending: isDeletingIndividualSession } = useDeleteIndividualSession(oneOnOne?.id ?? "");
+    const { mutate: editIndividualSession, isPending: isEditingIndividualSession } = useEditIndividualSession(
+        oneOnOne?.id ?? ""
+    );
+    const { mutate: deleteIndividualSession, isPending: isDeletingIndividualSession } = useDeleteIndividualSession(
+        oneOnOne?.id ?? ""
+    );
     const { mutate: createGroupSession, isPending: isCreatingGroupSession } = useCreateGroupSession();
-    const { mutate: editGroupSession, isPending: isEditingGroupSession } = useEditGroupSession(editingGroup?.id ?? "");
+    const { mutate: editGroupSession, isPending: isEditingGroupSession } = useEditGroupSession(
+        editingGroup?.id ?? ""
+    );
     const { mutate: deleteGroupSession, isPending: isDeletingGroupSession } = useDeleteGroupSession(groupDeleteId);
+    const { mutate: startGroupSession, isPending: isStartingGroupSession } = useStartGroupSession(groupStartId);
     const { mentorIndividualSession, isLoading: isloadingMentorIndividualSession } = useGetMentorIndividualSession();
     const { mentorGroupSessions, isLoading: isLoadingMentorGroupSessions } = useGetMentorGroupSessions();
     const bookingId = oneOnOne?.booking?.id ?? "";
@@ -1467,15 +1743,31 @@ const MentorSessions = () => {
     const { mutate: rejectBooking, isPending: isRejectingBooking } = useRejectBooking(bookingId);
 
     const apiOneOnOneSession = unwrapIndividualSession(mentorIndividualSession?.data);
-    console.log("apiOneOnOneSession", oneOnOne);
-    console.log("Individual", mentorIndividualSession?.data);
+
+    const startingGroup = groups.find((g) => g.id === groupStartId) ?? null;
+
+    const isAnyMutationPending =
+        isCreatingIndividualSession ||
+        isEditingIndividualSession ||
+        isDeletingIndividualSession ||
+        isCreatingGroupSession ||
+        isEditingGroupSession ||
+        isDeletingGroupSession ||
+        isStartingGroupSession ||
+        isAcceptingBooking ||
+        isRejectingBooking;
+
+    const isCreatingOrEditing =
+        isCreatingIndividualSession ||
+        isEditingIndividualSession ||
+        isCreatingGroupSession ||
+        isEditingGroupSession;
 
     useEffect(() => {
         if (!apiOneOnOneSession) {
             setOneOnOne(null);
             return;
         }
-
         setOneOnOne(mapApiSessionToLocal(apiOneOnOneSession, userProfile?.avatar ?? ""));
     }, [apiOneOnOneSession, userProfile?.avatar]);
 
@@ -1491,7 +1783,6 @@ const MentorSessions = () => {
 
         setGroups(rawGroups.map((item: any) => mapApiGroupSessionToLocal(item)));
     }, [mentorGroupSessions]);
-
 
     const handleSaveOneOnOne = (data: Omit<OneOnOneSession, "id" | "type" | "mentorAvatar" | "booking">) => {
         const payload = mapLocalToCreatePayload(data);
@@ -1553,42 +1844,42 @@ const MentorSessions = () => {
         }
 
         const requestFn = editingGroup
-            ? () => editGroupSession(formData, {
-                onSuccess: () => {
-                    setGroupFormError("");
-                    addToast("Group session updated", "success");
-                    setShowGroupForm(false);
-                    setEditingGroup(null);
-                },
-                onError: (error: any) => {
-                    const apiError = error as any;
-                    const message = formatModalValidationErrors(apiError?.response?.data ?? error);
-                    setGroupFormError(message);
-                    addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
-                },
-            })
-            : () => createGroupSession(formData, {
-                onSuccess: () => {
-                    setGroupFormError("");
-                    addToast("Group session created", "success");
-                    setShowGroupForm(false);
-                    setEditingGroup(null);
-                },
-                onError: (error: any) => {
-                    const apiError = error as any;
-                    const message = formatModalValidationErrors(apiError?.response?.data ?? error);
-                    setGroupFormError(message);
-                    addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
-                },
-            });
+            ? () =>
+                editGroupSession(formData, {
+                    onSuccess: () => {
+                        setGroupFormError("");
+                        addToast("Group session updated", "success");
+                        setShowGroupForm(false);
+                        setEditingGroup(null);
+                    },
+                    onError: (error: any) => {
+                        const apiError = error as any;
+                        const message = formatModalValidationErrors(apiError?.response?.data ?? error);
+                        setGroupFormError(message);
+                        addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
+                    },
+                })
+            : () =>
+                createGroupSession(formData, {
+                    onSuccess: () => {
+                        setGroupFormError("");
+                        addToast("Group session created", "success");
+                        setShowGroupForm(false);
+                        setEditingGroup(null);
+                    },
+                    onError: (error: any) => {
+                        const apiError = error as any;
+                        const message = formatModalValidationErrors(apiError?.response?.data ?? error);
+                        setGroupFormError(message);
+                        addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
+                    },
+                });
 
         requestFn();
     };
 
     const handleDeleteOneOnOne = () => {
-        if (oneOnOne) {
-            setShowDeleteConfirm(true);
-        }
+        if (oneOnOne) setShowDeleteConfirm(true);
     };
 
     const confirmDeleteOneOnOne = () => {
@@ -1632,7 +1923,37 @@ const MentorSessions = () => {
         });
     };
 
-    // ── Booking flow handlers ──
+    const handleStartGroup = (id: string) => {
+        setGroupStartId(id);
+        setShowGroupStartConfirm(true);
+    };
+
+    const confirmStartGroup = () => {
+        if (!groupStartId) return;
+
+        startGroupSession(
+            {},
+            {
+                onSuccess: () => {
+                    // Optimistic update; the refetch will overwrite this with the server value.
+                    // Change "ongoing" to whatever status your backend returns after a session starts.
+                    setGroups((prev) =>
+                        prev.map((g) => (g.id === groupStartId ? { ...g, status: "ongoing" } : g))
+                    );
+                    addToast("Group session started", "success");
+                    setShowGroupStartConfirm(false);
+                    setGroupStartId("");
+                },
+                onError: (error: unknown) => {
+                    const apiError = error as any;
+                    addToast(flattenApiErrors(apiError?.response?.data ?? error), "error");
+                    setShowGroupStartConfirm(false);
+                    setGroupStartId("");
+                },
+            }
+        );
+    };
+
     const handleOpenAccept = () => setAcceptOpen(true);
     const handleOpenDecline = () => setDeclineOpen(true);
 
@@ -1685,7 +2006,6 @@ const MentorSessions = () => {
     };
 
     const handleSubmitNote = (_note: string) => {
-        // Note is local-only for now; booking is cleared after the session ends.
         if (oneOnOne) {
             setOneOnOne({ ...oneOnOne, booking: null });
         }
@@ -1694,23 +2014,29 @@ const MentorSessions = () => {
 
     return (
         <div>
-            <LoadingOverlay visible={
-                isCreatingIndividualSession ||
-                isEditingIndividualSession ||
-                isDeletingIndividualSession ||
-                isCreatingGroupSession ||
-                isEditingGroupSession ||
-                isDeletingGroupSession ||
-                isAcceptingBooking ||
-                isRejectingBooking ||
-                isloadingMentorIndividualSession ||
-                isLoadingMentorGroupSessions
-            } />
+            <LoadingOverlay
+                visible={
+                    isAnyMutationPending ||
+                    isloadingMentorIndividualSession ||
+                    isLoadingMentorGroupSessions || isCreatingGroupSession ||
+                    isCreatingIndividualSession
+                }
+            />
+
+            {/* Progress bar while creating / editing */}
+            {isCreatingOrEditing && (
+                <ProgressBar
+                    label={
+                        isCreatingIndividualSession || isCreatingGroupSession
+                            ? "Creating session..."
+                            : "Saving changes..."
+                    }
+                />
+            )}
+
             <div className="mb-6">
                 <h2 className="text-xl font-bold text-white sm:text-2xl">My Sessions</h2>
-                <p className="text-sm text-white/40">
-                    Create & manage your 1-1 and Group mentoring sessions.
-                </p>
+                <p className="text-sm text-white/40">Create & manage your 1-1 and Group mentoring sessions.</p>
             </div>
 
             {/* One-on-One */}
@@ -1719,16 +2045,21 @@ const MentorSessions = () => {
                     <h3 className="flex items-center gap-2 text-sm font-semibold text-white/80">
                         <FiUser size={15} className="text-[#a6ff00]" />
                         1-1 Session
-                        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white/50" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white/50"
+                            style={{ background: "rgba(255,255,255,0.06)" }}
+                        >
                             {oneOnOne ? "1 / 1" : "0 / 1"}
                         </span>
                     </h3>
                     {canCreateOneOnOne && (
                         <button
                             type="button"
-                            onClick={() => { setEditingOneOnOne(null); setShowOneOnOneForm(true); }}
-                            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-black"
-                            style={{ background: "#a6ff00" }}
+                            onClick={() => {
+                                setEditingOneOnOne(null);
+                                setShowOneOnOneForm(true);
+                            }}
+                            className="flex bg-white items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold text-black"
                         >
                             <FiPlus size={13} /> Create
                         </button>
@@ -1738,7 +2069,10 @@ const MentorSessions = () => {
                 {oneOnOne ? (
                     <OneOnOneCard
                         session={oneOnOne}
-                        onEdit={() => { setEditingOneOnOne(oneOnOne); setShowOneOnOneForm(true); }}
+                        onEdit={() => {
+                            setEditingOneOnOne(oneOnOne);
+                            setShowOneOnOneForm(true);
+                        }}
                         onDelete={handleDeleteOneOnOne}
                         onAcceptBooking={handleOpenAccept}
                         onDeclineBooking={handleOpenDecline}
@@ -1754,7 +2088,10 @@ const MentorSessions = () => {
                         onCreate={
                             isloadingMentorIndividualSession
                                 ? undefined
-                                : () => { setEditingOneOnOne(null); setShowOneOnOneForm(true); }
+                                : () => {
+                                    setEditingOneOnOne(null);
+                                    setShowOneOnOneForm(true);
+                                }
                         }
                     />
                 )}
@@ -1766,16 +2103,21 @@ const MentorSessions = () => {
                     <h3 className="flex items-center gap-2 text-sm font-semibold text-white/80">
                         <FiUsers size={15} className="text-[#a6ff00]" />
                         Group Sessions
-                        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white/50" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white/50"
+                            style={{ background: "rgba(255,255,255,0.06)" }}
+                        >
                             {groups.length} / 3
                         </span>
                     </h3>
                     {canCreateGroup && (
                         <button
                             type="button"
-                            onClick={() => { setEditingGroup(null); setShowGroupForm(true); }}
-                            className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-bold text-black"
-                            style={{ background: "#a6ff00" }}
+                            onClick={() => {
+                                setEditingGroup(null);
+                                setShowGroupForm(true);
+                            }}
+                            className="flex bg-white items-center gap-1.5 rounded px-3 py-1.5 text-xs font-bold text-black"
                         >
                             <FiPlus size={13} /> Create
                         </button>
@@ -1785,7 +2127,10 @@ const MentorSessions = () => {
                 {groups.length === 0 ? (
                     <EmptyState
                         label="No group sessions yet. You can create up to 3."
-                        onCreate={() => { setEditingGroup(null); setShowGroupForm(true); }}
+                        onCreate={() => {
+                            setEditingGroup(null);
+                            setShowGroupForm(true);
+                        }}
                     />
                 ) : (
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1793,18 +2138,20 @@ const MentorSessions = () => {
                             <GroupCard
                                 key={g.id}
                                 session={g}
-                                onEdit={() => { setEditingGroup(g); setShowGroupForm(true); }}
+                                onEdit={() => {
+                                    setEditingGroup(g);
+                                    setShowGroupForm(true);
+                                }}
                                 onDelete={() => handleDeleteGroup(g.id)}
                                 onView={() => setViewingGroup(g)}
+                                onStart={() => handleStartGroup(g.id)}
                             />
                         ))}
                     </div>
                 )}
 
                 {!canCreateGroup && groups.length > 0 && (
-                    <p className="mt-3 text-center text-xs text-white/30">
-                        Maximum of 3 group sessions reached.
-                    </p>
+                    <p className="mt-3 text-center text-xs text-white/30">Maximum of 3 group sessions reached.</p>
                 )}
             </section>
 
@@ -1812,7 +2159,11 @@ const MentorSessions = () => {
             {showOneOnOneForm && (
                 <OneOnOneFormModal
                     initial={editingOneOnOne}
-                    onClose={() => { setOneOnOneFormError(""); setShowOneOnOneForm(false); setEditingOneOnOne(null); }}
+                    onClose={() => {
+                        setOneOnOneFormError("");
+                        setShowOneOnOneForm(false);
+                        setEditingOneOnOne(null);
+                    }}
                     onSave={handleSaveOneOnOne}
                     isSaving={isCreatingIndividualSession || isEditingIndividualSession}
                     errorMessage={oneOnOneFormError}
@@ -1827,25 +2178,40 @@ const MentorSessions = () => {
             )}
             {showGroupDeleteConfirm && (
                 <DeleteGroupSessionModal
-                    onClose={() => { setShowGroupDeleteConfirm(false); setGroupDeleteId(""); }}
+                    onClose={() => {
+                        setShowGroupDeleteConfirm(false);
+                        setGroupDeleteId("");
+                    }}
                     onConfirm={confirmDeleteGroup}
                     isDeleting={isDeletingGroupSession}
+                />
+            )}
+            {showGroupStartConfirm && (
+                <StartGroupSessionModal
+                    session={startingGroup}
+                    onClose={() => {
+                        setShowGroupStartConfirm(false);
+                        setGroupStartId("");
+                    }}
+                    onConfirm={confirmStartGroup}
+                    isStarting={isStartingGroupSession}
                 />
             )}
             {showGroupForm && (
                 <GroupFormModal
                     initial={editingGroup}
-                    onClose={() => { setGroupFormError(""); setShowGroupForm(false); setEditingGroup(null); }}
+                    onClose={() => {
+                        setGroupFormError("");
+                        setShowGroupForm(false);
+                        setEditingGroup(null);
+                    }}
                     onSave={handleSaveGroup}
                     isSaving={isCreatingGroupSession || isEditingGroupSession}
                     errorMessage={groupFormError}
                 />
             )}
             {viewingGroup && (
-                <GroupDetailsModal
-                    session={viewingGroup}
-                    onClose={() => setViewingGroup(null)}
-                />
+                <GroupDetailsModal session={viewingGroup} onClose={() => setViewingGroup(null)} />
             )}
             {showJoinClass && oneOnOne?.booking && (
                 <JoinClassModal
@@ -1865,15 +2231,17 @@ const MentorSessions = () => {
                 <AnimatedModal onClose={() => setAcceptOpen(false)}>
                     <div className="mb-5 flex items-center justify-between">
                         <h3 className="text-base font-bold text-white">Accept Booking</h3>
-                        <button type="button" onClick={() => setAcceptOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <button
+                            type="button"
+                            onClick={() => setAcceptOpen(false)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white"
+                            style={{ background: "rgba(255,255,255,0.06)" }}
+                        >
                             <FiX size={16} />
                         </button>
                     </div>
 
-                    {/* Mentee profile from API */}
-                    <div
-                        className="mb-4 text-center gap-3 rounded-xl px-4 pt-4"
-                    >
+                    <div className="mb-4 text-center gap-3 rounded-xl px-4 pt-4">
                         {oneOnOne.booking.menteeAvatar ? (
                             <img
                                 src={oneOnOne.booking.menteeAvatar}
@@ -1882,7 +2250,7 @@ const MentorSessions = () => {
                             />
                         ) : (
                             <div
-                                className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full text-white/50"
+                                className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full text-white/50 m-auto"
                                 style={{ background: "rgba(255,255,255,0.08)", border: "2px solid rgba(255,255,255,0.15)" }}
                             >
                                 <FiUser size={20} />
@@ -1894,10 +2262,7 @@ const MentorSessions = () => {
                                     .filter(Boolean)
                                     .join(" ") || oneOnOne.booking.menteeName}
                             </p>
-                            <p className="text-sm text-neutral-500">
-                                Mentee
-                            </p>
-
+                            <p className="text-sm text-neutral-500">Mentee</p>
                         </div>
                     </div>
 
@@ -1908,7 +2273,6 @@ const MentorSessions = () => {
                         placeholder="Optional note"
                     />
                     <p className="mt-1 text-xs text-white/40">Add an optional note for the mentee.</p>
-
 
                     <div className="mt-5 flex gap-3">
                         <button
@@ -1937,7 +2301,12 @@ const MentorSessions = () => {
                 <AnimatedModal onClose={() => setDeclineOpen(false)}>
                     <div className="mb-5 flex items-center justify-between">
                         <h3 className="text-lg font-bold text-white">Decline Booking</h3>
-                        <button type="button" onClick={() => setDeclineOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <button
+                            type="button"
+                            onClick={() => setDeclineOpen(false)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 hover:text-white"
+                            style={{ background: "rgba(255,255,255,0.06)" }}
+                        >
                             <FiX size={16} />
                         </button>
                     </div>
