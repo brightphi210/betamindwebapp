@@ -515,7 +515,7 @@ const EventRow: React.FC<{
         {/* ── Mobile card (matches design) ── */}
         <div
             onClick={() => onView(event)}
-            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-neutral-950"
+            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-neutral-950 border border-neutral-900"
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -605,8 +605,7 @@ const EventRow: React.FC<{
         {/* ── Desktop row ── */}
         <div
             onClick={() => onView(event)}
-            className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors hover:bg-white/[0.03] cursor-pointer"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
+            className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-neutral-950! border border-neutral-900 cursor-pointer"
         >
             <img
                 src={event.thumbnail}
