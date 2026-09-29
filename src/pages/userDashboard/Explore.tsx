@@ -600,7 +600,7 @@ const Explore: React.FC = () => {
 
                 {/* Digital Products */}
                 <section>
-                    <SectionHeader title="Courses & Digital Products" subtitle="Self-paced learning from top mentors" />
+                    <SectionHeader title="Digital Products" subtitle="Self-paced learning from top mentors" />
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {productLoading ? (
                             Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)

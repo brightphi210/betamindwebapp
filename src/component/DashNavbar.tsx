@@ -25,7 +25,7 @@ const NAV_ITEMS = [
     { id: 'events', name: 'Events', icon: <FiCalendar className="" />, path: '/dashboard/events' },
     { id: 'explore', name: 'Explore', icon: <FiCompass className="" />, path: '/dashboard/explore' },
     { id: 'wallet', name: 'Wallet', icon: <FiCreditCard className="" />, path: '/dashboard/wallet' },
-    { id: 'bookings', name: 'MyBookings', icon: <FiBookOpen className="" />, path: '/dashboard/bookings' },
+    { id: 'bookings', name: 'My Purchase', icon: <FiBookOpen className="" />, path: '/dashboard/bookings' },
 ];
 
 // Mobile bottom tab bar: keep it focused on core actions and let the More menu hold

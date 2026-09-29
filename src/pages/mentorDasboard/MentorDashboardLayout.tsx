@@ -15,7 +15,7 @@ const NAV_ITEMS = [
     { to: "overview", label: "Overview", icon: <FiBarChart2 size={15} /> },
     { to: "products", label: "Products", icon: <FiShoppingBag size={15} /> },
     // { to: "wallet", label: "Wallet", icon: <FiCreditCard size={15} /> },
-    { to: "bookings", label: "Bookings", icon: <FiCalendar size={15} /> },
+    { to: "bookings", label: "Sessions", icon: <FiCalendar size={15} /> },
     { to: "profile", label: "Profile", icon: <FiUser size={15} /> },
 ];
 
