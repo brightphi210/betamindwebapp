@@ -467,7 +467,7 @@ const EventRow: React.FC<{
         {/* ── Desktop row ── */}
         <div
             onClick={() => onView(event)}
-            className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-neutral-950! border border-neutral-900 cursor-pointer"
+            className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-neutral-900! cursor-pointer"
         // style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
         >
             <img
