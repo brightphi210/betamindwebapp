@@ -605,7 +605,7 @@ const EventRow: React.FC<{
         {/* ── Desktop row ── */}
         <div
             onClick={() => onView(event)}
-            className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-neutral-900! cursor-pointer"
+            className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-neutral-900 cursor-pointer"
         >
             <img
                 src={event.thumbnail}
