@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { FaFacebookF, FaLinkedinIn, FaXTwitter } from 'react-icons/fa6';
 import {
     FiAlertTriangle,
     FiArrowRight,
@@ -7,8 +8,11 @@ import {
     FiCopy,
     FiEdit2,
     FiExternalLink,
+    FiMail,
     FiMapPin,
+    FiMessageCircle,
     FiPlus,
+    FiShare2,
     FiTag,
     FiTrash2,
     FiUserCheck,
@@ -17,7 +21,6 @@ import {
 } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../../component/ui/Button';
-// TODO: swap in your real delete-event mutation hook if the name/path differs.
 import { useDeleteEvent } from '../../hooks/mutations/allMutation';
 import { useGetMineEvents } from '../../hooks/queries/allQueriess';
 import { useGlobalContext } from '../../providers/GlobalContext';
@@ -48,6 +51,7 @@ export interface RegisteredEvent {
     description?: string;
     attendees: Attendee[];
     publicUrl: string;
+    meetingLink?: string;
     ticketPrice: string;
     requireApproval: boolean;
     capacity: number | null;
@@ -67,12 +71,13 @@ export interface ApiEvent {
     id: string;
     user: {
         given_name: string;
-        email: string
+        email: string;
     };
     user_name: string;
     title: string;
     description: string;
     image: string;
+    meeting_link?: string;
     start_date: string;
     end_date: string;
     location: string;
@@ -142,9 +147,11 @@ const mapApiEventToRegistered = (event: ApiEvent): RegisteredEvent => {
         status,
         actionText: status === 'upcoming' ? 'View Event' : 'View Details',
         host: event.user.given_name,
+        hostEmail: event.user.email,
         description: event.description,
         attendees,
         publicUrl: `/events/${event.id}`,
+        meetingLink: event.meeting_link,
         ticketPrice: event.ticket_price,
         requireApproval: event.require_approval,
         capacity: event.capacity,
@@ -200,9 +207,7 @@ const EventsTimelineSkeleton: React.FC<{ groups?: number; rowsPerGroup?: number 
 
 const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
     <div className="flex flex-col items-center justify-center py-24 sm:py-32">
-        <div
-            className="relative w-24 h-24 rounded-2xl mb-8 flex items-center justify-center bg-neutral-900"
-        >
+        <div className="relative w-24 h-24 rounded-2xl mb-8 flex items-center justify-center bg-neutral-900">
             <FiCalendar size={44} className="text-white" />
         </div>
         <h2 className="text-white text-xl font-bold mb-2">
@@ -223,7 +228,7 @@ const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
                 Create Events
             </a>
         )}
-    </div >
+    </div>
 );
 
 // ─── Attendee avatars ───────────────────────────────────────────────────────
@@ -327,7 +332,10 @@ const AvatarStack: React.FC<{
     );
 };
 
-const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | 'md' }> = ({ event, size = 'sm' }) => {
+const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | 'md' }> = ({
+    event,
+    size = 'sm',
+}) => {
     const textSize = size === 'sm' ? 'text-[11px]' : 'text-xs';
     const padding = size === 'sm' ? 'px-2 py-1' : 'px-2.5 py-1.5';
 
@@ -336,8 +344,14 @@ const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | 'md' }> 
             <span
                 className={`inline-flex items-center gap-1 rounded-md font-semibold ${textSize} ${padding}`}
                 style={{
-                    background: formatTicketPrice(event.ticketPrice) === 'Free' ? 'rgba(255,255,255,0.06)' : 'rgba(166,255,0,0.1)',
-                    color: formatTicketPrice(event.ticketPrice) === 'Free' ? 'rgba(255,255,255,0.6)' : '#a6ff00',
+                    background:
+                        formatTicketPrice(event.ticketPrice) === 'Free'
+                            ? 'rgba(255,255,255,0.06)'
+                            : 'rgba(166,255,0,0.1)',
+                    color:
+                        formatTicketPrice(event.ticketPrice) === 'Free'
+                            ? 'rgba(255,255,255,0.6)'
+                            : '#a6ff00',
                 }}
             >
                 <FiTag size={size === 'sm' ? 11 : 13} />
@@ -359,7 +373,9 @@ const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | 'md' }> 
                 style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
             >
                 <FiUsers size={size === 'sm' ? 11 : 13} />
-                {event.capacity === null || event.capacity === undefined ? 'Unlimited' : `Cap ${event.capacity}`}
+                {event.capacity === null || event.capacity === undefined
+                    ? 'Unlimited'
+                    : `Cap ${event.capacity}`}
             </span>
         </div>
     );
@@ -374,7 +390,7 @@ const EventRow: React.FC<{
     isDeleting: boolean;
 }> = ({ event, onView, onOpenGuests, onEdit, onDelete, isDeleting }) => (
     <>
-        {/* ── Mobile card (matches design) ── */}
+        {/* Mobile card */}
         <div
             onClick={() => onView(event)}
             className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-neutral-950 border border-neutral-900"
@@ -382,9 +398,7 @@ const EventRow: React.FC<{
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                     <p className="text-white/50 text-sm mb-1">{event.time}</p>
-                    <h3 className="text-white font-bold text-lg break-words mb-2">
-                        {event.title}
-                    </h3>
+                    <h3 className="text-white font-bold text-lg break-words mb-2">{event.title}</h3>
 
                     {event.location ? (
                         <div className="flex items-center gap-2 text-white/40 text-sm mb-1.5">
@@ -400,7 +414,11 @@ const EventRow: React.FC<{
 
                     <div className="flex items-center gap-2 text-white/40 text-sm">
                         <FiUsers size={15} />
-                        <span>{event.registered > 0 ? `${event.registered} guest${event.registered === 1 ? '' : 's'}` : 'No guests'}</span>
+                        <span>
+                            {event.registered > 0
+                                ? `${event.registered} guest${event.registered === 1 ? '' : 's'}`
+                                : 'No guests'}
+                        </span>
                     </div>
                 </div>
 
@@ -464,11 +482,10 @@ const EventRow: React.FC<{
             </div>
         </div>
 
-        {/* ── Desktop row ── */}
+        {/* Desktop row */}
         <div
             onClick={() => onView(event)}
             className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-neutral-900 cursor-pointer"
-        // style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(205,220,57,.08)' }}
         >
             <img
                 src={event.thumbnail}
@@ -481,9 +498,7 @@ const EventRow: React.FC<{
                     <FiClock size={13} />
                     <span>{event.time}</span>
                 </div>
-                <h3 className="text-white font-bold text-lg break-words mb-2">
-                    {event.title}
-                </h3>
+                <h3 className="text-white font-bold text-lg break-words mb-2">{event.title}</h3>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-white/40 text-sm mb-2">
                     {event.location ? (
                         <span className="flex items-center gap-1.5">
@@ -558,7 +573,10 @@ const EventRow: React.FC<{
 );
 
 // ─── Guest list modal ───────────────────────────────────────────────────────
-const GuestsModal: React.FC<{ attendees: Attendee[]; onClose: () => void }> = ({ attendees, onClose }) => (
+const GuestsModal: React.FC<{ attendees: Attendee[]; onClose: () => void }> = ({
+    attendees,
+    onClose,
+}) => (
     <div
         className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
         onClick={onClose}
@@ -594,7 +612,10 @@ const GuestsModal: React.FC<{ attendees: Attendee[]; onClose: () => void }> = ({
             <p className="text-white/40 text-xs mb-4">Everyone who has registered for this event.</p>
             <div className="overflow-y-auto flex-1 -mx-2 px-2 space-y-1">
                 {attendees.map((a) => (
-                    <div key={a.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-white/[0.03]">
+                    <div
+                        key={a.id}
+                        className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-white/[0.03]"
+                    >
                         <AttendeeAvatar name={a.name} avatar={a.avatar} size={36} />
                         <div className="min-w-0">
                             <p className="text-white text-sm font-semibold truncate">{a.name}</p>
@@ -607,6 +628,185 @@ const GuestsModal: React.FC<{ attendees: Attendee[]; onClose: () => void }> = ({
     </div>
 );
 
+// ─── Invite / share modal (same as Overview) ────────────────────────────────
+type InviteAction = {
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+};
+
+const InviteFriendModal: React.FC<{
+    url: string;
+    title: string;
+    onClose: () => void;
+}> = ({ url, title, onClose }) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // clipboard not available
+        }
+    };
+
+    const shareText = `You're invited: ${title}`;
+
+    const actions: InviteAction[] = [
+        {
+            id: 'facebook',
+            label: 'Share',
+            icon: <FaFacebookF size={17} />,
+            onClick: () =>
+                window.open(
+                    `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+                    '_blank',
+                    'noopener,noreferrer'
+                ),
+        },
+        {
+            id: 'x',
+            label: 'Post on X',
+            icon: <FaXTwitter size={17} />,
+            onClick: () =>
+                window.open(
+                    `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(shareText)}`,
+                    '_blank',
+                    'noopener,noreferrer'
+                ),
+        },
+        {
+            id: 'linkedin',
+            label: 'Post',
+            icon: <FaLinkedinIn size={17} />,
+            onClick: () =>
+                window.open(
+                    `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
+                    '_blank',
+                    'noopener,noreferrer'
+                ),
+        },
+        {
+            id: 'email',
+            label: 'Email',
+            icon: <FiMail size={17} />,
+            onClick: () => {
+                window.location.href = `mailto:?subject=${encodeURIComponent(
+                    shareText
+                )}&body=${encodeURIComponent(url)}`;
+            },
+        },
+        {
+            id: 'native-share',
+            label: 'Share',
+            icon: <FiShare2 size={17} />,
+            onClick: async () => {
+                if (navigator.share) {
+                    try {
+                        await navigator.share({ title: shareText, url });
+                    } catch {
+                        // user cancelled
+                    }
+                } else {
+                    handleCopy();
+                }
+            },
+        },
+        {
+            id: 'text',
+            label: 'Text',
+            icon: <FiMessageCircle size={17} />,
+            onClick: () => {
+                window.location.href = `sms:?body=${encodeURIComponent(`${shareText} ${url}`)}`;
+            },
+        },
+    ];
+
+    return (
+        <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+                style={{
+                    background: 'rgba(10,13,9,0.75)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)',
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-start justify-between mb-4">
+                    <div
+                        className="w-12 h-12 rounded-full flex items-center justify-center"
+                        style={{ background: 'rgba(255,255,255,0.06)' }}
+                    >
+                        <FiShare2 className="text-white/70" size={20} />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="p-2 rounded-lg hover:bg-white/5 text-white/50 hover:text-white shrink-0"
+                    >
+                        <FiX size={18} />
+                    </button>
+                </div>
+
+                <h3 className="text-white text-xl font-black mb-1">Invite a Friend</h3>
+                <p className="text-white/40 text-xs mb-6 leading-relaxed">
+                    It's always more fun with friends. We'll let you know when your friends accept
+                    your invite.
+                </p>
+
+                <div className="grid grid-cols-3 gap-y-5 mb-6">
+                    {actions.map((a) => (
+                        <button
+                            key={a.id}
+                            type="button"
+                            onClick={a.onClick}
+                            className="flex flex-col items-center gap-2 cursor-pointer"
+                        >
+                            <div
+                                className="w-12 h-12 rounded-full flex items-center justify-center text-white/80 hover:text-white transition-colors"
+                                style={{ background: 'rgba(255,255,255,0.08)' }}
+                            >
+                                {a.icon}
+                            </div>
+                            <span className="text-white/70 text-xs">{a.label}</span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="h-px w-full mb-5" style={{ background: 'rgba(255,255,255,0.08)' }} />
+
+                <p className="text-white text-sm font-bold mb-2">Share the link:</p>
+                <div
+                    className="flex items-center justify-between gap-3 rounded-xl px-4 py-3"
+                    style={{
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                    }}
+                >
+                    <span className="text-white/60 text-xs truncate">{url}</span>
+                    <button
+                        type="button"
+                        onClick={handleCopy}
+                        className="text-xs font-semibold shrink-0 px-3 py-1.5 rounded-lg text-black cursor-pointer transition-colors"
+                        style={{ background: copied ? 'rgba(255,255,255,0.6)' : '#a6ff00' }}
+                    >
+                        {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── Event drawer (matched to Overview) ─────────────────────────────────────
 const EventDrawerContent: React.FC<{
     event: RegisteredEvent | null;
     onClose: () => void;
@@ -616,6 +816,7 @@ const EventDrawerContent: React.FC<{
     isDeleting: boolean;
 }> = ({ event, onClose, onOpenGuests, onEdit, onDelete, isDeleting }) => {
     const [copied, setCopied] = useState(false);
+    const [showInvite, setShowInvite] = useState(false);
 
     if (!event) return null;
 
@@ -626,30 +827,29 @@ const EventDrawerContent: React.FC<{
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch {
-            // clipboard not available, fail silently
+            // clipboard not available
         }
     };
 
     return (
-        <div className="bg-[#0a0f08] min-h-full w-full sm:w-[480px] flex flex-col shadow-xl border-l border-[rgba(205,220,57,.1)]">
-            <div className="flex items-center justify-between p-5 border-b border-[rgba(205,220,57,.08)] shrink-0 gap-2">
+        <div className="bg-neutral-950 min-h-full w-full sm:w-[480px] flex flex-col shadow-xl">
+            <div className="flex flex-wrap items-center justify-between p-5 border-b border-[rgba(205,220,57,.08)] shrink-0 gap-2">
                 <div className="flex items-center gap-2">
-                    <Button
+                    <button
                         onClick={handleCopyLink}
-                        variant="dark"
-                        className="px-3 py-1.5 text-xs"
+                        className="px-3 py-1.5 text-xs bg-white cursor-pointer text-black rounded-md flex transition-colors gap-1.5 items-center justify-center hover:bg-white/90"
                     >
                         <FiCopy size={13} />
-                        {copied ? 'Copied!' : 'Copy Link'}
-                    </Button>
+                        {copied ? 'Copied!' : 'Share'}
+                    </button>
                     <a
                         href={event.publicUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors bg-[#010C06] text-white border border-white/10 hover:bg-[#0a140c]"
+                        className="px-3 py-1.5 text-xs bg-white cursor-pointer text-black rounded-md flex transition-colors gap-1.5 items-center justify-center hover:bg-white/90"
                     >
-                        Event Page
+                        View Page
                         <FiExternalLink size={13} />
                     </a>
                 </div>
@@ -687,8 +887,12 @@ const EventDrawerContent: React.FC<{
                 <span
                     className="inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize mb-6"
                     style={{
-                        background: event.status === 'upcoming' ? 'rgba(166,255,0,0.12)' : 'rgba(255,255,255,0.06)',
-                        color: event.status === 'upcoming' ? '#a6ff00' : 'rgba(255,255,255,0.5)',
+                        background:
+                            event.status === 'upcoming'
+                                ? 'rgba(166,255,0,0.12)'
+                                : 'rgba(255,255,255,0.06)',
+                        color:
+                            event.status === 'upcoming' ? '#a6ff00' : 'rgba(255,255,255,0.5)',
                     }}
                 >
                     {event.status}
@@ -705,9 +909,9 @@ const EventDrawerContent: React.FC<{
                 {event.host && (
                     <div className="mb-6 border-y border-neutral-200/10 py-2 pb-4 w-full">
                         <p className="text-white/50 text-sm pb-2">Hosted by </p>
-                        <div className='flex items-center gap-2'>
+                        <div className="flex items-center gap-2">
                             <HostInitials name={event.host} />
-                            <div className='flex flex-col gap-1 '>
+                            <div className="flex flex-col gap-1">
                                 <span className="text-white font-bold text-sm">@{event.host}</span>
                             </div>
                         </div>
@@ -717,7 +921,9 @@ const EventDrawerContent: React.FC<{
                 <div className="flex flex-col gap-4 mb-6">
                     <div className="flex items-center gap-3 text-white/70 text-sm">
                         <FiCalendar className="text-[#a6ff00] shrink-0" size={18} />
-                        <span>{event.dateLabel} · {event.time}</span>
+                        <span>
+                            {event.dateLabel} · {event.time}
+                        </span>
                     </div>
                     {event.location && (
                         <div className="flex items-center gap-3 text-white/70 text-sm">
@@ -728,10 +934,15 @@ const EventDrawerContent: React.FC<{
                 </div>
 
                 <div className="mb-8">
-                    <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">Event Details</h3>
+                    <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
+                        Event Details
+                    </h3>
                     <div
                         className="rounded-xl overflow-hidden"
-                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(205,220,57,.08)' }}
+                        style={{
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid rgba(205,220,57,.08)',
+                        }}
                     >
                         <div
                             className="flex items-center justify-between gap-3 px-4 py-3"
@@ -743,7 +954,12 @@ const EventDrawerContent: React.FC<{
                             </div>
                             <span
                                 className="text-sm font-semibold"
-                                style={{ color: formatTicketPrice(event.ticketPrice) === 'Free' ? 'rgba(255,255,255,0.7)' : '#a6ff00' }}
+                                style={{
+                                    color:
+                                        formatTicketPrice(event.ticketPrice) === 'Free'
+                                            ? 'rgba(255,255,255,0.7)'
+                                            : '#a6ff00',
+                                }}
                             >
                                 {formatTicketPrice(event.ticketPrice)}
                             </span>
@@ -766,7 +982,9 @@ const EventDrawerContent: React.FC<{
                                 Capacity
                             </div>
                             <span className="text-sm font-semibold text-white/70">
-                                {event.capacity === null || event.capacity === undefined ? 'Unlimited' : event.capacity}
+                                {event.capacity === null || event.capacity === undefined
+                                    ? 'Unlimited'
+                                    : event.capacity}
                             </span>
                         </div>
                     </div>
@@ -779,7 +997,10 @@ const EventDrawerContent: React.FC<{
                         </h3>
                         <div
                             className="flex items-center justify-between rounded-xl p-4"
-                            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(205,220,57,.08)' }}
+                            style={{
+                                background: 'rgba(255,255,255,0.03)',
+                                border: '1px solid rgba(205,220,57,.08)',
+                            }}
                         >
                             <AvatarStack
                                 attendees={event.attendees}
@@ -793,59 +1014,75 @@ const EventDrawerContent: React.FC<{
 
                 {event.description && (
                     <div className="mb-8">
-                        <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">About</h3>
+                        <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">
+                            About
+                        </h3>
                         <p className="text-white/50 text-sm leading-relaxed">{event.description}</p>
                     </div>
                 )}
 
-                <div
-                    className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 mb-8"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(205,220,57,.08)' }}
-                >
-                    <span className="text-white/40 text-xs truncate">{window.location.origin}{event.publicUrl}</span>
-                    <button
-                        onClick={handleCopyLink}
-                        className="text-xs font-semibold shrink-0 cursor-pointer text-[#a6ff00]"
-                    >
-                        {copied ? 'Copied!' : 'Copy'}
-                    </button>
-                </div>
+                {event.meetingLink && (
+                    <div className="mb-8">
+                        <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
+                            Meeting Link
+                        </h3>
+                        <a
+                            href={event.meetingLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center justify-between gap-3 rounded-md px-4 py-3 group"
+                            style={{
+                                background: 'rgba(255,255,255,0.03)',
+                                border: '1px solid rgba(205,220,57,.08)',
+                            }}
+                        >
+                            <div className="flex items-center gap-2.5 text-sm min-w-0">
+                                <FiExternalLink size={15} className="text-white/40 shrink-0" />
+                                <span className="truncate text-white/70 group-hover:text-white transition-colors">
+                                    {event.meetingLink}
+                                </span>
+                            </div>
+                            <span className="text-xs font-semibold shrink-0" style={{ color: '#a6ff00' }}>
+                                Join
+                            </span>
+                        </a>
+                    </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                        variant="green"
-                        className="w-full py-3.5 text-sm"
-                        onClick={() => onEdit(event)}
-                    >
-                        <span className="flex items-center justify-center gap-2">
-                            <FiEdit2 size={14} />
-                            Edit Event
-                        </span>
-                    </Button>
                     <a
                         href={event.publicUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="w-full flex items-center justify-center gap-1.5 py-3.5 rounded-lg font-semibold text-sm transition-colors"
-                        style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(205,220,57,.15)' }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center w-full justify-center gap-1.5 py-2.5 rounded-md text-xs font-semibold transition-colors bg-white/10 text-white"
                     >
-                        View Event Page
+                        View Event
                         <FiExternalLink size={13} />
                     </a>
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowInvite(true);
+                        }}
+                        className="w-full bg-white text-black flex items-center justify-center gap-1.5 py-2.5 rounded-md font-semibold text-xs transition-colors cursor-pointer"
+                    >
+                        <FiShare2 size={13} />
+                        Invite a Friend
+                    </button>
                 </div>
-
-                <button
-                    type="button"
-                    onClick={() => onDelete(event)}
-                    disabled={isDeleting}
-                    className="mt-3 flex w-full items-center justify-center gap-1.5 py-3 rounded-lg font-semibold text-sm text-red-400/80 hover:text-red-400 transition-colors disabled:opacity-40"
-                    style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.15)' }}
-                >
-                    <FiTrash2 size={14} />
-                    {isDeleting ? 'Deleting…' : 'Delete Event'}
-                </button>
             </div>
-        </div >
+
+            {showInvite && (
+                <InviteFriendModal
+                    url={window.location.origin + event.publicUrl}
+                    title={event.title}
+                    onClose={() => setShowInvite(false)}
+                />
+            )}
+        </div>
     );
 };
 
@@ -896,7 +1133,7 @@ const Events: React.FC = () => {
         const confirmed = window.confirm(`Delete "${event.title}"? This can't be undone.`);
         if (!confirmed) return;
 
-        // @ts-ignore - mutation expects no variables in its type, but accepts an id at runtime
+        // @ts-ignore
         deleteEvent(event.id, {
             onSuccess: () => {
                 addToast('Event deleted', 'success');
@@ -933,14 +1170,16 @@ const Events: React.FC = () => {
                     }}
                 >
                     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-                        {/* Header */}
                         <div className="flex flex-wrap items-center justify-between gap-4 mb-10">
                             <h1 className="text-2xl sm:text-3xl font-black text-white">Events</h1>
 
                             <div className="flex items-center gap-3">
                                 <div
                                     className="flex items-center rounded-lg p-1"
-                                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(205,220,57,.1)' }}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.04)',
+                                        border: '1px solid rgba(205,220,57,.1)',
+                                    }}
                                 >
                                     {(['upcoming', 'past'] as const).map((t) => (
                                         <button
@@ -968,7 +1207,6 @@ const Events: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Content */}
                         {isLoading ? (
                             <EventsTimelineSkeleton groups={2} rowsPerGroup={3} />
                         ) : filtered.length === 0 ? (
@@ -976,7 +1214,10 @@ const Events: React.FC = () => {
                         ) : (
                             <div className="flex flex-col gap-10">
                                 {Object.entries(grouped).map(([label, events]) => (
-                                    <div key={label} className="flex flex-col sm:flex-row gap-4 sm:gap-8">
+                                    <div
+                                        key={label}
+                                        className="flex flex-col sm:flex-row gap-4 sm:gap-8"
+                                    >
                                         <div className="sm:w-28 shrink-0 pt-1">
                                             <p className="text-white font-bold text-sm">{label}</p>
                                         </div>
@@ -994,7 +1235,9 @@ const Events: React.FC = () => {
                                                     onOpenGuests={setGuestsEvent}
                                                     onEdit={handleEdit}
                                                     onDelete={handleDelete}
-                                                    isDeleting={isDeleting && String(deletingId) === event.id}
+                                                    isDeleting={
+                                                        isDeleting && String(deletingId) === event.id
+                                                    }
                                                 />
                                             ))}
                                         </div>
@@ -1007,11 +1250,7 @@ const Events: React.FC = () => {
             </div>
 
             <div className="drawer-side z-50">
-                <div
-                    aria-label="close sidebar"
-                    className="drawer-overlay"
-                    onClick={closeDrawer}
-                />
+                <div aria-label="close sidebar" className="drawer-overlay" onClick={closeDrawer} />
                 <EventDrawerContent
                     event={selectedEvent}
                     onClose={closeDrawer}
@@ -1023,7 +1262,10 @@ const Events: React.FC = () => {
             </div>
 
             {guestsEvent && (
-                <GuestsModal attendees={guestsEvent.attendees} onClose={() => setGuestsEvent(null)} />
+                <GuestsModal
+                    attendees={guestsEvent.attendees}
+                    onClose={() => setGuestsEvent(null)}
+                />
             )}
         </div>
     );

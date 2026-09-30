@@ -496,7 +496,7 @@ export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) 
                     </div>
                 </div>
             </div>
-            <div className="flex justify-between items-center mt-3 bg-neutral-900 p-1.5 px-4 rounded-md">
+            <div className="flex justify-between items-center mt-3 bg-neutral-900 p-1.5 px-3 rounded-md">
                 <span className="text-white/50 font-medium text-xs shrink-0 ">Cost: </span>
                 <span className="text-white font-bold text-sm shrink-0">{product.price}</span>
             </div>
