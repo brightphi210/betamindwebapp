@@ -12,6 +12,7 @@ import EventPublicPage from "./pages/userDashboard/EventPublicPage";
 import MentorDashboard from "./pages/userDashboard/MentorDashboard";
 import MentorOnboarding from "./pages/userDashboard/MentorOnboarding";
 import Product from "./pages/userDashboard/Product";
+import ProfileCompletionGuard from "./pages/userDashboard/Profilecompletionguard";
 import PublicProfile from "./pages/userDashboard/PublicProfile";
 import AuthProvider from "./providers/AuthProvider";
 import { GlobalProvider } from "./providers/GlobalContext";
@@ -52,14 +53,17 @@ const App = () => {
                   element={
                     <ProtectedRoute
                       element={
-                        <div className="min-h-screen bg-black">
-                          <div className="pt-16 pb-20 md:pb-0">
-                            <DashNavbar />
-                            <div className="w-full">
-                              <Content />
+                        <ProfileCompletionGuard>
+
+                          <div className="min-h-screen bg-black">
+                            <div className="pt-16 pb-20 md:pb-0">
+                              <DashNavbar />
+                              <div className="w-full">
+                                <Content />
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        </ProfileCompletionGuard>
                       }
                     />
                   }

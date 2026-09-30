@@ -512,7 +512,6 @@ const EventRow: React.FC<{
     isDeleting: boolean;
 }> = ({ event, onView, onOpenGuests, onEdit, onDelete, isDeleting }) => (
     <>
-        {/* ── Mobile card (matches design) ── */}
         <div
             onClick={() => onView(event)}
             className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-neutral-950 border border-neutral-900"
@@ -612,7 +611,6 @@ const EventRow: React.FC<{
                 alt={event.title}
                 className="w-24 h-24 rounded-lg shrink-0 object-cover"
             />
-
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 text-white/40 text-sm mb-1.5">
                     <FiClock size={13} />

@@ -17,6 +17,7 @@ import {
     FiPlayCircle,
     FiTag,
     FiTrendingUp,
+    FiUser,
     FiUsers,
 } from "react-icons/fi";
 import { Link } from "react-router-dom";
@@ -59,6 +60,11 @@ export interface Mentor {
     yearsExperience?: number;
 }
 
+export interface ProductCreator {
+    name: string;
+    avatar: string | null;
+}
+
 export type ProductType = "Course" | "Book" | "Manual" | "Template" | "Workbook" | "Toolkit";
 export type ApiProductType = "course" | "book" | "manual" | "template" | "workbook" | "toolkit";
 
@@ -85,11 +91,14 @@ export interface DigitalProduct {
     type: ProductType;
     title: string;
     author: string;
+    creator: ProductCreator; // add
     thumbnail: string | null;
     price: string;
     rating?: number;
     category?: string;
 }
+
+
 
 const formatPrice = (price: string) => {
     const numeric = parseFloat(price);
@@ -101,11 +110,21 @@ const formatPrice = (price: string) => {
 const toTitleCase = (s: string): ProductType =>
     (s.charAt(0).toUpperCase() + s.slice(1)) as ProductType;
 
+const mapCreator = (p: any): ProductCreator => {
+    const m = p.mentor;
+    if (m && typeof m === "object") {
+        const fullName = `${m.first_name ?? ""} ${m.last_name ?? ""}`.trim();
+        return { name: fullName || p.user_name, avatar: m.avatar ?? null };
+    }
+    return { name: p.user_name, avatar: null };
+};
+
 export const mapApiProductToCard = (p: ApiDigitalProduct): DigitalProduct => ({
     id: p.id,
     type: toTitleCase(p.product_type),
     title: p.title,
     author: p.user_name,
+    creator: mapCreator(p),
     thumbnail: p.cover_image,
     price: formatPrice(p.price),
     category: p.category,
@@ -451,11 +470,35 @@ export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) 
                 {product.type}
             </span>
         </div>
-        <div className="p-4 sm:p-5 flex flex-col flex-1">
+        <div className="p-3 sm:p-5 flex flex-col flex-1">
             <h3 className="text-white font-bold text-base mb-1 break-words">{product.title}</h3>
-            <div className="flex justify-between items-center pt-2">
-                <p className="text-white/40 text-xs">{product.author}</p>
-                <span className="text-white font-bold text-sm">{product.price}</span>
+            <div className="flex justify-between items-center pt-3 gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                    <div
+                        className="w-7 h-7 rounded-full overflow-hidden shrink-0 flex items-center justify-center"
+                        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}
+                    >
+                        {product.creator.avatar ? (
+                            <img
+                                src={product.creator.avatar}
+                                alt={product.creator.name}
+                                className="w-full h-full object-cover"
+                            />
+                        ) : (
+                            <FiUser size={12} className="text-white/30" />
+                        )}
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-white/30 text-[10px] uppercase tracking-wide leading-none mb-0.5">
+                            Creator
+                        </p>
+                        <p className="text-white/60 text-xs truncate">{product.creator.name}</p>
+                    </div>
+                </div>
+            </div>
+            <div className="flex justify-between items-center mt-3 bg-neutral-900 p-1.5 px-4 rounded-md">
+                <span className="text-white/50 font-medium text-xs shrink-0 ">Cost: </span>
+                <span className="text-white font-bold text-sm shrink-0">{product.price}</span>
             </div>
             <div className="mt-3">
                 <button className="cursor-pointer w-full text-center bg-white gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]">
