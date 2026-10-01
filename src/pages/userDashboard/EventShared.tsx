@@ -6,7 +6,6 @@ import {
     FiCopy,
     FiEdit2,
     FiExternalLink,
-    FiLoader,
     FiMail,
     FiMapPin,
     FiMessageCircle,
@@ -17,12 +16,9 @@ import {
     FiUserCheck,
     FiUsers,
     FiVideo,
-    FiX,
+    FiX
 } from 'react-icons/fi';
 import { SiGooglemeet } from 'react-icons/si';
-import Button from '../../component/ui/Button';
-import { useSendEventBlast } from '../../hooks/mutations/allMutation';
-import { useGlobalContext } from '../../providers/GlobalContext';
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
 export interface Attendee {
@@ -735,112 +731,57 @@ export const InviteFriendModal: React.FC<{
     );
 };
 
-/* ═══════════════════════════ Blast email modal ═══════════════════════════ */
+/* ═══════════════════════════ Blast email modal (coming soon) ═══════════════════════════ */
 export const BlastEmailModal: React.FC<{
     eventId: string;
     eventTitle: string;
     recipientCount: number;
     onClose: () => void;
-}> = ({ eventId, eventTitle, recipientCount, onClose }) => {
-    const { addToast } = useGlobalContext();
-    const [subject, setSubject] = useState(`Update: ${eventTitle}`);
-    const [message, setMessage] = useState('');
-    const { mutate, isPending } = useSendEventBlast();
-
-    const valid = subject.trim().length > 0 && message.trim().length >= 10 && recipientCount > 0;
-
-    return (
-        <ModalShell onClose={onClose} maxWidth="max-w-md" className="overflow-y-auto">
-            {(close) => (
-                <>
-                    <div className="flex items-start justify-between mb-4">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center"
-                            style={{ background: 'rgba(255,255,255,0.06)' }}
-                        >
-                            <FiSend className="text-white/70" size={20} />
-                        </div>
-                        <button
-                            type="button"
-                            onClick={close}
-                            className="p-2 rounded-lg hover:bg-white/5 text-white/50 hover:text-white"
-                        >
-                            <FiX size={18} />
-                        </button>
-                    </div>
-
-                    <h3 className="text-white text-xl font-black mb-1">Send Blast Email</h3>
-                    <p className="text-white/40 text-xs mb-5">
-                        {recipientCount > 0 ? (
-                            <>
-                                This will email {recipientCount} registrant
-                                {recipientCount === 1 ? '' : 's'} of{' '}
-                                <span className="text-white/70">{eventTitle}</span>.
-                            </>
-                        ) : (
-                            'No one has registered for this event yet, so there is nobody to email.'
-                        )}
-                    </p>
-
-                    <label className="block text-sm font-semibold text-white mb-2">Subject</label>
-                    <input
-                        value={subject}
-                        onChange={(e) => setSubject(e.target.value)}
-                        className="w-full rounded-md px-4 py-3 text-sm text-white placeholder-white/30 outline-none mb-4"
-                        style={{ background: 'rgba(255,255,255,0.05)' }}
-                        placeholder="Subject"
-                    />
-
-                    <label className="block text-sm font-semibold text-white mb-2">Message</label>
-                    <textarea
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        rows={6}
-                        className="w-full rounded-md px-4 py-3 text-sm text-white placeholder-white/30 outline-none resize-none mb-5"
-                        style={{ background: 'rgba(255,255,255,0.05)' }}
-                        placeholder="Write your message to all registrants…"
-                    />
-
-                    <Button
-                        variant="green"
-                        className="w-full"
-                        disabled={!valid || isPending}
-                        onClick={() =>
-                            mutate(
-                                { eventId, subject: subject.trim(), message: message.trim() },
-                                {
-                                    onSuccess: () => {
-                                        addToast(
-                                            `Email sent to ${recipientCount} registrant${recipientCount === 1 ? '' : 's'}`,
-                                            'success'
-                                        );
-                                        close();
-                                    },
-                                    onError: (e: any) =>
-                                        addToast(
-                                            e?.response?.data?.message ||
-                                            e?.response?.data?.detail ||
-                                            'Could not send email. Please try again.',
-                                            'error'
-                                        ),
-                                }
-                            )
-                        }
+}> = ({ onClose }) => (
+    <ModalShell onClose={onClose} maxWidth="max-w-sm">
+        {(close) => (
+            <>
+                <div className="flex items-start justify-between mb-4">
+                    <div
+                        className="w-12 h-12 rounded-full flex items-center justify-center"
+                        style={{ background: 'rgba(166,255,0,0.12)' }}
                     >
-                        <span className="flex items-center justify-center gap-2">
-                            {isPending ? (
-                                <FiLoader size={15} className="animate-spin" />
-                            ) : (
-                                <FiSend size={15} />
-                            )}
-                            {isPending ? 'Sending...' : 'Send to all registrants'}
-                        </span>
-                    </Button>
-                </>
-            )}
-        </ModalShell>
-    );
-};
+                        <FiSend size={20} style={{ color: '#a6ff00' }} />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={close}
+                        aria-label="Close"
+                        className="p-2 rounded-lg hover:bg-white/5 text-white/50 hover:text-white"
+                    >
+                        <FiX size={18} />
+                    </button>
+                </div>
+
+                <span
+                    className="inline-block px-3 py-1 rounded-full text-xs font-semibold mb-3"
+                    style={{ background: 'rgba(166,255,0,0.12)', color: '#a6ff00' }}
+                >
+                    Coming soon
+                </span>
+
+                <h3 className="text-white text-xl font-black mb-2">Blast Email</h3>
+                <p className="text-white/50 text-sm leading-relaxed mb-6">
+                    Soon you'll be able to send one email to everyone registered for your event, like
+                    schedule changes, reminders or meeting links. We're still building it.
+                </p>
+
+                <button
+                    type="button"
+                    onClick={close}
+                    className="w-full bg-white text-black py-2.5 rounded-md text-xs font-semibold cursor-pointer transition-transform hover:scale-[1.01]"
+                >
+                    Got it
+                </button>
+            </>
+        )}
+    </ModalShell>
+);
 
 /* ═══════════════════════════ Event drawer ═══════════════════════════ */
 export const EventDrawerContent: React.FC<{

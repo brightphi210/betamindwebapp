@@ -7,10 +7,9 @@ import {
     FiClock,
     FiEdit2,
     FiPlus,
-    FiSend,
     FiTrash2,
     FiUsers,
-    FiX,
+    FiX
 } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import LoadingOverlay from '../../component/LoadingOverlay';
@@ -24,6 +23,7 @@ import {
 import { useGlobalContext } from '../../providers/GlobalContext';
 import { type Mentor } from './Explore';
 
+import { BsSendCheckFill } from 'react-icons/bs';
 import upload from '../../assets/upload.jpg';
 import ConfirmDeleteModal from '../../component/ConfirmDeleteModal';
 import {
@@ -146,7 +146,7 @@ const LatestEventHero: React.FC<{
                 aria-label="Send blast email"
                 className="flex h-8 w-8 items-center bg-white cursor-pointer justify-center rounded text-black backdrop-blur-sm"
             >
-                <FiSend size={13} />
+                <BsSendCheckFill size={13} />
             </button>
             <button
                 type="button"
@@ -271,7 +271,7 @@ const EventRow: React.FC<{
                     <img
                         src={event.thumbnail}
                         alt={event.title}
-                        className="w-24 h-23 border-4 border-white/5 rounded-lg object-cover shrink-0"
+                        className="w-28 h-24 border-4 border-white/5 rounded-lg object-cover shrink-0"
                     />
                     <div className="flex items-center gap-1.5">
                         <button
@@ -281,10 +281,9 @@ const EventRow: React.FC<{
                                 onBlast(event);
                             }}
                             aria-label="Send blast email"
-                            className="flex h-8 w-8 items-center justify-center rounded-lg"
-                            style={{ background: 'rgba(166,255,0,0.12)', color: '#a6ff00' }}
+                            className="flex h-8 w-8 items-center bg-white text-black justify-center rounded"
                         >
-                            <FiSend size={13} />
+                            <BsSendCheckFill size={13} />
                         </button>
                         <button
                             type="button"
@@ -293,8 +292,7 @@ const EventRow: React.FC<{
                                 onEdit(event);
                             }}
                             aria-label="Edit event"
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60"
-                            style={{ background: 'rgba(255,255,255,0.06)' }}
+                            className="flex h-8 w-8 bg-white items-center justify-center rounded text-black"
                         >
                             <FiEdit2 size={13} />
                         </button>
@@ -306,8 +304,7 @@ const EventRow: React.FC<{
                             }}
                             disabled={isDeleting}
                             aria-label="Delete event"
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400/80 disabled:opacity-40"
-                            style={{ background: 'rgba(248,113,113,0.1)' }}
+                            className="flex h-8 w-8 bg-white items-center justify-center rounded text-red-400/80 disabled:opacity-40"
                         >
                             <FiTrash2 size={13} />
                         </button>
@@ -387,7 +384,7 @@ const EventRow: React.FC<{
                 )}
             </div>
 
-            <div className="flex gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
                 <button
                     type="button"
                     onClick={(e) => {
@@ -396,10 +393,9 @@ const EventRow: React.FC<{
                     }}
                     aria-label="Send blast email"
                     title="Send blast email"
-                    className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:brightness-125"
-                    style={{ background: 'rgba(166,255,0,0.12)', color: '#a6ff00' }}
+                    className="flex h-9 w-9 bg-neutral-900 cursor-pointer text-white items-center justify-center rounded transition-colors"
                 >
-                    <FiSend size={14} />
+                    <BsSendCheckFill size={14} />
                 </button>
                 <button
                     type="button"
@@ -408,8 +404,7 @@ const EventRow: React.FC<{
                         onEdit(event);
                     }}
                     aria-label="Edit event"
-                    className="flex h-9 w-9 items-center justify-center rounded-lg text-white/60 hover:text-white transition-colors"
-                    style={{ background: 'rgba(255,255,255,0.06)' }}
+                    className="flex h-9 w-9 bg-neutral-900 cursor-pointer items-center justify-center rounded text-white hover:text-white transition-colors"
                 >
                     <FiEdit2 size={14} />
                 </button>
@@ -421,8 +416,7 @@ const EventRow: React.FC<{
                     }}
                     disabled={isDeleting}
                     aria-label="Delete event"
-                    className="flex h-9 w-9 items-center justify-center rounded-lg text-red-400/80 hover:text-red-400 transition-colors disabled:opacity-40"
-                    style={{ background: 'rgba(248,113,113,0.1)' }}
+                    className="flex h-9 w-9 bg-neutral-900 cursor-pointer items-center justify-center rounded text-red-400/80 hover:text-red-400 transition-colors disabled:opacity-40"
                 >
                     <FiTrash2 size={14} />
                 </button>
@@ -435,6 +429,7 @@ const EventRow: React.FC<{
                     className="text-xs"
                 >
                     {event.actionText}
+                    <FiArrowRight />
                 </Button>
             </div>
         </div>
