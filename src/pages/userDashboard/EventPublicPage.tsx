@@ -36,7 +36,6 @@ import {
 const pageBg =
     'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)';
 
-const cardBg = 'rgba(255,255,255,0.02)';
 const fieldClass = 'w-full rounded-xl px-4 py-4 text-sm text-white placeholder-white/30 outline-none';
 
 const PartyIcon = () => (
