@@ -207,7 +207,7 @@ const EventsTimelineSkeleton: React.FC<{ groups?: number; rowsPerGroup?: number 
 
 const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
     <div className="flex flex-col items-center justify-center py-24 sm:py-32">
-        <div className="relative w-24 h-24 rounded-2xl mb-8 flex items-center justify-center bg-neutral-900">
+        <div className="relative w-24 h-24 rounded-2xl mb-8 flex items-center justify-center bg-white/5">
             <FiCalendar size={44} className="text-white" />
         </div>
         <h2 className="text-white text-xl font-bold mb-2">
@@ -485,7 +485,7 @@ const EventRow: React.FC<{
         {/* Desktop row */}
         <div
             onClick={() => onView(event)}
-            className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-neutral-900 cursor-pointer"
+            className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-white/5 cursor-pointer"
         >
             <img
                 src={event.thumbnail}

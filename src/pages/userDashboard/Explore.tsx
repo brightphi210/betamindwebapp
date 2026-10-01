@@ -197,8 +197,8 @@ export const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
     return (
         <Link
             to={`/dashboard/mentors/${mentor.id}`}
-            className="rounded-xl lg:p-5 p-3 flex flex-col"
-            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(205,220,57,.08)" }}
+            className="rounded-xl lg:p-5 p-3 flex bg-white/5 flex-col"
+        // style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(205,220,57,.08)" }}
         >
             <div className="flex items-start justify-between mb-4">
                 <img
@@ -270,8 +270,8 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
         {/* Mobile row */}
         <Link
             to={event.publicUrl}
-            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer"
-            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
+            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-white/5"
+        // style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -323,8 +323,8 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
         {/* Desktop/tablet */}
         <Link
             to={event.publicUrl}
-            className="hidden sm:flex rounded-md overflow-hidden flex-col transition-colors hover:bg-white/3 cursor-pointer"
-            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
+            className="hidden sm:flex rounded-md overflow-hidden flex-col transition-colors bg-white/5 cursor-pointer"
+        // style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
             <div className="relative">
                 <img src={event.thumbnail} alt={event.title} className="w-full h-40 sm:h-48 object-cover" />
@@ -436,8 +436,7 @@ export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) 
         to={`/dashboard/products/${product.id}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="rounded-md overflow-hidden flex flex-col transition-colors hover:bg-white/3 cursor-pointer"
-        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
+        className="rounded-md overflow-hidden flex flex-col transition-colors bg-white/5 cursor-pointer"
     >
         <div className="relative">
             {product.thumbnail ? (

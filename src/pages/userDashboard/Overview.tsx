@@ -408,13 +408,12 @@ const LatestEventHero: React.FC<{
 }> = ({ event, onView, onOpenGuests, onEdit, onDelete, isDeleting }) => (
     <div
         onClick={() => onView(event)}
-        className="relative rounded-xl overflow-hidden mb-10 cursor-pointer group"
-        style={{ border: '1px solid rgba(205,220,57,.15)' }}
+        className="relative rounded-xl overflow-hidden mb-10 cursor-pointer group p-2 bg-white/10"
     >
         <img
             src={event.thumbnail}
             alt={event.title}
-            className="w-full h-full aspect-square lg:h-72 object-cover transition-transform duration-300 group-hover:scale-105"
+            className="w-full h-full aspect-square lg:h-72 object-cover transition-transform duration-300 group-hover:scale-101"
         />
         <div
             className="absolute inset-0"
@@ -514,7 +513,7 @@ const EventRow: React.FC<{
     <>
         <div
             onClick={() => onView(event)}
-            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-neutral-950 border border-neutral-900"
+            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-white/5"
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -604,7 +603,7 @@ const EventRow: React.FC<{
         {/* ── Desktop row ── */}
         <div
             onClick={() => onView(event)}
-            className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-neutral-900 cursor-pointer"
+            className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-white/5 cursor-pointer"
         >
             <img
                 src={event.thumbnail}
@@ -713,7 +712,7 @@ export const HostInitials: React.FC<{ name?: string }> = ({ name }) => {
 const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }: any) => (
     <Link
         to={`/dashboard/mentors/${mentor.id}`}
-        className="rounded-2xl lg:p-5 p-3 flex flex-col bg-[rgba(255,255,255,0.02)]"
+        className="rounded-2xl lg:p-5 p-3 flex flex-col bg-white/5"
     >
         <div className="flex items-start justify-between lg:mb-4 mb-2">
             <img
