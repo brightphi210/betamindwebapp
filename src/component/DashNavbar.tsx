@@ -436,36 +436,35 @@ const DashNavbar = () => {
                         </button>
                     </div>
 
-                    <div className="space-y-2.5 py-1">
+                    <div className="py-1 flex justify-between gap-3">
                         <Link
                             to="/dashboard/explore"
                             onClick={() => setShowMoreMenu(false)}
-                            className="flex items-center bg-neutral-900 justify-center gap-2 rounded-md px-5 py-3 text-sm text-white transition-colors"
+                            className="items-center flex w-full bg-white justify-center gap-2 rounded-full px-5 py-3.5 text-sm font-semibold text-black transition-colors"
                         >
-                            <FiCompass />
+                            <FiCompass className='text-lg' />
                             Explore
                         </Link>
 
                         <Link
                             to="/dashboard/bookings"
                             onClick={() => setShowMoreMenu(false)}
-                            className="flex justify-center items-center gap-2 rounded-md px-5 py-3 text-sm font-semibold text-white transition-colors"
-                            style={{ background: 'rgba(255,255,255,0.04)' }}
+                            className="justify-center flex w-full items-center gap-2 bg-white rounded-full px-5 py-3.5 text-sm font-semibold text-black transition-colors"
                         >
-                            <FiBookOpen />
+                            <FiBookOpen className='text-lg' />
                             Bookings
                         </Link>
 
                     </div>
 
-                    <div className="my-4 h-px w-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
+                    <div className="my-2 h-px w-full p-0.1" style={{ background: 'rgba(255,255,255,0.13)' }} />
 
                     <div className="pb-1">
                         {userProfile?.is_mentor ? (
                             <Link
                                 to="/dashboard/mentor"
                                 onClick={() => setShowMoreMenu(false)}
-                                className="flex justify-center items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black"
+                                className="flex justify-center items-center gap-2 rounded-md bg-[#a6ff00] px-5 py-3 text-sm font-semibold text-black"
                             >
                                 <FiUser />
                                 Mentor Profile
@@ -474,7 +473,7 @@ const DashNavbar = () => {
                             <Link
                                 to="/mentor-onboarding"
                                 onClick={() => setShowMoreMenu(false)}
-                                className="flex items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black"
+                                className="flex items-center justify-center gap-2 rounded-md bg-[#a6ff00] px-5 py-3 text-sm font-semibold text-black"
                             >
                                 <FiUser />
                                 Become a Mentor
