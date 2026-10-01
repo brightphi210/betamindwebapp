@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { BsEyeFill } from 'react-icons/bs';
 import {
     FiBell,
     FiBookOpen,
@@ -217,7 +216,7 @@ const DashNavbar = () => {
 
                                 {/* Dropdown panel */}
                                 <div
-                                    className={`absolute bg-neutral-900 right-0 top-full mt-3 w-64 rounded-2xl overflow-hidden origin-top-right transition-all duration-200 ease-out ${showProfileMenu
+                                    className={`absolute bg-neutral-900 right-0 top-full mt-3 w-58 rounded-xl overflow-hidden origin-top-right transition-all duration-200 ease-out ${showProfileMenu
                                         ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
                                         : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
                                         }`}
@@ -227,7 +226,7 @@ const DashNavbar = () => {
                                     }}
                                 >
                                     <div
-                                        className="h-px w-full"
+                                        className="h-px w-full p-0.5"
                                         style={{ background: 'linear-gradient(90deg, transparent, rgba(166,255,0,0.3), transparent)' }}
                                     />
 
@@ -267,30 +266,6 @@ const DashNavbar = () => {
 
                                     <div className="h-px w-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
 
-                                    {/* Menu items */}
-                                    <div className="py-1">
-                                        <a
-                                            href="/profile-public"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            onClick={() => setShowProfileMenu(false)}
-                                            className="flex items-center gap-3 px-5 py-3 text-xs no-underline transition-colors"
-                                            style={{ color: 'rgba(255,255,255,0.75)' }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                                                e.currentTarget.style.color = '#fff';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.background = 'transparent';
-                                                e.currentTarget.style.color = 'rgba(255,255,255,0.75)';
-                                            }}
-                                        >
-                                            <BsEyeFill className="" />
-                                            Public Profile
-                                        </a>
-
-                                    </div>
-
                                     <div className="py-1">
                                         <Link
                                             to="/dashboard/setting"
@@ -329,7 +304,7 @@ const DashNavbar = () => {
                                             }}
                                         >
                                             <FiLogOut className="" />
-                                            Sign Out
+                                            Log Out
                                         </button>
                                     </div>
                                 </div>
