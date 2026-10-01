@@ -13,7 +13,7 @@ interface GoogleAuthButtonProps {
 const GoogleAuthButton = ({
   text = "Continue with Google",
   loadingText = "Signing in...",
-  rounded = "rounded-lg",
+  rounded = "rounded",
 }: GoogleAuthButtonProps) => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const { addToast } = useGlobalContext();

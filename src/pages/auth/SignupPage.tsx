@@ -5,102 +5,160 @@ import logo from "../../assets/beta1.png";
 import loginImage from "../../assets/loginImage.jpeg";
 import GoogleAuthButton from "../../component/GoogleAuthButton";
 import Button from "../../component/ui/Button";
-
-const OrDivider = () => (
-    <div className="my-4 flex items-center gap-4">
-        <div className="h-px flex-1" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
-        <span className="text-xs uppercase tracking-widest text-gray-500">or</span>
-        <div className="h-px flex-1" style={{ backgroundColor: "rgba(255,255,255,0.12)" }} />
-    </div>
-);
+import { useRegistration } from "../../hooks/mutations/auth";
+import { useGlobalContext } from "../../providers/GlobalContext";
+import { parseApiError, saveTokens, type FieldErrors } from "../../types/auth";
+import {
+    EMAIL_RE,
+    FieldError,
+    OrDivider,
+    handleBlurBorder,
+    handleFocusBorder,
+    inputBaseClass,
+    inputStyle,
+} from "./AuthShared";
 
 // Lime-tinted radial glow fading to the app's near-black, used behind the
-// auth panel on both mobile (full-bleed hero) and desktop (right panel).
+// auth panel on desktop (right panel).
 const AUTH_PANEL_GRADIENT =
-    'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7))'
-
-// Shared input styling so every field in the auth forms (login + signup)
-// stays visually identical without repeating the focus/blur handlers.
-const inputBaseClass =
-    "w-full rounded-md px-4 py-3.5 text-sm text-white placeholder-gray-500 outline-none transition-colors";
-const inputBorderStyle = { border: "1px solid rgba(255,255,255,0.15)" };
-
-const handleFocusBorder = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.currentTarget.style.borderColor = "#a6ff00";
-};
-const handleBlurBorder = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
-};
+    "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7))";
 
 const EmailSignupForm = () => {
     const [fullName, setFullName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+    const [errors, setErrors] = useState<FieldErrors>({});
     const navigate = useNavigate();
+    const { addToast } = useGlobalContext();
+    const { mutate, isPending } = useRegistration();
 
-    const handleContinue = () => {
-        navigate("/onboarding");
+    const clearError = (field: keyof FieldErrors) =>
+        setErrors((prev) => ({ ...prev, [field]: undefined }));
+
+    const validate = (): FieldErrors => {
+        const next: FieldErrors = {};
+        if (!fullName.trim()) next.name = "Full name is required";
+        if (!EMAIL_RE.test(email.trim())) next.email = "Enter a valid email address";
+        if (password.length < 8) next.password = "Password must be at least 8 characters";
+        return next;
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const next = validate();
+        setErrors(next);
+        if (Object.keys(next).length) return;
+
+        mutate(
+            {
+                name: fullName.trim(),
+                email: email.trim().toLowerCase(),
+                password,
+            },
+            {
+                onSuccess: (res: any) => {
+                    // If the API returns tokens on register, go straight to onboarding.
+                    // Otherwise, ask the user to log in.
+                    if (saveTokens(res)) {
+                        navigate("/onboarding");
+                    } else {
+                        addToast("Account created. Please log in.", "success");
+                        navigate("/login");
+                    }
+                },
+                onError: (err: any) => {
+                    const { message, fieldErrors } = parseApiError(err);
+                    if (Object.keys(fieldErrors).length) setErrors(fieldErrors);
+                    else addToast(message, "error");
+                },
+            }
+        );
     };
 
     return (
-        <div className="flex flex-col gap-3 w-full ">
-            <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Full Name"
-                className={inputBaseClass}
-                style={inputBorderStyle}
-                onFocus={handleFocusBorder}
-                onBlur={handleBlurBorder}
-            />
-
-            <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email Address"
-                className={inputBaseClass}
-                style={inputBorderStyle}
-                onFocus={handleFocusBorder}
-                onBlur={handleBlurBorder}
-            />
-
-            <div className="relative">
+        <form onSubmit={handleSubmit} noValidate className="flex w-full flex-col gap-3">
+            <div>
                 <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Password"
-                    className={`${inputBaseClass} pr-11`}
-                    style={inputBorderStyle}
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => {
+                        setFullName(e.target.value);
+                        clearError("name");
+                    }}
+                    placeholder="Full Name"
+                    autoComplete="name"
+                    className={inputBaseClass}
+                    style={inputStyle(!!errors.name)}
+                    data-invalid={errors.name ? "true" : undefined}
                     onFocus={handleFocusBorder}
                     onBlur={handleBlurBorder}
                 />
-                <button
-                    type="button"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-300"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                    {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
-                </button>
+                <FieldError message={errors.name} />
             </div>
 
-            <Button variant="white" fullWidth onClick={handleContinue}>
+            <div>
+                <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                        setEmail(e.target.value);
+                        clearError("email");
+                    }}
+                    placeholder="Email Address"
+                    autoComplete="email"
+                    className={inputBaseClass}
+                    style={inputStyle(!!errors.email)}
+                    data-invalid={errors.email ? "true" : undefined}
+                    onFocus={handleFocusBorder}
+                    onBlur={handleBlurBorder}
+                />
+                <FieldError message={errors.email} />
+            </div>
+
+            <div>
+                <div className="relative">
+                    <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => {
+                            setPassword(e.target.value);
+                            clearError("password");
+                        }}
+                        placeholder="Password (min. 8 characters)"
+                        autoComplete="new-password"
+                        className={`${inputBaseClass} pr-11`}
+                        style={inputStyle(!!errors.password)}
+                        data-invalid={errors.password ? "true" : undefined}
+                        onFocus={handleFocusBorder}
+                        onBlur={handleBlurBorder}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-300"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                        {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                    </button>
+                </div>
+                <FieldError message={errors.password} />
+            </div>
+
+            <Button type="submit" variant="green" fullWidth isLoading={isPending}>
                 Continue
             </Button>
-        </div>
+        </form>
     );
 };
 
 const SignupPage = () => {
     return (
-        <div className="min-h-screen w-full text-white"
+        <div
+            className="min-h-screen w-full text-white"
             style={{
                 background:
-                    'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
+                    "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
             }}
         >
             <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-center lg:px-8 lg:py-8">
@@ -131,7 +189,7 @@ const SignupPage = () => {
 
                 {/* Desktop: split card, image left / gradient auth panel right */}
                 <div className="hidden w-full max-w-4xl overflow-hidden rounded-[10px] border border-white/10 shadow-2xl lg:flex">
-                    <div className="relative w-[46%] min-h-[500px]">
+                    <div className="relative min-h-[500px] w-[46%]">
                         <img src={loginImage} alt="Atmosphere" className="absolute inset-0 h-full w-full object-cover" />
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-8 pt-24">
                             <h2 className="mb-2 text-3xl font-bold leading-tight text-white">Enter the Atmosphere.</h2>

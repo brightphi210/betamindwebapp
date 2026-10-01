@@ -13,7 +13,7 @@ export const useSendGoogleToken = () => {
 
 export const useRegistration = () => {
   const registrationMutation = useMutation({
-    mutationFn: (data: any) => post_requests("fincanceRecord/signup", data),
+    mutationFn: (data: any) => post_requests("auth/register/", data),
   });
 
   return registrationMutation;
@@ -22,7 +22,7 @@ export const useRegistration = () => {
 
 export const useLogin = () => {
   const loginMutation = useMutation({
-    mutationFn: (data: any) => post_requests("fincanceRecord/login", data),
+    mutationFn: (data: any) => post_requests("auth/login/", data),
   });
 
   return loginMutation;
