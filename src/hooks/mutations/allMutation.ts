@@ -76,22 +76,37 @@ export const useCreateEvents = () => {
 }
 
 
+// Replace useDeleteEvents with this. Id is passed at call time: deleteEvent(event.id, {...})
 export const useDeleteEvent = () => {
   const queryClient = useQueryClient()
 
-  const deleteEvent = useMutation({
-    mutationFn: async () => {
-      const token = (await localStorage.getItem("betamindToken")) || ""
-      return delete_requests(`events/`, token)
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const token = localStorage.getItem("betamindToken") || ""
+      // use whatever your DELETE helper is called (same file as put_requests)
+      return delete_requests(`events/${id}/`, token)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] })
     },
   })
-
-  return deleteEvent
 }
 
+// Keep, just also invalidate the single-event query
+export const useEditEvents = (id: string) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const token = localStorage.getItem("betamindToken") || ""
+      return put_requests(`events/${id}/`, data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] })
+      queryClient.invalidateQueries({ queryKey: ["event", id] })
+    },
+  })
+}
 
 export const useDeleteDigitalProduct = (id: any) => {
   const queryClient = useQueryClient()

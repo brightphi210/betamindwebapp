@@ -30,6 +30,7 @@ import { useGlobalContext } from '../../providers/GlobalContext';
 import { type Mentor } from './Explore';
 
 import upload from '../../assets/upload.jpg';
+import ConfirmDeleteModal from '../../component/ConfirmDeleteModal';
 // import upload2 from '../../assets/upload2.jpg';
 
 export interface Attendee {
@@ -408,7 +409,7 @@ const LatestEventHero: React.FC<{
 }> = ({ event, onView, onOpenGuests, onEdit, onDelete, isDeleting }) => (
     <div
         onClick={() => onView(event)}
-        className="relative rounded-xl overflow-hidden mb-10 cursor-pointer group p-2 bg-white/10"
+        className="relative rounded-xl overflow-hidden mb-10 cursor-pointer group bg-white/10"
     >
         <img
             src={event.thumbnail}
@@ -433,8 +434,7 @@ const LatestEventHero: React.FC<{
                     onEdit(event);
                 }}
                 aria-label="Edit event"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-white backdrop-blur-sm"
-                style={{ background: 'rgba(0,0,0,0.5)' }}
+                className="flex h-8 w-8 items-center bg-white cursor-pointer justify-center rounded text-black backdrop-blur-sm"
             >
                 <FiEdit2 size={13} />
             </button>
@@ -446,8 +446,7 @@ const LatestEventHero: React.FC<{
                 }}
                 disabled={isDeleting}
                 aria-label="Delete event"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-red-400 backdrop-blur-sm disabled:opacity-40"
-                style={{ background: 'rgba(0,0,0,0.5)' }}
+                className="flex h-8 w-8 items-center justify-center rounded cursor-pointer text-red-400 bg-white backdrop-blur-sm disabled:opacity-40"
             >
                 <FiTrash2 size={13} />
             </button>
@@ -1404,16 +1403,20 @@ const Overview: React.FC = () => {
         navigate(`/dashboard/events/edit/${event.id}`);
     };
 
+    const [eventToDelete, setEventToDelete] = useState<RegisteredEvent | null>(null);
     const handleDelete = (event: RegisteredEvent) => {
-        const confirmed = window.confirm(`Delete "${event.title}"? This can't be undone.`);
-        if (!confirmed) return;
+        setEventToDelete(event);
+    };
 
-        (deleteEvent as any)(event.id, {
+    const confirmDelete = () => {
+        if (!eventToDelete) return;
+        const target = eventToDelete;
+
+        deleteEvent(target.id, {
             onSuccess: () => {
                 addToast('Event deleted', 'success');
-                if (selectedEvent?.id === event.id) {
-                    closeDrawer();
-                }
+                setEventToDelete(null);
+                if (selectedEvent?.id === target.id) closeDrawer();
                 refetch?.();
             },
             onError: (error: any) => {
@@ -1422,6 +1425,7 @@ const Overview: React.FC = () => {
                     error?.response?.data?.detail ||
                     'Could not delete event. Please try again.';
                 addToast(message, 'error');
+                setEventToDelete(null);
             },
         });
     };
@@ -1587,6 +1591,15 @@ const Overview: React.FC = () => {
                         handleCloseProfileModal();
                         navigate('/dashboard/setting');
                     }}
+                />
+            )}
+
+            {eventToDelete && (
+                <ConfirmDeleteModal
+                    title={eventToDelete.title}
+                    isDeleting={isDeleting}
+                    onConfirm={confirmDelete}
+                    onCancel={() => setEventToDelete(null)}
                 />
             )}
         </div>

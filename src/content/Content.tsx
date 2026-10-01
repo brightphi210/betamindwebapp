@@ -6,6 +6,7 @@ import MentorOverview from '../pages/mentorDasboard/MentorOverview'
 import MentorProducts from '../pages/mentorDasboard/MentorProducts'
 import MentorProfile from '../pages/mentorDasboard/MentorProfile'
 import NotFound from '../pages/NotFound'
+import EditEvent from '../pages/userDashboard/EditEvent'
 import EventCreate from '../pages/userDashboard/EventCreate'
 import Events from '../pages/userDashboard/Events'
 import Explore from '../pages/userDashboard/Explore'
@@ -37,6 +38,7 @@ const Content = () => {
                 <Route path='/dashboard/events/create' element={<EventCreate />} />
                 <Route path='/dashboard/session-booked-success' element={<SessionBookedSuccess />} />
                 <Route path='/dashboard/mentor/success' element={<MentorOnboardingSuccess />} />
+                <Route path="/dashboard/events/edit/:id" element={<EditEvent />} />
 
                 {/* MentorDashboardLayout renders the tab nav + <Outlet />, and each
                     tab below is a nested child route so useOutletContext() works

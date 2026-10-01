@@ -107,6 +107,19 @@ export const useGetEvents = () => {
 };
 
 
+export const useGetEventById = (id?: string) => {
+    const query = useQuery({
+        queryKey: ["event", id],
+        enabled: !!id,
+        queryFn: async () => {
+            const token = localStorage.getItem("betamindToken") || ""
+            return get_requests(`events/${id}/`, token)
+        },
+    })
+
+    return { event: query.data, isLoading: query.isLoading }
+}
+
 
 // ================ EVENTS ======================
 export const useGetMineEvents = () => {

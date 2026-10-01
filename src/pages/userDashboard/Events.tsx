@@ -20,6 +20,7 @@ import {
     FiX,
 } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
+import ConfirmDeleteModal from '../../component/ConfirmDeleteModal';
 import Button from '../../component/ui/Button';
 import { useDeleteEvent } from '../../hooks/mutations/allMutation';
 import { useGetMineEvents } from '../../hooks/queries/allQueriess';
@@ -1129,17 +1130,22 @@ const Events: React.FC = () => {
         navigate(`/dashboard/events/edit/${event.id}`);
     };
 
-    const handleDelete = (event: RegisteredEvent) => {
-        const confirmed = window.confirm(`Delete "${event.title}"? This can't be undone.`);
-        if (!confirmed) return;
+    const [eventToDelete, setEventToDelete] = useState<RegisteredEvent | null>(null);
 
-        // @ts-ignore
-        deleteEvent(event.id, {
+    // Row/hero/drawer buttons only open the modal
+    const handleDelete = (event: RegisteredEvent) => {
+        setEventToDelete(event);
+    };
+
+    const confirmDelete = () => {
+        if (!eventToDelete) return;
+        const target = eventToDelete;
+
+        deleteEvent(target.id, {
             onSuccess: () => {
                 addToast('Event deleted', 'success');
-                if (selectedEvent?.id === event.id) {
-                    closeDrawer();
-                }
+                setEventToDelete(null);
+                if (selectedEvent?.id === target.id) closeDrawer();
                 refetch?.();
             },
             onError: (error: any) => {
@@ -1148,6 +1154,7 @@ const Events: React.FC = () => {
                     error?.response?.data?.detail ||
                     'Could not delete event. Please try again.';
                 addToast(message, 'error');
+                setEventToDelete(null);
             },
         });
     };
@@ -1265,6 +1272,15 @@ const Events: React.FC = () => {
                 <GuestsModal
                     attendees={guestsEvent.attendees}
                     onClose={() => setGuestsEvent(null)}
+                />
+            )}
+
+            {eventToDelete && (
+                <ConfirmDeleteModal
+                    title={eventToDelete.title}
+                    isDeleting={isDeleting}
+                    onConfirm={confirmDelete}
+                    onCancel={() => setEventToDelete(null)}
                 />
             )}
         </div>

@@ -45,7 +45,7 @@ axiosInstance.interceptors.response.use(
 
     // Only attempt a refresh on 401s, and only once per request.
     if (error?.response?.status === 401 && originalRequest && !originalRequest._retry) {
-      const refreshToken = localStorage.getItem("refresh");
+      const refreshToken = localStorage.getItem("betamindRefresh");
 
       // No refresh token available — nothing we can do, log out.
       if (!refreshToken) {
@@ -87,7 +87,7 @@ axiosInstance.interceptors.response.use(
 
         localStorage.setItem("betamindToken", newAccessToken);
         if (newRefreshToken) {
-          localStorage.setItem("refresh", newRefreshToken);
+          localStorage.setItem("betamindRefresh", newRefreshToken);
         }
 
         processQueue(null, newAccessToken);
