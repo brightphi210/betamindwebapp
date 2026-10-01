@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import {
     FiArrowLeft,
     FiBell,
@@ -10,9 +11,12 @@ import {
     FiShield,
     FiTrash2,
 } from "react-icons/fi";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import LoadingOverlay from "../../component/LoadingOverlay";
+import { useMarkNotificationRead } from "../../hooks/mutations/allMutation";
+import { useGetNotifications } from "../../hooks/queries/allQueriess";
 
-// ---------- Design tokens (shared with MentorProfile / dashboard pages) ----------
+// ---------- Design tokens ----------
 const cardBg = "rgba(255,255,255,0.02)";
 const cardBorder = "1px solid rgba(205,220,57,.08)";
 
@@ -20,8 +24,12 @@ const pageBackground =
     "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)";
 
 // ---------- Types ----------
-
-type NotificationType = "message" | "booking" | "payment" | "verification" | "system";
+type NotificationType =
+    | "message"
+    | "booking"
+    | "payment"
+    | "verification"
+    | "system";
 
 type Notification = {
     id: string;
@@ -30,59 +38,61 @@ type Notification = {
     description: string;
     time: string;
     read: boolean;
+    link?: string;
 };
 
 type FilterTab = "all" | "unread";
 
-// TODO: Replace with real data from your notifications hook/API,
-// e.g. useGetMyNotifications(). Shape kept identical to the Notification type
-// above so swapping the data source later is a one-line change.
-const SAMPLE_NOTIFICATIONS: Notification[] = [
-    {
-        id: "1",
-        type: "booking",
-        title: "New session booked",
-        description: "Chidi Okafor booked a 1:1 mentoring session for Thursday, 2:00 PM.",
-        time: "10m ago",
-        read: false,
-    },
-    {
-        id: "2",
-        type: "message",
-        title: "New message",
-        description: "You have a new message from Amaka Johnson regarding your last session.",
-        time: "1h ago",
-        read: false,
-    },
-    {
-        id: "3",
-        type: "verification",
-        title: "Profile verified",
-        description: "Your mentor profile has been reviewed and approved. You're now visible to mentees.",
-        time: "3h ago",
-        read: false,
-    },
-    {
-        id: "4",
-        type: "payment",
-        title: "Payout processed",
-        description: "A payout of ₦45,000 was sent to your linked bank account.",
-        time: "1d ago",
-        read: true,
-    },
-    {
-        id: "5",
-        type: "system",
-        title: "Profile reminder",
-        description: "Add your years of experience to strengthen your mentor profile.",
-        time: "2d ago",
-        read: true,
-    },
-];
+const toArray = (raw: any): any[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (Array.isArray(raw.data)) return raw.data;
+    if (Array.isArray(raw.results)) return raw.results;
+    if (Array.isArray(raw.data?.data)) return raw.data.data;
+    return [];
+};
 
-// ---------- Icon / color mapping per type ----------
+const formatRelativeTime = (iso?: string) => {
+    if (!iso) return "";
+    const created = new Date(iso);
+    if (Number.isNaN(created.getTime())) return "";
+    const diffMs = Date.now() - created.getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+};
 
-const typeMeta: Record<NotificationType, { icon: React.ReactNode; color: string; bg: string }> = {
+const mapNotification = (n: any): Notification => {
+    const typeRaw = String(n.notification_type || "").toLowerCase();
+    const typeMap: Record<string, NotificationType> = {
+        message: "message",
+        booking: "booking",
+        payment: "payment",
+        verification: "verification",
+        system: "system",
+    };
+    const type = typeMap[typeRaw] ?? "system";
+
+    return {
+        id: String(n.id),
+        type,
+        title: n.title || "Notification",
+        description: n.body || "",
+        time: formatRelativeTime(n.created_at),
+        read: !!n.is_read,
+        link: n.link || undefined,
+    };
+};
+
+// ---------- Icon / color mapping ----------
+const typeMeta: Record<
+    NotificationType,
+    { icon: React.ReactNode; color: string; bg: string }
+> = {
     message: {
         icon: <FiMessageSquare size={16} />,
         color: "#a6ff00",
@@ -110,20 +120,31 @@ const typeMeta: Record<NotificationType, { icon: React.ReactNode; color: string;
     },
 };
 
-// ---------- Row component ----------
-
+// ---------- Row ----------
 const NotificationRow: React.FC<{
     notification: Notification;
     onMarkRead: (id: string) => void;
     onDelete: (id: string) => void;
-}> = ({ notification, onMarkRead, onDelete }) => {
+    onClick: () => void;
+}> = ({ notification, onMarkRead, onDelete, onClick }) => {
     const meta = typeMeta[notification.type];
 
     return (
         <div
-            className="group relative flex gap-3 rounded-xl px-4 py-4 transition-colors sm:gap-4"
+            role="button"
+            tabIndex={0}
+            onClick={onClick}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onClick();
+                }
+            }}
+            className="group relative flex cursor-pointer gap-3 rounded-xl px-4 py-4 transition-colors sm:gap-4"
             style={{
-                background: notification.read ? cardBg : "rgba(166,255,0,0.03)",
+                background: notification.read
+                    ? cardBg
+                    : "rgba(166,255,0,0.03)",
                 border: cardBorder,
             }}
         >
@@ -139,16 +160,25 @@ const NotificationRow: React.FC<{
             </div>
 
             <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-white">{notification.title}</p>
-                <p className="mt-1 text-sm text-white/50">{notification.description}</p>
-                <p className="mt-2 text-xs text-white/30">{notification.time}</p>
+                <p className="text-sm font-semibold text-white">
+                    {notification.title}
+                </p>
+                <p className="mt-1 text-sm text-white/50">
+                    {notification.description}
+                </p>
+                <p className="mt-2 text-xs text-white/30">
+                    {notification.time}
+                </p>
             </div>
 
             <div className="flex shrink-0 items-start gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                 {!notification.read && (
                     <button
                         type="button"
-                        onClick={() => onMarkRead(notification.id)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onMarkRead(notification.id);
+                        }}
                         title="Mark as read"
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 transition-colors hover:text-[#a6ff00]"
                         style={{ background: cardBg, border: cardBorder }}
@@ -158,7 +188,10 @@ const NotificationRow: React.FC<{
                 )}
                 <button
                     type="button"
-                    onClick={() => onDelete(notification.id)}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(notification.id);
+                    }}
                     title="Delete"
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 transition-colors hover:text-red-400"
                     style={{ background: cardBg, border: cardBorder }}
@@ -171,9 +204,11 @@ const NotificationRow: React.FC<{
 };
 
 // ---------- Empty state ----------
-
 const EmptyState: React.FC<{ filter: FilterTab }> = ({ filter }) => (
-    <div className="flex flex-col items-center justify-center rounded-2xl px-6 py-20 text-center" style={{ background: cardBg, border: cardBorder }}>
+    <div
+        className="flex flex-col items-center justify-center rounded-2xl px-6 py-20 text-center"
+        style={{ background: cardBg, border: cardBorder }}
+    >
         <div
             className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl"
             style={{ background: cardBg, border: cardBorder }}
@@ -181,7 +216,9 @@ const EmptyState: React.FC<{ filter: FilterTab }> = ({ filter }) => (
             <FiBell size={26} className="text-white/20" />
         </div>
         <p className="text-sm font-semibold text-white">
-            {filter === "unread" ? "You're all caught up" : "No notifications yet"}
+            {filter === "unread"
+                ? "You're all caught up"
+                : "No notifications yet"}
         </p>
         <p className="mt-1 text-xs text-white/40">
             {filter === "unread"
@@ -191,27 +228,112 @@ const EmptyState: React.FC<{ filter: FilterTab }> = ({ filter }) => (
     </div>
 );
 
-// ---------- Main component ----------
-
+// ---------- Main ----------
 const Notifications = () => {
     const navigate = useNavigate();
-    const [notifications, setNotifications] = useState<Notification[]>(SAMPLE_NOTIFICATIONS);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const focusId = searchParams.get("id");
+
+    const { notificationsData, isLoading } = useGetNotifications();
+    const { mutate: markReadMutation, isPending: isMarking } =
+        useMarkNotificationRead();
+
     const [filter, setFilter] = useState<FilterTab>("all");
+    /** Optimistic read overrides: id → is_read */
+    const [readOverrides, setReadOverrides] = useState<Record<string, boolean>>(
+        {}
+    );
+    /** Locally hidden (deleted) ids */
+    const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+
+    const apiNotifications = useMemo(() => {
+        const list = toArray(
+            notificationsData?.data ?? notificationsData
+        ).map(mapNotification);
+        return list;
+    }, [notificationsData]);
+
+    const notifications = useMemo(() => {
+        return apiNotifications
+            .filter((n) => !hiddenIds.has(n.id))
+            .map((n) =>
+                readOverrides[n.id] !== undefined
+                    ? { ...n, read: readOverrides[n.id] }
+                    : n
+            );
+    }, [apiNotifications, readOverrides, hiddenIds]);
 
     const unreadCount = notifications.filter((n) => !n.read).length;
-    const visible = filter === "unread" ? notifications.filter((n) => !n.read) : notifications;
+    const visible =
+        filter === "unread"
+            ? notifications.filter((n) => !n.read)
+            : notifications;
 
-    const markRead = (id: string) =>
-        setNotifications((list) => list.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    const markAsRead = (id: string, showToast = true) => {
+        const current = notifications.find((n) => n.id === id);
+        if (!current || current.read) return;
 
-    const deleteNotification = (id: string) =>
-        setNotifications((list) => list.filter((n) => n.id !== id));
+        setReadOverrides((prev) => ({ ...prev, [id]: true }));
 
-    const markAllRead = () =>
-        setNotifications((list) => list.map((n) => ({ ...n, read: true })));
+        markReadMutation(id, {
+            onSuccess: () => {
+                if (showToast) toast.success("Notification Read");
+            },
+            onError: () => {
+                setReadOverrides((prev) => {
+                    const next = { ...prev };
+                    delete next[id];
+                    return next;
+                });
+                toast.error("Could not mark notification as read");
+            },
+        });
+    };
+
+    // Deep-link: /notifications?id=xxx → open page + mark that one read + toast
+    useEffect(() => {
+        if (!focusId || isLoading) return;
+        const target = apiNotifications.find((n) => n.id === focusId);
+        if (!target) return;
+        if (!target.read && readOverrides[focusId] === undefined) {
+            markAsRead(focusId, true);
+        }
+        // Clear ?id= so refresh doesn't re-toast
+        searchParams.delete("id");
+        setSearchParams(searchParams, { replace: true });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [focusId, isLoading, apiNotifications]);
+
+    const handleRowClick = (n: Notification) => {
+        if (!n.read) markAsRead(n.id, true);
+        if (n.link) {
+            if (n.link.startsWith("http")) {
+                window.open(n.link, "_blank", "noopener,noreferrer");
+            } else {
+                navigate(n.link);
+            }
+        }
+    };
+
+    const handleDelete = (id: string) => {
+        setHiddenIds((prev) => new Set(prev).add(id));
+        // Optional: call DELETE notifications/{id}/ when you have the endpoint
+    };
+
+    const markAllRead = () => {
+        notifications
+            .filter((n) => !n.read)
+            .forEach((n) => markAsRead(n.id, false));
+        toast.success("All notifications marked as read");
+    };
 
     return (
-        <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
+        <div
+            className="min-h-screen w-full text-white"
+            style={{ background: pageBackground }}
+        >
+            <LoadingOverlay visible={isLoading} />
+
             <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
                 <button
                     type="button"
@@ -224,10 +346,13 @@ const Notifications = () => {
 
                 <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h1 className="text-3xl font-black leading-tight sm:text-4xl">Notifications</h1>
+                        <h1 className="text-3xl font-black leading-tight sm:text-4xl">
+                            Notifications
+                        </h1>
                         <p className="mt-3 text-sm text-white/40 sm:text-base">
                             {unreadCount > 0
-                                ? `You have ${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}.`
+                                ? `You have ${unreadCount} unread notification${unreadCount === 1 ? "" : "s"
+                                }.`
                                 : "You're all caught up."}
                         </p>
                     </div>
@@ -235,7 +360,8 @@ const Notifications = () => {
                         <button
                             type="button"
                             onClick={markAllRead}
-                            className="inline-flex items-center gap-2 self-start rounded-xl px-4 py-2 text-xs font-semibold text-white/70 transition-colors hover:text-[#a6ff00] sm:self-auto"
+                            disabled={isMarking}
+                            className="inline-flex items-center gap-2 self-start rounded-xl px-4 py-2 text-xs font-semibold text-white/70 transition-colors hover:text-[#a6ff00] sm:self-auto disabled:opacity-50"
                             style={{ background: cardBg, border: cardBorder }}
                         >
                             <FiCheckCircle size={14} />
@@ -244,7 +370,10 @@ const Notifications = () => {
                     )}
                 </div>
 
-                <div className="mb-6 flex items-center gap-6" style={{ borderBottom: cardBorder }}>
+                <div
+                    className="mb-6 flex items-center gap-6"
+                    style={{ borderBottom: cardBorder }}
+                >
                     {(["all", "unread"] as FilterTab[]).map((tab) => (
                         <button
                             key={tab}
@@ -255,7 +384,12 @@ const Notifications = () => {
                                 : "border-transparent text-white/40 hover:text-white"
                                 }`}
                         >
-                            {tab === "all" ? "All" : `Unread${unreadCount > 0 ? ` (${unreadCount})` : ""}`}
+                            {tab === "all"
+                                ? "All"
+                                : `Unread${unreadCount > 0
+                                    ? ` (${unreadCount})`
+                                    : ""
+                                }`}
                         </button>
                     ))}
                 </div>
@@ -266,8 +400,9 @@ const Notifications = () => {
                             <NotificationRow
                                 key={n.id}
                                 notification={n}
-                                onMarkRead={markRead}
-                                onDelete={deleteNotification}
+                                onMarkRead={(id) => markAsRead(id, true)}
+                                onDelete={handleDelete}
+                                onClick={() => handleRowClick(n)}
                             />
                         ))}
                     </div>

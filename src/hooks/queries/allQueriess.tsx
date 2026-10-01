@@ -366,3 +366,65 @@ export const useGetBankDetails = () => {
         refetch,
     };
 };
+
+
+
+
+// ============== TRANSACTIONS =================
+
+export const useGetTransactions = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["transactions"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`transactions/`, token);
+        },
+    });
+
+    return {
+        transactionsData: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};
+
+// ============== NOTIFICATIONS =================
+
+export const useGetNotifications = () => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["notifications"],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`notifications/`, token);
+        },
+    });
+
+    return {
+        notificationsData: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};
+
+export const useGetNotification = (id?: string) => {
+    const { data, isLoading, isError, isFetched, refetch } = useQuery({
+        queryKey: ["notification", id],
+        queryFn: async () => {
+            const token = (await localStorage.getItem("betamindToken")) || "";
+            return get_requests(`notifications/${id}/`, token);
+        },
+        enabled: !!id,
+    });
+
+    return {
+        notification: data,
+        isLoading,
+        isError,
+        isFetched,
+        refetch,
+    };
+};

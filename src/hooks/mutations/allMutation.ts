@@ -363,3 +363,33 @@ export const usePurchaseProducts = () => {
 
   return purchaseProduct
 }
+
+export const useMarkNotificationRead = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const token = (await localStorage.getItem("betamindToken")) || "";
+      return patch_requests(`notifications/${id}/read/`, { is_read: true }, token);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+};
+
+
+export const useSendEventBlast = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ eventId, subject, message }: { eventId: string; subject: string; message: string }) => {
+      const token = (await localStorage.getItem("betamindToken")) || "";
+      return post_requests(`event/blasts/${eventId}/`, { subject, message }, token);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
+};
