@@ -440,7 +440,7 @@ const DashNavbar = () => {
                         <Link
                             to="/dashboard/explore"
                             onClick={() => setShowMoreMenu(false)}
-                            className="items-center flex w-full bg-neutral-900 border-2 border-neutral-800 text-white justify-center gap-2 rounded-full px-5 py-3.5 text-sm font-semibold transition-colors"
+                            className="items-center flex w-full bg-neutral-900 border-2 border-neutral-800 text-white justify-center gap-2 rounded-md px-5 py-3.5 text-sm font-semibold transition-colors"
                         >
                             <FiCompass className='text-lg' />
                             Explore
@@ -449,7 +449,7 @@ const DashNavbar = () => {
                         <Link
                             to="/dashboard/bookings"
                             onClick={() => setShowMoreMenu(false)}
-                            className="justify-center flex w-full bg-neutral-900 items-center gap-2 border-2 border-neutral-800 text-white rounded-full px-5 py-3.5 text-sm font-semibold transition-colors"
+                            className="justify-center flex w-full bg-neutral-900 items-center gap-2 border-2 border-neutral-800 text-white rounded-md px-5 py-3.5 text-sm font-semibold transition-colors"
                         >
                             <FiBookOpen className='text-lg' />
                             Bookings
@@ -464,7 +464,7 @@ const DashNavbar = () => {
                             <Link
                                 to="/dashboard/mentor"
                                 onClick={() => setShowMoreMenu(false)}
-                                className="flex justify-center items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black"
+                                className="flex justify-center items-center gap-2 rounded-md bg-white px-5 py-3.5 text-sm font-semibold text-black"
                             >
                                 <FiUser />
                                 Mentor Profile
