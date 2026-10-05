@@ -410,6 +410,7 @@ export const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | '
     const textSize = size === 'sm' ? 'text-[11px]' : 'text-xs';
     const padding = size === 'sm' ? 'px-2 py-1' : 'px-2.5 py-1.5';
     const iconSize = size === 'sm' ? 11 : 13;
+    const isFree = formatTicketPrice(event.ticketPrice) === 'Free';
 
     return (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -420,7 +421,11 @@ export const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | '
             />
 
             <span
-                className={`inline-flex items-center gap-1 text-neutral-800 bg-white rounded-md font-semibold ${textSize} ${padding}`}
+                className={`inline-flex items-center gap-1 rounded-md font-semibold ${textSize} ${padding}`}
+                style={{
+                    background: isFree ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.06)',
+                    color: isFree ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.6)',
+                }}
             >
                 <FiTag size={iconSize} />
                 {formatTicketPrice(event.ticketPrice)}
@@ -432,7 +437,7 @@ export const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | '
                     style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
                 >
                     <FiUserCheck size={iconSize} />
-                    Approval
+                    Approval Required
                 </span>
             )}
 
