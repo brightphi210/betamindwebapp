@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
     FiAlertTriangle,
     FiArrowRight,
@@ -7,11 +7,12 @@ import {
     FiBriefcase,
     FiCalendar,
     FiCamera,
+    FiChevronLeft,
+    FiChevronRight,
     FiClock,
     FiCode,
     FiDollarSign,
     FiEdit3,
-    FiMapPin,
     FiPackage,
     FiPenTool,
     FiPlayCircle,
@@ -21,8 +22,10 @@ import {
     FiUsers,
 } from "react-icons/fi";
 import { Link } from "react-router-dom";
+import DashFooter from "../../component/DashFooter";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import { useGetAllEvents, useGetDigitalProduct, useGetMentors } from "../../hooks/queries/allQueriess";
+import { LocationIcon } from "./EventShared";
 import {
     AvatarStack,
     EventMetaBadges,
@@ -98,7 +101,10 @@ export interface DigitalProduct {
     category?: string;
 }
 
-
+// ─── Pagination config ──────────────────────────────────────────────────────
+const MENTORS_PER_PAGE = 8;
+const EVENTS_PER_PAGE = 8;
+const PRODUCTS_PER_PAGE = 8;
 
 const formatPrice = (price: string) => {
     const numeric = parseFloat(price);
@@ -168,6 +174,91 @@ export const buildTopicsFromMentors = (mentors: any[]): Topic[] => {
         });
 };
 
+// ─── Pagination helpers ─────────────────────────────────────────────────────
+// Client-side pagination: slices the full list and clamps the page if the list shrinks.
+const usePagination = <T,>(items: T[], pageSize: number) => {
+    const [page, setPage] = useState(1);
+    const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+    const current = Math.min(page, totalPages);
+    const pageItems = items.slice((current - 1) * pageSize, current * pageSize);
+    return { page: current, setPage, totalPages, pageItems };
+};
+
+const getPageNumbers = (current: number, total: number): (number | "...")[] => {
+    if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+
+    const pages: (number | "...")[] = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+
+    if (start > 2) pages.push("...");
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < total - 1) pages.push("...");
+    pages.push(total);
+
+    return pages;
+};
+
+const Pagination: React.FC<{
+    page: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+}> = ({ page, totalPages, onPageChange }) => {
+    if (totalPages <= 1) return null;
+
+    const navBtn =
+        "flex h-9 w-9 items-center justify-center rounded-md text-white/70 transition-colors cursor-pointer hover:text-white disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-white/70";
+
+    return (
+        <nav aria-label="Pagination" className="mt-6 flex items-center justify-center gap-1.5">
+            <button
+                type="button"
+                onClick={() => onPageChange(page - 1)}
+                disabled={page === 1}
+                aria-label="Previous page"
+                className={navBtn}
+                style={{ background: "rgba(255,255,255,0.06)" }}
+            >
+                <FiChevronLeft size={16} />
+            </button>
+
+            {getPageNumbers(page, totalPages).map((p, i) =>
+                p === "..." ? (
+                    <span key={`dots-${i}`} className="w-6 text-center text-white/30 text-sm select-none">
+                        …
+                    </span>
+                ) : (
+                    <button
+                        key={p}
+                        type="button"
+                        onClick={() => onPageChange(p)}
+                        aria-label={`Page ${p}`}
+                        aria-current={p === page ? "page" : undefined}
+                        className="flex h-9 min-w-9 px-2 items-center justify-center rounded-md text-sm font-semibold transition-colors cursor-pointer"
+                        style={{
+                            background: p === page ? "white" : "rgba(255,255,255,0.06)",
+                            color: p === page ? "black" : "rgba(255,255,255,0.7)",
+                        }}
+                    >
+                        {p}
+                    </button>
+                )
+            )}
+
+            <button
+                type="button"
+                onClick={() => onPageChange(page + 1)}
+                disabled={page === totalPages}
+                aria-label="Next page"
+                className={navBtn}
+                style={{ background: "rgba(255,255,255,0.06)" }}
+            >
+                <FiChevronRight size={16} />
+            </button>
+        </nav>
+    );
+};
+
 // ─── Section header ─────────────────────────────────────────────────────────
 const SectionHeader: React.FC<{ title: string; subtitle?: string }> = ({ title, subtitle }) => (
     <div className="mb-6">
@@ -198,11 +289,10 @@ export const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
         <Link
             to={`/dashboard/mentors/${mentor.id}`}
             className="rounded-xl lg:p-5 p-3 flex bg-white/5 flex-col"
-        // style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(205,220,57,.08)" }}
         >
             <div className="flex items-start justify-between mb-4">
                 <img
-                    src={mentor?.avatar}
+                    src={mentor?.avatar} loading="lazy" decoding="async"
                     alt={mentor?.name}
                     className="w-14 h-14 rounded-xl object-cover"
                     style={{ border: "1px solid rgba(255,255,255,0.1)" }}
@@ -264,14 +354,13 @@ const NoMentorsState: React.FC = () => (
     </div>
 );
 
-// ─── Event card (unchanged from your version) ───────────────────────────────
+// ─── Event card ─────────────────────────────────────────────────────────────
 export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
     <>
         {/* Mobile row */}
         <Link
             to={event.publicUrl}
             className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-white/5"
-        // style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -280,7 +369,7 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
 
                     {event.location ? (
                         <div className="flex items-center gap-2 text-white/40 text-sm mb-1.5">
-                            <FiMapPin size={15} />
+                            <LocationIcon location={event.location} size={15} />
                             <span className="truncate">{event.location}</span>
                         </div>
                     ) : (
@@ -290,14 +379,18 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
                         </div>
                     )}
 
+                    {/* Price + capacity / approval badges (same badges the desktop card shows) */}
                     <div className="flex items-center gap-2 text-white/40 text-sm">
                         <FiTag size={15} />
                         <span>{formatTicketPrice(event.ticketPrice)}</span>
                     </div>
+                    <div className="mt-2">
+                        <EventMetaBadges event={event} size="sm" />
+                    </div>
                 </div>
 
                 <img
-                    src={event.thumbnail}
+                    src={event.thumbnail} loading="lazy" decoding="async"
                     alt={event.title}
                     className="w-24 h-23 border-4 border-white/5 rounded-lg object-cover shrink-0"
                 />
@@ -324,10 +417,9 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
         <Link
             to={event.publicUrl}
             className="hidden sm:flex rounded-md overflow-hidden flex-col transition-colors bg-white/5 cursor-pointer"
-        // style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
             <div className="relative">
-                <img src={event.thumbnail} alt={event.title} className="w-full h-40 sm:h-48 object-cover" />
+                <img src={event.thumbnail} loading="lazy" decoding="async" alt={event.title} className="w-full h-40 sm:h-48 object-cover" />
                 <span
                     className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
                     style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
@@ -355,11 +447,19 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
                         <FiClock size={12} />
                         {event.time}
                     </span>
-                    {event.location && (
+                    {event.location ? (
                         <span className="flex items-center gap-1 min-w-0">
                             <span className="text-white/20 shrink-0">·</span>
-                            <FiMapPin size={12} className="shrink-0" />
+                            <span className="shrink-0 flex items-center">
+                                <LocationIcon location={event.location} size={12} />
+                            </span>
                             <span className="truncate">{event.location}</span>
+                        </span>
+                    ) : (
+                        <span className="flex items-center gap-1 text-amber-400 shrink-0">
+                            <span className="text-white/20">·</span>
+                            <FiAlertTriangle size={12} />
+                            <span>Location Missing</span>
                         </span>
                     )}
                 </div>
@@ -440,7 +540,7 @@ export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) 
     >
         <div className="relative">
             {product.thumbnail ? (
-                <img src={product.thumbnail} alt={product.title} className="w-full h-40 sm:h-48 object-cover" />
+                <img src={product.thumbnail} loading="lazy" decoding="async" alt={product.title} className="w-full h-40 sm:h-48 object-cover" />
             ) : (
                 <div
                     className="w-full h-40 sm:h-48 flex items-center justify-center"
@@ -479,7 +579,7 @@ export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) 
                     >
                         {product.creator.avatar ? (
                             <img
-                                src={product.creator.avatar}
+                                src={product.creator.avatar} loading="lazy" decoding="async"
                                 alt={product.creator.name}
                                 className="w-full h-full object-cover"
                             />
@@ -534,40 +634,56 @@ const NoProductsState: React.FC = () => (
 // ─── Page ────────────────────────────────────────────────────────────────────
 const Explore: React.FC = () => {
     const { mentors, isLoading: mentorsLoading } = useGetMentors();
-    const allMentors: any[] = mentors?.data?.results ?? [];
+    const allMentors: any[] = useMemo(() => mentors?.data?.results ?? [], [mentors]);
     const topics = useMemo(() => buildTopicsFromMentors(allMentors), [allMentors]);
 
     const { allEvents, isLoading: eventsLoading } = useGetAllEvents();
 
     const { digitalProduct, isLoading: productLoading } = useGetDigitalProduct();
-    console.log('This is Digital Product', digitalProduct?.data)
-    const rawProducts: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data)
-        ? digitalProduct.data
-        : digitalProduct?.data?.results ?? [];
-    const allProduct: DigitalProduct[] = rawProducts
-        .filter((p) => p.is_published)
-        .map(mapApiProductToCard);
+    const allProduct: DigitalProduct[] = useMemo(() => {
+        const raw: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data)
+            ? digitalProduct.data
+            : digitalProduct?.data?.results ?? [];
+        return raw.filter((p) => p.is_published).map(mapApiProductToCard);
+    }, [digitalProduct]);
 
-    const rawEvents: ApiEvent[] = Array.isArray(allEvents?.data)
-        ? allEvents.data
-        : allEvents?.data?.results ?? [];
+    const upcomingEvents = useMemo(() => {
+        const raw: ApiEvent[] = Array.isArray(allEvents?.data)
+            ? allEvents.data
+            : allEvents?.data?.results ?? [];
+        return raw
+            .map(mapApiEventToRegistered)
+            .filter((e) => e.status === "upcoming")
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }, [allEvents]);
 
-    const upcomingEvents = rawEvents
-        .map(mapApiEventToRegistered)
-        .filter((e) => e.status === "upcoming")
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Pagination (one per section)
+    const mentorsPager = usePagination(allMentors, MENTORS_PER_PAGE);
+    const eventsPager = usePagination(upcomingEvents, EVENTS_PER_PAGE);
+    const productsPager = usePagination(allProduct, PRODUCTS_PER_PAGE);
+
+    const mentorsSectionRef = useRef<HTMLElement>(null);
+    const eventsSectionRef = useRef<HTMLElement>(null);
+    const productsSectionRef = useRef<HTMLElement>(null);
+
+    // Change page, then bring the top of that section back into view
+    const changePage =
+        (setPage: (p: number) => void, ref: React.RefObject<HTMLElement | null>) => (p: number) => {
+            setPage(p);
+            ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        };
 
     return (
-        <div
-            className="w-full min-h-screen"
-            style={{
-                background:
-                    "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
-            }}
-        >
+        <div className="relative isolate flex w-full min-h-screen flex-col bg-black">
+            {/* Fixed background layer: painted once instead of re-painted while scrolling */}
+            <div
+                aria-hidden
+                className="pointer-events-none fixed inset-0 -z-10"
+                style={{ background: "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)" }}
+            />
             <LoadingOverlay visible={mentorsLoading} />
 
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+            <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                 <div className="mb-14">
                     <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Explore</h1>
                     <p className="text-white/40 text-base max-w-2xl">
@@ -592,7 +708,7 @@ const Explore: React.FC = () => {
                             ))}
                         </div>
                     ) : topics.length > 0 ? (
-                        <div className="flex sm:grid gap-2 overflow-x-auto sm:overflow-visible sm:grid-cols-2 lg:grid-cols-3 -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 topics-scroll">
+                        <div className="flex sm:grid gap-2 overflow-x-auto sm:overflow-visible sm:grid-cols-2 lg:grid-cols-3 -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 topics-scroll overscroll-x-contain">
                             {topics.map((topic) => (
                                 <div key={topic.id} className="shrink-0 w-fit sm:w-auto sm:contents">
                                     <TopicCard topic={topic} />
@@ -613,47 +729,70 @@ const Explore: React.FC = () => {
                 </section>
 
                 {/* Mentors */}
-                <section className="mb-16">
+                <section ref={mentorsSectionRef} className="mb-16 scroll-mt-24">
                     <SectionHeader title="Featured Mentors" subtitle="Learn 1:1 from people who've done it" />
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {mentorsLoading ? (
-                            Array.from({ length: 6 }).map((_, i) => <MentorCardSkeleton key={i} />)
+                            Array.from({ length: MENTORS_PER_PAGE }).map((_, i) => <MentorCardSkeleton key={i} />)
                         ) : allMentors.length > 0 ? (
-                            allMentors.map((mentor) => <MentorCard key={mentor.id} mentor={mentor} />)
+                            mentorsPager.pageItems.map((mentor) => <MentorCard key={mentor.id} mentor={mentor} />)
                         ) : (
                             <NoMentorsState />
                         )}
                     </div>
+                    {!mentorsLoading && (
+                        <Pagination
+                            page={mentorsPager.page}
+                            totalPages={mentorsPager.totalPages}
+                            onPageChange={changePage(mentorsPager.setPage, mentorsSectionRef)}
+                        />
+                    )}
                 </section>
 
                 {/* Events */}
-                <section className="mb-16">
+                <section ref={eventsSectionRef} className="mb-16 scroll-mt-24">
                     <SectionHeader title="Events You Can Explore" subtitle="Join a session hosted by the community" />
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-2">
                         {eventsLoading ? (
-                            Array.from({ length: 6 }).map((_, i) => <EventCardSkeleton key={i} />)
+                            Array.from({ length: EVENTS_PER_PAGE }).map((_, i) => <EventCardSkeleton key={i} />)
                         ) : upcomingEvents.length > 0 ? (
-                            upcomingEvents.slice(0, 6).map((event) => <EventCard key={event.id} event={event} />)
+                            eventsPager.pageItems.map((event) => <EventCard key={event.id} event={event} />)
                         ) : (
                             <NoEventsState />
                         )}
                     </div>
+                    {!eventsLoading && (
+                        <Pagination
+                            page={eventsPager.page}
+                            totalPages={eventsPager.totalPages}
+                            onPageChange={changePage(eventsPager.setPage, eventsSectionRef)}
+                        />
+                    )}
                 </section>
 
                 {/* Digital Products */}
-                <section>
+                <section ref={productsSectionRef} className="scroll-mt-24">
                     <SectionHeader title="Digital Products" subtitle="Self-paced learning from top mentors" />
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {productLoading ? (
-                            Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)
+                            Array.from({ length: PRODUCTS_PER_PAGE }).map((_, i) => <ProductCardSkeleton key={i} />)
                         ) : allProduct.length > 0 ? (
-                            allProduct.map((product) => <ProductCard key={product.id} product={product} />)
+                            productsPager.pageItems.map((product) => <ProductCard key={product.id} product={product} />)
                         ) : (
                             <NoProductsState />
                         )}
                     </div>
+                    {!productLoading && (
+                        <Pagination
+                            page={productsPager.page}
+                            totalPages={productsPager.totalPages}
+                            onPageChange={changePage(productsPager.setPage, productsSectionRef)}
+                        />
+                    )}
                 </section>
             </div>
+
+            <DashFooter />
 
             <style>{`
         .topics-scroll::-webkit-scrollbar { height: 6px; }

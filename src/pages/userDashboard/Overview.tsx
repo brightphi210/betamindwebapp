@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     FiAlertTriangle,
     FiArrowRight,
@@ -25,7 +25,9 @@ import { type Mentor } from './Explore';
 
 import { BsSendCheckFill } from 'react-icons/bs';
 import upload from '../../assets/upload.jpg';
+import ConfirmCreateEventModal from '../../component/Confirmcreateeventmodal';
 import ConfirmDeleteModal from '../../component/ConfirmDeleteModal';
+import DashFooter from '../../component/DashFooter';
 import {
     type ApiEvent,
     type RegisteredEvent,
@@ -116,7 +118,7 @@ const LatestEventHero: React.FC<{
         className="relative rounded-xl overflow-hidden mb-10 cursor-pointer group bg-white/10"
     >
         <img
-            src={event.thumbnail}
+            src={event.thumbnail} decoding="async"
             alt={event.title}
             className="w-full h-full aspect-square lg:h-72 object-cover transition-transform duration-300 group-hover:scale-101"
         />
@@ -269,7 +271,7 @@ const EventRow: React.FC<{
 
                 <div className="flex flex-col items-end gap-2 shrink-0">
                     <img
-                        src={event.thumbnail}
+                        src={event.thumbnail} loading="lazy" decoding="async"
                         alt={event.title}
                         className="w-28 h-24 border-4 border-white/5 rounded-lg object-cover shrink-0"
                     />
@@ -342,7 +344,7 @@ const EventRow: React.FC<{
             className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-white/5 cursor-pointer"
         >
             <img
-                src={event.thumbnail}
+                src={event.thumbnail} loading="lazy" decoding="async"
                 alt={event.title}
                 className="w-24 h-24 rounded-lg shrink-0 object-cover"
             />
@@ -444,7 +446,7 @@ const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }: any) => (
     >
         <div className="flex items-start justify-between lg:mb-4 mb-2">
             <img
-                src={mentor?.avatar}
+                src={mentor?.avatar} loading="lazy" decoding="async"
                 alt={mentor?.first_name + ' ' + mentor?.last_name}
                 className="w-12 h-12 rounded-xl object-cover"
                 style={{ border: '1px solid rgba(205,220,57,.15)' }}
@@ -592,6 +594,7 @@ const Overview: React.FC = () => {
     const [blastEvent, setBlastEvent] = useState<RegisteredEvent | null>(null);
     const [showCompleteProfile, setShowCompleteProfile] = useState(false);
     const [dismissedProfileModal, setDismissedProfileModal] = useState(false);
+    const [showCreateConfirm, setShowCreateConfirm] = useState(false);
     const drawerCheckboxRef = useRef<HTMLInputElement>(null);
 
     const { mentors, isLoading } = useGetMentors();
@@ -603,23 +606,33 @@ const Overview: React.FC = () => {
     const { mineEvents, isLoading: isLoadingEvents, refetch } = useGetMineEvents();
     const { mutate: deleteEvent, isPending: isDeleting, variables: deletingId } = useDeleteEvent();
 
-    const rawEvents: ApiEvent[] = Array.isArray(mineEvents?.data)
-        ? mineEvents.data
-        : mineEvents?.data?.results ?? [];
+    const myEvents = useMemo(() => {
+        const raw: ApiEvent[] = Array.isArray(mineEvents?.data)
+            ? mineEvents.data
+            : mineEvents?.data?.results ?? [];
+        return raw.map(mapApiEventToRegistered);
+    }, [mineEvents]);
 
-    const myEvents = rawEvents.map(mapApiEventToRegistered);
-    const filtered = myEvents.filter((e) => e.status === tab);
+    const hasEvents = myEvents.length > 0;
+    const filtered = useMemo(() => myEvents.filter((e) => e.status === tab), [myEvents, tab]);
 
-    const grouped = filtered.reduce<Record<string, RegisteredEvent[]>>((acc, event) => {
-        acc[event.dateLabel] = acc[event.dateLabel] || [];
-        acc[event.dateLabel].push(event);
-        return acc;
-    }, {});
+    const grouped = useMemo(
+        () =>
+            filtered.reduce<Record<string, RegisteredEvent[]>>((acc, event) => {
+                acc[event.dateLabel] = acc[event.dateLabel] || [];
+                acc[event.dateLabel].push(event);
+                return acc;
+            }, {}),
+        [filtered]
+    );
 
-    const upcomingEvents = myEvents
-        .filter((e) => e.status === 'upcoming')
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const latestEvent = upcomingEvents[0];
+    const latestEvent = useMemo(
+        () =>
+            myEvents
+                .filter((e) => e.status === 'upcoming')
+                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0],
+        [myEvents]
+    );
 
     const missingFields = getMissingFields(userProfile);
 
@@ -668,6 +681,11 @@ const Overview: React.FC = () => {
         });
     };
 
+    const confirmCreate = () => {
+        setShowCreateConfirm(false);
+        navigate('/dashboard/events/create');
+    };
+
     const handleCloseProfileModal = () => {
         setShowCompleteProfile(false);
         setDismissedProfileModal(true);
@@ -684,14 +702,14 @@ const Overview: React.FC = () => {
             <LoadingOverlay visible={isLoading || isLoadingProfile} />
 
             <div className="drawer-content">
-                <div
-                    className="w-full min-h-screen"
-                    style={{
-                        background:
-                            'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
-                    }}
-                >
-                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                <div className="relative isolate flex w-full min-h-screen flex-col bg-black">
+                    {/* Fixed background layer: painted once instead of re-painted while scrolling */}
+                    <div
+                        aria-hidden
+                        className="pointer-events-none fixed inset-0 -z-10"
+                        style={{ background: "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)" }}
+                    />
+                    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                         {/* Latest upcoming event spotlight */}
                         {isLoadingEvents ? (
                             <EventHeroSkeleton />
@@ -729,6 +747,22 @@ const Overview: React.FC = () => {
                                         </button>
                                     ))}
                                 </div>
+
+                                {hasEvents && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCreateConfirm(true)}
+                                        aria-label="Create new event"
+                                        title="Create new event"
+                                        className="flex h-9 w-9 items-center justify-center rounded-full text-black cursor-pointer transition-transform hover:scale-105"
+                                        style={{
+                                            background: '#a6ff00',
+                                            boxShadow: '0 0 12px rgba(166,255,0,0.35)',
+                                        }}
+                                    >
+                                        <FiPlus size={18} />
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -804,6 +838,8 @@ const Overview: React.FC = () => {
                             </div>
                         </div>
                     </div>
+
+                    <DashFooter />
                 </div>
             </div>
 
@@ -853,6 +889,13 @@ const Overview: React.FC = () => {
                     isDeleting={isDeleting}
                     onConfirm={confirmDelete}
                     onCancel={() => setEventToDelete(null)}
+                />
+            )}
+
+            {showCreateConfirm && (
+                <ConfirmCreateEventModal
+                    onConfirm={confirmCreate}
+                    onCancel={() => setShowCreateConfirm(false)}
                 />
             )}
         </div>

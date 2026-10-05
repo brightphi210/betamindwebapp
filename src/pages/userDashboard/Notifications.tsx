@@ -238,6 +238,8 @@ const Notifications = () => {
     const { mutate: markReadMutation, isPending: isMarking } =
         useMarkNotificationRead();
 
+    console.log('this is notifications', notificationsData?.data)
+
     const [filter, setFilter] = useState<FilterTab>("all");
     /** Optimistic read overrides: id → is_read */
     const [readOverrides, setReadOverrides] = useState<Record<string, boolean>>(

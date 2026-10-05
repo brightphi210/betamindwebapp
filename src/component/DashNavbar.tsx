@@ -17,6 +17,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import avatar from '../assets/Avatar.png';
 import betamindLogo from '../assets/betamindlogo.png';
 import { useGetMyUserProfile } from '../hooks/queries/allQueriess';
+import ConfirmLogoutModal from './Confirmlogoutmodal';
 import LoadingOverlay from './LoadingOverlay';
 
 const NAV_ITEMS = [
@@ -36,6 +37,7 @@ const DashNavbar = () => {
     const location = useLocation();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
     const moreMenuRef = useRef<HTMLDivElement>(null);
     const moreSheetRef = useRef<HTMLDivElement>(null);
@@ -82,6 +84,20 @@ const DashNavbar = () => {
 
     const navigate = useNavigate()
 
+    // Closes whichever menu triggered it, then opens the confirmation modal
+    const requestLogout = () => {
+        setShowProfileMenu(false);
+        setShowMoreMenu(false);
+        setShowLogoutConfirm(true);
+    };
+
+    const confirmLogout = () => {
+        localStorage.removeItem('betamindToken')
+        localStorage.removeItem('betamindRefresh')
+        setShowLogoutConfirm(false);
+        navigate('/login')
+    };
+
     const mobilePrimaryItems = NAV_ITEMS.filter((item) => MOBILE_PRIMARY_IDS.includes(item.id));
     const mobileSecondaryItems = NAV_ITEMS.filter((item) => MOBILE_SECONDARY_IDS.includes(item.id));
     const desktopNavItems = NAV_ITEMS;
@@ -90,11 +106,10 @@ const DashNavbar = () => {
         <>
             <LoadingOverlay visible={userLoading} />
             <nav
-                className="fixed top-0 left-0 right-0 z-30 transition-all duration-300 h-16"
+                className="fixed top-0 left-0 right-0 z-30 h-16"
                 style={{
-                    background: 'rgba(6, 10, 4, 0.85)',
-                    backdropFilter: 'blur(20px) saturate(150%)',
-                    WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+                    background: 'rgba(6, 10, 4, 0.96)',
+                    transform: 'translateZ(0)',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
                 }}
 
@@ -220,10 +235,6 @@ const DashNavbar = () => {
                                         ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
                                         : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
                                         }`}
-                                    style={{
-                                        backdropFilter: 'blur(24px) saturate(150%)',
-                                        WebkitBackdropFilter: 'blur(24px) saturate(150%)',
-                                    }}
                                 >
                                     <div
                                         className="h-px w-full p-0.5"
@@ -290,12 +301,8 @@ const DashNavbar = () => {
 
                                     <div className="py-2">
                                         <button
-                                            onClick={() => {
-                                                localStorage.removeItem('betamindToken')
-                                                localStorage.removeItem('betamindRefresh')
-                                                navigate('/login')
-                                            }}
-                                            className="w-full flex items-center gap-3 px-5 py-3 text-white text-xs text-left transition-colors"
+                                            onClick={requestLogout}
+                                            className="w-full flex items-center gap-3 px-5 py-3 text-white text-xs text-left transition-colors cursor-pointer"
                                             onMouseEnter={(e) => {
                                                 (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)';
                                             }}
@@ -319,8 +326,9 @@ const DashNavbar = () => {
                 className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch py-2.5"
                 style={{
                     background: 'rgba(255,255,255,0.05)',
-                    backdropFilter: 'blur(24px) saturate(150%)',
-                    WebkitBackdropFilter: 'blur(24px) saturate(150%)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    transform: 'translateZ(0)',
                     boxShadow: '0 -8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
                     paddingBottom: 'env(safe-area-inset-bottom)',
                 }
@@ -352,19 +360,22 @@ const DashNavbar = () => {
                     })
                 }
 
-                {/* Direct link to the create-event page; the More menu handles secondary actions */}
+                {/* Center highlighted button: links to the Explore page */}
                 <Link
-                    to="/dashboard/events/create"
-                    className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 text-[10px]"
-                    style={{ color: '#a6ff00', fontWeight: 600 }}
+                    to="/dashboard/explore"
+                    className="flex-1 flex flex-col text-white items-center justify-center gap-1 py-3 text-[10px]"
                 >
                     <span
-                        className="w-10 h-10 -mt-1 rounded-full flex items-center justify-center transition-transform duration-200 hover:scale-105"
-                        style={{ background: '#a6ff00', boxShadow: '0 0 12px rgba(166,255,0,0.4)' }}
+                        className="w-10 h-10 -mt-1 bg-white rounded-full flex items-center justify-center transition-transform duration-200 hover:scale-105"
+                        style={{
+                            boxShadow: location.pathname === '/dashboard/explore'
+                                ? '0 0 18px rgba(166,255,0,0.7)'
+                                : '0 0 12px rgba(166,255,0,0.4)',
+                        }}
                     >
-                        <FiPlus className="text-black" size={20} />
+                        <FiCompass className="text-black" size={20} />
                     </span>
-                    Create
+                    Explore
                 </Link>
 
                 {
@@ -408,11 +419,11 @@ const DashNavbar = () => {
             </nav >
 
             <div
-                className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-300 ease-out ${showMoreMenu ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+                className={`fixed inset-0 z-50 lg:hidden transition-[opacity,visibility] duration-300 ease-out ${showMoreMenu ? 'pointer-events-auto visible opacity-100' : 'pointer-events-none invisible opacity-0'}`}
                 style={{
                     background: 'rgba(2, 5, 3, 0.5)',
-                    backdropFilter: 'blur(5px) saturate(140%)',
-                    WebkitBackdropFilter: 'blur(5px) saturate(140%)',
+                    backdropFilter: 'blur(4px)',
+                    WebkitBackdropFilter: 'blur(4px)',
                 }}
             >
                 <div
@@ -420,8 +431,6 @@ const DashNavbar = () => {
                     onClick={(e) => e.stopPropagation()}
                     ref={moreSheetRef}
                     style={{
-                        backdropFilter: 'blur(24px) saturate(150%)',
-                        WebkitBackdropFilter: 'blur(24px) saturate(150%)',
                         boxShadow: '0 -12px 32px rgba(0,0,0,0.4)',
                     }}
                 >
@@ -438,15 +447,6 @@ const DashNavbar = () => {
 
                     <div className="py-1 flex justify-between gap-3">
                         <Link
-                            to="/dashboard/explore"
-                            onClick={() => setShowMoreMenu(false)}
-                            className="items-center flex w-full bg-neutral-900 border-2 border-neutral-800 text-white justify-center gap-2 rounded-md px-5 py-3.5 text-sm font-semibold transition-colors"
-                        >
-                            <FiCompass className='text-lg' />
-                            Explore
-                        </Link>
-
-                        <Link
                             to="/dashboard/bookings"
                             onClick={() => setShowMoreMenu(false)}
                             className="justify-center flex w-full bg-neutral-900 items-center gap-2 border-2 border-neutral-800 text-white rounded-md px-5 py-3.5 text-sm font-semibold transition-colors"
@@ -454,12 +454,11 @@ const DashNavbar = () => {
                             <FiBookOpen className='text-lg' />
                             Bookings
                         </Link>
-
                     </div>
 
                     <div className="my-2 h-px w-full p-0.1" style={{ background: 'rgba(255,255,255,0.13)' }} />
 
-                    <div className="pb-1">
+                    <div className="pb-1 flex flex-col gap-3">
                         {userProfile?.is_mentor ? (
                             <Link
                                 to="/dashboard/mentor"
@@ -479,9 +478,27 @@ const DashNavbar = () => {
                                 Become a Mentor
                             </Link>
                         )}
+
+                        {/* Logout — opens the confirmation modal */}
+                        <button
+                            type="button"
+                            onClick={requestLogout}
+                            className="flex w-full items-center justify-center gap-2 rounded-md border-2 border-red-500/30 bg-red-500/10 px-5 py-3.5 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/15 cursor-pointer"
+                        >
+                            <FiLogOut className="text-lg" />
+                            Log Out
+                        </button>
                     </div>
                 </div>
             </div>
+
+            {/* Logout confirmation (shared by desktop dropdown and mobile More sheet) */}
+            {showLogoutConfirm && (
+                <ConfirmLogoutModal
+                    onConfirm={confirmLogout}
+                    onCancel={() => setShowLogoutConfirm(false)}
+                />
+            )}
 
             <style>{`
         input::placeholder {

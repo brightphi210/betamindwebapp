@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
     FiAlertTriangle,
     FiArrowRight,
@@ -11,7 +11,9 @@ import {
     FiUsers,
 } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
+import ConfirmCreateEventModal from '../../component/Confirmcreateeventmodal';
 import ConfirmDeleteModal from '../../component/ConfirmDeleteModal';
+import DashFooter from '../../component/DashFooter';
 import Button from '../../component/ui/Button';
 import { useDeleteEvent } from '../../hooks/mutations/allMutation';
 import { useGetMineEvents } from '../../hooks/queries/allQueriess';
@@ -99,7 +101,7 @@ const EventRow: React.FC<{
 
                 <div className="flex flex-col items-end gap-2 shrink-0">
                     <img
-                        src={event.thumbnail}
+                        src={event.thumbnail} loading="lazy" decoding="async"
                         alt={event.title}
                         className="w-24 h-23 border-4 border-white/5 rounded-lg object-cover shrink-0"
                     />
@@ -175,7 +177,7 @@ const EventRow: React.FC<{
             className="hidden sm:flex sm:items-center gap-6 rounded-xl p-5 transition-colors bg-white/5 cursor-pointer"
         >
             <img
-                src={event.thumbnail}
+                src={event.thumbnail} loading="lazy" decoding="async"
                 alt={event.title}
                 className="w-24 h-24 rounded-lg shrink-0 object-cover"
             />
@@ -280,23 +282,31 @@ const Events: React.FC = () => {
     const [guestsEvent, setGuestsEvent] = useState<RegisteredEvent | null>(null);
     const [blastEvent, setBlastEvent] = useState<RegisteredEvent | null>(null);
     const [eventToDelete, setEventToDelete] = useState<RegisteredEvent | null>(null);
+    const [showCreateConfirm, setShowCreateConfirm] = useState(false);
     const drawerCheckboxRef = useRef<HTMLInputElement>(null);
 
     const { mineEvents, isLoading, refetch } = useGetMineEvents();
     const { mutate: deleteEvent, isPending: isDeleting, variables: deletingId } = useDeleteEvent();
 
-    const rawEvents: ApiEvent[] = Array.isArray(mineEvents?.data)
-        ? mineEvents.data
-        : mineEvents?.data?.results ?? [];
+    const allEvents = useMemo(() => {
+        const raw: ApiEvent[] = Array.isArray(mineEvents?.data)
+            ? mineEvents.data
+            : mineEvents?.data?.results ?? [];
+        return raw.map(mapApiEventToRegistered);
+    }, [mineEvents]);
 
-    const allEvents = rawEvents.map(mapApiEventToRegistered);
-    const filtered = allEvents.filter((e) => e.status === tab);
+    const filtered = useMemo(() => allEvents.filter((e) => e.status === tab), [allEvents, tab]);
+    const hasEvents = allEvents.length > 0;
 
-    const grouped = filtered.reduce<Record<string, RegisteredEvent[]>>((acc, event) => {
-        acc[event.dateLabel] = acc[event.dateLabel] || [];
-        acc[event.dateLabel].push(event);
-        return acc;
-    }, {});
+    const grouped = useMemo(
+        () =>
+            filtered.reduce<Record<string, RegisteredEvent[]>>((acc, event) => {
+                acc[event.dateLabel] = acc[event.dateLabel] || [];
+                acc[event.dateLabel].push(event);
+                return acc;
+            }, {}),
+        [filtered]
+    );
 
     const openDrawer = (event: RegisteredEvent) => {
         setSelectedEvent(event);
@@ -337,6 +347,11 @@ const Events: React.FC = () => {
         });
     };
 
+    const confirmCreate = () => {
+        setShowCreateConfirm(false);
+        navigate('/dashboard/events/create');
+    };
+
     return (
         <div className="drawer drawer-end">
             <input
@@ -347,14 +362,14 @@ const Events: React.FC = () => {
             />
 
             <div className="drawer-content">
-                <div
-                    className="w-full min-h-screen"
-                    style={{
-                        background:
-                            'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
-                    }}
-                >
-                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                <div className="relative isolate flex w-full min-h-screen flex-col bg-black">
+                    {/* Fixed background layer: painted once instead of re-painted while scrolling */}
+                    <div
+                        aria-hidden
+                        className="pointer-events-none fixed inset-0 -z-10"
+                        style={{ background: "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)" }}
+                    />
+                    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                         <div className="flex flex-wrap items-center justify-between gap-4 mb-10">
                             <h1 className="text-2xl sm:text-3xl font-black text-white">Events</h1>
 
@@ -381,14 +396,30 @@ const Events: React.FC = () => {
                                     ))}
                                 </div>
 
-                                <Link
-                                    to="/dashboard/events/create"
-                                    className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
-                                    style={{ background: '#a6ff00' }}
-                                >
-                                    <FiPlus size={14} />
-                                    Create Event
-                                </Link>
+                                {hasEvents ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCreateConfirm(true)}
+                                        aria-label="Create new event"
+                                        title="Create new event"
+                                        className="flex h-9 w-9 items-center justify-center rounded-full text-black cursor-pointer transition-transform hover:scale-105"
+                                        style={{
+                                            background: '#a6ff00',
+                                            boxShadow: '0 0 12px rgba(166,255,0,0.35)',
+                                        }}
+                                    >
+                                        <FiPlus size={18} />
+                                    </button>
+                                ) : (
+                                    <Link
+                                        to="/dashboard/events/create"
+                                        className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-semibold text-black transition-transform hover:scale-[1.02]"
+                                        style={{ background: '#a6ff00' }}
+                                    >
+                                        <FiPlus size={14} />
+                                        Create Event
+                                    </Link>
+                                )}
                             </div>
                         </div>
 
@@ -432,6 +463,8 @@ const Events: React.FC = () => {
                             </div>
                         )}
                     </div>
+
+                    <DashFooter />
                 </div>
             </div>
 
@@ -470,6 +503,13 @@ const Events: React.FC = () => {
                     isDeleting={isDeleting}
                     onConfirm={confirmDelete}
                     onCancel={() => setEventToDelete(null)}
+                />
+            )}
+
+            {showCreateConfirm && (
+                <ConfirmCreateEventModal
+                    onConfirm={confirmCreate}
+                    onCancel={() => setShowCreateConfirm(false)}
                 />
             )}
         </div>
