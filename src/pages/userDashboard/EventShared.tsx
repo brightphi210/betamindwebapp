@@ -410,7 +410,6 @@ export const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | '
     const textSize = size === 'sm' ? 'text-[11px]' : 'text-xs';
     const padding = size === 'sm' ? 'px-2 py-1' : 'px-2.5 py-1.5';
     const iconSize = size === 'sm' ? 11 : 13;
-    const isFree = formatTicketPrice(event.ticketPrice) === 'Free';
 
     return (
         <div className="flex flex-wrap items-center gap-1.5">
