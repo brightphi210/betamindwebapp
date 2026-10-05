@@ -787,7 +787,7 @@ const Explore: React.FC = () => {
                         />
                     )}
                 </section>
-            </div>
+            </div>Eve
 
             <DashFooter />
 

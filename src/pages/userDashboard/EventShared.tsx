@@ -136,7 +136,7 @@ export const formatTicketPrice = (price?: string) => {
     const numeric = parseFloat(price || '0');
     if (!numeric || numeric <= 0) return 'Free';
     const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
-    return `$${trimmed}`;
+    return `₦${trimmed}`;
 };
 
 export const isGoogleMeet = (v?: string | null) => !!v && /google\s*meet|meet\.google\.com/i.test(v);
@@ -421,11 +421,7 @@ export const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | '
             />
 
             <span
-                className={`inline-flex items-center gap-1 rounded-md font-semibold ${textSize} ${padding}`}
-                style={{
-                    background: isFree ? 'rgba(255,255,255,0.06)' : 'rgba(166,255,0,0.1)',
-                    color: isFree ? 'rgba(255,255,255,0.6)' : '#a6ff00',
-                }}
+                className={`inline-flex items-center gap-1 text-neutral-800 bg-white rounded-md font-semibold ${textSize} ${padding}`}
             >
                 <FiTag size={iconSize} />
                 {formatTicketPrice(event.ticketPrice)}
@@ -437,7 +433,7 @@ export const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | '
                     style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
                 >
                     <FiUserCheck size={iconSize} />
-                    Approval Required
+                    Approval
                 </span>
             )}
 
