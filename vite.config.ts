@@ -9,8 +9,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "autoUpdate",
-
+      // registerType: "autoUpdate",
+      registerType: 'prompt',
       includeAssets: [
         "favicon.ico",
         "apple-touch-icon.png",
@@ -20,7 +20,7 @@ export default defineConfig({
       manifest: {
         name: "BetaMind",
         short_name: "BetaMind",
-        description: "Learn from experienced mentors.",
+        description: 'Betamind: mentorship, events and digital products.',
         theme_color: "#000000",
         background_color: "#000000",
         display: "standalone",
@@ -47,6 +47,16 @@ export default defineConfig({
             purpose: "any maskable",
           },
         ],
+      },
+
+      workbox: {
+        // Quill and other libraries push the bundle past the 2 MiB default.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        cleanupOutdatedCaches: true,
+        // React Router: serve index.html for page navigations...
+        navigateFallback: '/index.html',
+        // ...but never for API or admin URLs.
+        navigateFallbackDenylist: [/^\/api\//, /^\/admin\//],
       },
     }),
   ],
