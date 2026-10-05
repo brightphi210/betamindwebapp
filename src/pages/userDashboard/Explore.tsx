@@ -94,7 +94,7 @@ export interface DigitalProduct {
     type: ProductType;
     title: string;
     author: string;
-    creator: ProductCreator; // add
+    creator: ProductCreator;
     thumbnail: string | null;
     price: string;
     rating?: number;
@@ -110,7 +110,7 @@ const formatPrice = (price: string) => {
     const numeric = parseFloat(price);
     if (!numeric || numeric <= 0) return "Free";
     const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
-    return `$${trimmed}`;
+    return `₦${trimmed}`;
 };
 
 const toTitleCase = (s: string): ProductType =>
@@ -175,7 +175,6 @@ export const buildTopicsFromMentors = (mentors: any[]): Topic[] => {
 };
 
 // ─── Pagination helpers ─────────────────────────────────────────────────────
-// Client-side pagination: slices the full list and clamps the page if the list shrinks.
 const usePagination = <T,>(items: T[], pageSize: number) => {
     const [page, setPage] = useState(1);
     const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
@@ -379,7 +378,6 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
                         </div>
                     )}
 
-                    {/* Price + capacity / approval badges (same badges the desktop card shows) */}
                     <div className="flex items-center gap-2 text-white/40 text-sm">
                         <FiTag size={15} />
                         <span>{formatTicketPrice(event.ticketPrice)}</span>
@@ -530,7 +528,6 @@ const NoEventsState: React.FC = () => (
 );
 
 // ─── Digital product card ───────────────────────────────────────────────────
-// Opens in a new tab/page rather than navigating the current SPA route.
 export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) => (
     <Link
         to={`/dashboard/products/${product.id}`}

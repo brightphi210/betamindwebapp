@@ -37,8 +37,6 @@ type ApiSocialLinks = {
     instagram?: string;
 };
 
-// The creator of a digital product — referred to as "Creator" in the UI,
-// even though the API still models them as a mentor.
 type ApiCreator = {
     id: string;
     first_name: string;
@@ -75,13 +73,11 @@ const formatPrice = (price: string) => {
     const numeric = parseFloat(price);
     if (!numeric || numeric <= 0) return "Free";
     const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
-    return `$${trimmed}`;
+    return `₦${trimmed}`;
 };
 
 const toTitleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-// Renders the description / course-content HTML produced by the rich text
-// editor on the create-product form.
 const RichText: React.FC<{ html: string }> = ({ html }) => (
     <div
         className="rich-text-content text-sm text-white/60 leading-relaxed break-words [overflow-wrap:anywhere]"
@@ -141,7 +137,6 @@ const SOCIAL_ICONS: Record<string, React.ReactNode> = {
     instagram: <FaGlobe size={14} />,
 };
 
-// "Creator" card — shows the mentor's avatar, name, occupation and socials.
 const CreatorCard: React.FC<{ creator: ApiCreator }> = ({ creator }) => {
     const fullName = creator.nick_name?.trim() || `${creator.first_name} ${creator.last_name}`.trim();
     const socialEntries = Object.entries(creator.social_link ?? {}).filter(
@@ -222,7 +217,6 @@ const Product: React.FC = () => {
             return;
         }
 
-        // amount as string in minor units (kobo/cents) — matches your payload example
         const numericPrice = Number(product.price) || 0;
         const amount = String(Math.round(numericPrice * 100));
 
@@ -255,7 +249,6 @@ const Product: React.FC = () => {
                     error?.response?.detail ||
                     "Something went wrong while creating this purchase.";
 
-                // Handle field errors e.g. { email: ["..."], product: ["..."] }
                 if (data && typeof data === "object" && !data.message && !data.detail) {
                     const firstField = Object.keys(data)[0];
                     const fieldErrors = data[firstField];

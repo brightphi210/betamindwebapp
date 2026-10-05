@@ -36,10 +36,51 @@ import {
 const pageBg =
     'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)';
 
-const fieldClass = 'w-full rounded-xl px-4 py-4 text-sm text-white placeholder-white/30 outline-none';
+const fieldClass =
+    'w-full rounded-xl px-4 py-4 text-sm text-white placeholder-white/30 outline-none';
+
+// ─── Dummy tickets (used when API has no tickets array yet) ───────────────
+type PublicTicket = {
+    id: string;
+    name: string;
+    price: number;
+    description: string;
+    image?: string | null;
+};
+
+const DUMMY_TICKETS: PublicTicket[] = [
+    {
+        id: 't1',
+        name: 'General Admission',
+        price: 0,
+        description: 'Access to the main event hall and networking area.',
+        image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200&h=200&fit=crop',
+    },
+    {
+        id: 't2',
+        name: 'Early Bird',
+        price: 15,
+        description: 'Discounted entry · limited spots · includes welcome drink.',
+        image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=200&h=200&fit=crop',
+    },
+    {
+        id: 't3',
+        name: 'VIP Pass',
+        price: 45,
+        description:
+            'Front-row seating, exclusive lounge access, and a gift bag.',
+        image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=200&h=200&fit=crop',
+    },
+];
 
 const PartyIcon = () => (
-    <svg width="72" height="72" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg
+        width="72"
+        height="72"
+        viewBox="0 0 64 64"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+    >
         <path
             d="M14 50L26 22L42 38L14 50Z"
             fill="#a6ff00"
@@ -47,9 +88,24 @@ const PartyIcon = () => (
             strokeWidth="2"
             strokeLinejoin="round"
         />
-        <path d="M30 18L34 10" stroke="#a6ff00" strokeWidth="2.5" strokeLinecap="round" />
-        <path d="M40 14L42 6" stroke="#7ee6c0" strokeWidth="2.5" strokeLinecap="round" />
-        <path d="M46 24L54 22" stroke="#ff8fb0" strokeWidth="2.5" strokeLinecap="round" />
+        <path
+            d="M30 18L34 10"
+            stroke="#a6ff00"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+        />
+        <path
+            d="M40 14L42 6"
+            stroke="#7ee6c0"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+        />
+        <path
+            d="M46 24L54 22"
+            stroke="#ff8fb0"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+        />
         <circle cx="22" cy="10" r="2" fill="#7ee6c0" />
         <circle cx="52" cy="34" r="2" fill="#8f8fff" />
         <path
@@ -75,7 +131,10 @@ const PublicEventSkeleton: React.FC = () => (
                         className="h-4 w-24 rounded animate-pulse"
                         style={{ background: 'rgba(255,255,255,0.06)' }}
                     />
-                    <div className="h-px w-full" style={{ background: 'rgba(205,220,57,.1)' }} />
+                    <div
+                        className="h-px w-full"
+                        style={{ background: 'rgba(205,220,57,.1)' }}
+                    />
                     <div
                         className="h-9 w-40 rounded animate-pulse"
                         style={{ background: 'rgba(255,255,255,0.06)' }}
@@ -107,8 +166,14 @@ const PublicEventSkeleton: React.FC = () => (
 const NotFoundState: React.FC = () => (
     <div className="flex items-center justify-center py-32">
         <div className="text-center">
-            <p className="text-white text-base font-bold mb-2">Event not found</p>
-            <Link to="/dashboard/overview" className="text-sm" style={{ color: '#a6ff00' }}>
+            <p className="text-white text-base font-bold mb-2">
+                Event not found
+            </p>
+            <Link
+                to="/dashboard/overview"
+                className="text-sm"
+                style={{ color: '#a6ff00' }}
+            >
                 ← Back to Events
             </Link>
         </div>
@@ -124,18 +189,24 @@ type RegisterDraft = {
     whatsapp: string;
 };
 
-const emptyRegisterDraft: RegisterDraft = { name: '', email: '', whatsapp: '' };
+const emptyRegisterDraft: RegisterDraft = {
+    name: '',
+    email: '',
+    whatsapp: '',
+};
 
 const RegisterModal: React.FC<{
     eventId: string;
     eventTitle: string;
+    selectedTicket: PublicTicket | null;
     onClose: () => void;
-}> = ({ eventId, eventTitle, onClose }) => {
+}> = ({ eventId, eventTitle, selectedTicket, onClose }) => {
     const [step, setStep] = useState<RegisterStep>('form');
     const [draft, setDraft] = useState<RegisterDraft>(emptyRegisterDraft);
     const [error, setError] = useState('');
 
-    const { mutateAsync: registerForEvent, isPending: isSubmitting } = useRegisterEvents();
+    const { mutateAsync: registerForEvent, isPending: isSubmitting } =
+        useRegisterEvents();
 
     const isValid = !!(
         draft.name.trim() &&
@@ -152,6 +223,7 @@ const RegisterModal: React.FC<{
                 email: draft.email.trim(),
                 phone_number: draft.whatsapp.trim(),
                 event: eventId,
+                // ticket_id: selectedTicket?.id, // uncomment when backend supports it
             });
             setStep('success');
         } catch (err: any) {
@@ -163,6 +235,13 @@ const RegisterModal: React.FC<{
         }
     };
 
+    const priceLabel =
+        selectedTicket == null
+            ? 'Free'
+            : selectedTicket.price === 0
+                ? 'Free'
+                : `₦${selectedTicket.price.toFixed(2)}`;
+
     return (
         <ModalShell onClose={onClose} maxWidth="max-w-md" className="overflow-y-auto">
             {(close) =>
@@ -170,8 +249,12 @@ const RegisterModal: React.FC<{
                     <>
                         <div className="mb-5 flex items-center justify-between">
                             <div>
-                                <h3 className="text-lg font-bold text-white">Register</h3>
-                                <p className="text-xs text-white/40 mt-0.5">{eventTitle}</p>
+                                <h3 className="text-lg font-bold text-white">
+                                    Register
+                                </h3>
+                                <p className="text-xs text-white/40 mt-0.5">
+                                    {eventTitle}
+                                </p>
                             </div>
                             <button
                                 type="button"
@@ -183,6 +266,49 @@ const RegisterModal: React.FC<{
                             </button>
                         </div>
 
+                        {/* Selected ticket summary */}
+                        {selectedTicket && (
+                            <div
+                                className="mb-5 flex items-center gap-3 rounded-lg px-3 py-3"
+                                style={{
+                                    background: 'rgba(166,255,0,0.06)',
+                                }}
+                            >
+                                {/* Ticket image */}
+                                <div
+                                    className="w-10 h-10 shrink-0 rounded overflow-hidden"
+                                    style={{ background: 'rgba(255,255,255,0.06)' }}
+                                >
+                                    {selectedTicket.image ? (
+                                        <img
+                                            src={selectedTicket.image}
+                                            alt={selectedTicket.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <FiTag size={16} className="text-white/25" />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-white text-sm font-semibold truncate">
+                                        {selectedTicket.name}
+                                    </p>
+                                    <p className="text-white/40 text-xs mt-0.5 line-clamp-1">
+                                        {selectedTicket.description}
+                                    </p>
+                                </div>
+
+                                <span
+                                    className="text-sm text-white font-bold shrink-0"
+                                >
+                                    {priceLabel}
+                                </span>
+                            </div>
+                        )}
+
                         <div className="space-y-4">
                             <div>
                                 <label className="mb-2 block text-sm font-semibold text-white">
@@ -190,14 +316,21 @@ const RegisterModal: React.FC<{
                                 </label>
                                 <div
                                     className="flex items-center gap-3 rounded-md"
-                                    style={{ background: 'rgba(255,255,255,0.04)' }}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.04)',
+                                    }}
                                 >
                                     <span className="pl-4 text-white/40">
                                         <FiUser size={15} />
                                     </span>
                                     <input
                                         value={draft.name}
-                                        onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                                        onChange={(e) =>
+                                            setDraft((d) => ({
+                                                ...d,
+                                                name: e.target.value,
+                                            }))
+                                        }
                                         placeholder="Your full name"
                                         className={`${fieldClass} bg-transparent`}
                                     />
@@ -210,7 +343,9 @@ const RegisterModal: React.FC<{
                                 </label>
                                 <div
                                     className="flex items-center gap-3 rounded-md"
-                                    style={{ background: 'rgba(255,255,255,0.04)' }}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.04)',
+                                    }}
                                 >
                                     <span className="pl-4 text-white/40">
                                         <FiMail size={15} />
@@ -219,7 +354,10 @@ const RegisterModal: React.FC<{
                                         type="email"
                                         value={draft.email}
                                         onChange={(e) =>
-                                            setDraft((d) => ({ ...d, email: e.target.value }))
+                                            setDraft((d) => ({
+                                                ...d,
+                                                email: e.target.value,
+                                            }))
                                         }
                                         placeholder="you@example.com"
                                         className={`${fieldClass} bg-transparent`}
@@ -233,7 +371,9 @@ const RegisterModal: React.FC<{
                                 </label>
                                 <div
                                     className="flex items-center gap-3 rounded-md"
-                                    style={{ background: 'rgba(255,255,255,0.04)' }}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.04)',
+                                    }}
                                 >
                                     <span className="pl-4 text-white/40">
                                         <FiPhone size={15} />
@@ -242,7 +382,10 @@ const RegisterModal: React.FC<{
                                         type="tel"
                                         value={draft.whatsapp}
                                         onChange={(e) =>
-                                            setDraft((d) => ({ ...d, whatsapp: e.target.value }))
+                                            setDraft((d) => ({
+                                                ...d,
+                                                whatsapp: e.target.value,
+                                            }))
                                         }
                                         placeholder="08012345678"
                                         className={`${fieldClass} bg-transparent`}
@@ -250,7 +393,9 @@ const RegisterModal: React.FC<{
                                 </div>
                             </div>
 
-                            {error && <p className="text-xs text-red-400">{error}</p>}
+                            {error && (
+                                <p className="text-xs text-red-400">{error}</p>
+                            )}
                         </div>
 
                         <Button
@@ -263,11 +408,18 @@ const RegisterModal: React.FC<{
                         >
                             <span className="flex items-center justify-center gap-2">
                                 {isSubmitting ? (
-                                    <FiLoader size={15} className="animate-spin" />
+                                    <FiLoader
+                                        size={15}
+                                        className="animate-spin"
+                                    />
                                 ) : (
                                     <FiCheck size={15} />
                                 )}
-                                {isSubmitting ? 'Registering...' : 'Confirm Registration'}
+                                {isSubmitting
+                                    ? 'Registering...'
+                                    : selectedTicket && selectedTicket.price > 0
+                                        ? `Pay ${priceLabel} & Register`
+                                        : 'Confirm Registration'}
                             </span>
                         </Button>
                     </>
@@ -281,10 +433,26 @@ const RegisterModal: React.FC<{
                         </h3>
                         <p className="text-white/50 text-sm max-w-xs mb-8">
                             You've successfully registered for{' '}
-                            <span className="font-semibold text-white/80">{eventTitle}</span>. Keep an
-                            eye on your inbox for updates.
+                            <span className="font-semibold text-white/80">
+                                {eventTitle}
+                            </span>
+                            {selectedTicket && (
+                                <>
+                                    {' '}
+                                    with the{' '}
+                                    <span className="font-semibold text-white/80">
+                                        {selectedTicket.name}
+                                    </span>{' '}
+                                    ticket
+                                </>
+                            )}
+                            . Keep an eye on your inbox for updates.
                         </p>
-                        <Link to="/dashboard/overview" onClick={close} className="w-full">
+                        <Link
+                            to="/dashboard/overview"
+                            onClick={close}
+                            className="w-full"
+                        >
                             <button className="w-full bg-white px-6 py-3 font-normal rounded-md text-xs text-black transition-transform hover:scale-[1.005] cursor-pointer">
                                 Continue Using Betamind
                             </button>
@@ -297,13 +465,15 @@ const RegisterModal: React.FC<{
 };
 
 // ─── Public Event Page ─────────────────────────────────────────────────────
-// Routed at e.g. /events/:id
 const EventPublicPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { eventDetail, isLoading, isError, isFetched } = useGetEvent(id);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showGuestsModal, setShowGuestsModal] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
+    const [selectedTicketId, setSelectedTicketId] = useState<string | null>(
+        null
+    );
 
     const event: ApiEvent | undefined = eventDetail?.data;
 
@@ -331,9 +501,12 @@ const EventPublicPage: React.FC = () => {
 
     const startDateObj = new Date(event.start_date);
     const endDateObj = new Date(event.end_date);
-    const sameDay = startDateObj.toDateString() === endDateObj.toDateString();
+    const sameDay =
+        startDateObj.toDateString() === endDateObj.toDateString();
 
-    const month = startDateObj.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+    const month = startDateObj
+        .toLocaleDateString('en-US', { month: 'short' })
+        .toUpperCase();
     const day = startDateObj.getDate();
     const startWeekday = startDateObj.toLocaleDateString('en-US', {
         weekday: 'long',
@@ -348,9 +521,11 @@ const EventPublicPage: React.FC = () => {
     const startTime = formatTime(event.start_date);
     const endTime = formatTime(event.end_date);
     const ticketLabel = formatTicketPrice(event.ticket_price);
-    const publicUrl = typeof window !== 'undefined' ? window.location.href : `/events/${event.id}`;
+    const publicUrl =
+        typeof window !== 'undefined'
+            ? window.location.href
+            : `/events/${event.id}`;
 
-    // Host details
     const hostName = getHostName(event);
     const hostAvatar = event.user?.avatar ?? undefined;
     const hostCity = event.user?.city;
@@ -364,6 +539,29 @@ const EventPublicPage: React.FC = () => {
     }));
     const registeredCount = event.attendess_count ?? attendees.length;
 
+    // Prefer real tickets from API if available, otherwise fall back to dummy
+    const apiTickets: PublicTicket[] | null =
+        // @ts-expect-error – tickets may not be typed yet
+        Array.isArray(event.tickets) && event.tickets.length > 0
+            ? // @ts-expect-error
+            event.tickets.map((t: any) => ({
+                id: String(t.id),
+                name: t.name,
+                price: Number(t.price) || 0,
+                description: t.description || '',
+                image: t.image || null,
+            }))
+            : null;
+
+    const tickets: PublicTicket[] = apiTickets ?? DUMMY_TICKETS;
+    const hasMultipleTickets = tickets.length > 0;
+    const selectedTicket =
+        tickets.find((t) => t.id === selectedTicketId) ?? null;
+
+    // Auto-select first ticket if only one or none selected yet
+    const effectiveSelected =
+        selectedTicket ?? (tickets.length === 1 ? tickets[0] : null);
+
     return (
         <div className="w-full min-h-screen" style={{ background: pageBg }}>
             <PublicNavbar />
@@ -375,27 +573,37 @@ const EventPublicPage: React.FC = () => {
                             src={event.image}
                             alt={event.title}
                             className="w-full aspect-square object-cover rounded-lg"
-                            style={{ border: '1px solid rgba(205,220,57,.1)' }}
+                            style={{
+                                border: '1px solid rgba(205,220,57,.1)',
+                            }}
                         />
 
-                        {/* Hosted By */}
                         <div className="mt-6">
-                            <h3 className="text-white font-bold text-sm mb-3">Hosted By</h3>
+                            <h3 className="text-white font-bold text-sm mb-3">
+                                Hosted By
+                            </h3>
                             <div
                                 className="h-px w-full mb-4"
-                                style={{ background: 'rgba(205,220,57,.1)' }}
+                                style={{
+                                    background: 'rgba(205,220,57,.1)',
+                                }}
                             />
 
-                            <div className='flex justify-between items-center'>
-
+                            <div className="flex justify-between items-center">
                                 <div className="flex items-center gap-3 w-full">
-                                    <HostInitials name={hostName} avatar={hostAvatar} size={40} />
+                                    <HostInitials
+                                        name={hostName}
+                                        avatar={hostAvatar}
+                                        size={40}
+                                    />
                                     <div className="min-w-0">
                                         <p className="text-white text-sm font-semibold truncate">
                                             {hostName}
                                         </p>
                                         {hostCity && (
-                                            <p className="text-white/40 text-xs truncate">{hostCity}</p>
+                                            <p className="text-white/40 text-xs truncate">
+                                                {hostCity}
+                                            </p>
                                         )}
                                     </div>
                                 </div>
@@ -431,33 +639,48 @@ const EventPublicPage: React.FC = () => {
                         <div className="flex items-start gap-4 mb-4">
                             <div
                                 className="w-12 rounded-lg overflow-hidden text-center shrink-0"
-                                style={{ border: '1px solid rgba(205,220,57,.15)' }}
+                                style={{
+                                    border: '1px solid rgba(205,220,57,.15)',
+                                }}
                             >
                                 <div
                                     className="text-[10px] font-bold py-0.5"
-                                    style={{ background: 'rgba(166,255,0,0.12)', color: '#a6ff00' }}
+                                    style={{
+                                        background: 'rgba(166,255,0,0.12)',
+                                        color: '#a6ff00',
+                                    }}
                                 >
                                     {month}
                                 </div>
                                 <div
                                     className="text-white font-bold text-base py-0.5"
-                                    style={{ background: 'rgba(255,255,255,0.04)' }}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.04)',
+                                    }}
                                 >
                                     {day}
                                 </div>
                             </div>
                             <div>
                                 <p className="text-white/50 text-xs">
-                                    {sameDay ? `${startTime} – ${endTime}` : `Starts ${startTime}`}
+                                    {sameDay
+                                        ? `${startTime} – ${endTime}`
+                                        : `Starts ${startTime}`}
                                 </p>
-                                <p className="text-white font-bold text-sm">{startWeekday}</p>
+                                <p className="text-white font-bold text-sm">
+                                    {startWeekday}
+                                </p>
                                 {!sameDay && (
                                     <>
                                         <p className="text-white/30 text-[11px] mt-4 uppercase tracking-wide">
                                             Ends
                                         </p>
-                                        <p className="text-white font-bold text-sm">{endWeekday}</p>
-                                        <p className="text-white/50 text-xs">{endTime}</p>
+                                        <p className="text-white font-bold text-sm">
+                                            {endWeekday}
+                                        </p>
+                                        <p className="text-white/50 text-xs">
+                                            {endTime}
+                                        </p>
                                     </>
                                 )}
                             </div>
@@ -467,7 +690,9 @@ const EventPublicPage: React.FC = () => {
                         <div className="flex items-center gap-4 mb-6">
                             <div
                                 className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0"
-                                style={{ border: '1px solid rgba(205,220,57,.15)' }}
+                                style={{
+                                    border: '1px solid rgba(205,220,57,.15)',
+                                }}
                             >
                                 <LocationIcon
                                     location={event.location}
@@ -477,17 +702,23 @@ const EventPublicPage: React.FC = () => {
                             </div>
                             <div className="min-w-0">
                                 <p className="text-white font-bold text-sm truncate">
-                                    {event.location || 'Register to See Address'}
+                                    {event.location ||
+                                        'Register to See Address'}
                                 </p>
                                 <p className="text-white/40 text-xs">
-                                    {isOnline ? 'Online event' : 'In-person event'}
+                                    {isOnline
+                                        ? 'Online event'
+                                        : 'In-person event'}
                                 </p>
                             </div>
                         </div>
 
                         {/* Meta badges */}
                         <div className="flex flex-wrap items-center gap-2 mb-8">
-                            <OnlineBadge isOnline={isOnline} className="text-xs px-2.5 py-1.5" />
+                            <OnlineBadge
+                                isOnline={isOnline}
+                                className="text-xs px-2.5 py-1.5"
+                            />
                             <span
                                 className="inline-flex items-center gap-1 rounded-md font-semibold text-xs px-2.5 py-1.5"
                                 style={{
@@ -496,7 +727,9 @@ const EventPublicPage: React.FC = () => {
                                             ? 'rgba(255,255,255,0.06)'
                                             : 'rgba(166,255,0,0.1)',
                                     color:
-                                        ticketLabel === 'Free' ? 'rgba(255,255,255,0.6)' : '#a6ff00',
+                                        ticketLabel === 'Free'
+                                            ? 'rgba(255,255,255,0.6)'
+                                            : '#a6ff00',
                                 }}
                             >
                                 <FiTag size={13} />
@@ -522,7 +755,8 @@ const EventPublicPage: React.FC = () => {
                                 }}
                             >
                                 <FiUsers size={13} />
-                                {event.capacity === null || event.capacity === undefined
+                                {event.capacity === null ||
+                                    event.capacity === undefined
                                     ? 'Unlimited'
                                     : `Cap ${event.capacity}`}
                             </span>
@@ -534,14 +768,14 @@ const EventPublicPage: React.FC = () => {
                                 <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
                                     Registrants · {registeredCount}
                                 </h3>
-                                <div
-                                    className="flex items-center rounded-xl p-4 bg-white/5"
-                                >
+                                <div className="flex items-center rounded-xl p-4 bg-white/5">
                                     <AvatarStack
                                         attendees={attendees}
                                         total={registeredCount}
                                         size={28}
-                                        onOpenGuests={() => setShowGuestsModal(true)}
+                                        onOpenGuests={() =>
+                                            setShowGuestsModal(true)
+                                        }
                                     />
                                 </div>
                             </div>
@@ -565,25 +799,138 @@ const EventPublicPage: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Registration card */}
-                        <div
-                            className="overflow-hidden "
-                        >
-                            <div className="">
-                                <p className="text-white text-sm mb-5">
-                                    To join this event, please register below.
-                                </p>
+                        {/* ─── Ticket Selection ─────────────────────────── */}
+                        {hasMultipleTickets && (
+                            <div className="mb-8">
+                                <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
+                                    Choose a Ticket
+                                </h3>
+                                <div className="flex flex-col gap-3">
+                                    {tickets.map((ticket) => {
+                                        const isSelected =
+                                            (selectedTicketId ??
+                                                (tickets.length === 1
+                                                    ? tickets[0].id
+                                                    : null)) === ticket.id;
+                                        const priceText =
+                                            ticket.price === 0
+                                                ? 'Free'
+                                                : `₦${ticket.price.toFixed(2)}`;
 
-                                <Button
-                                    variant="white"
-                                    className="w-full py-3.5 text-xs"
-                                    onClick={() => setShowRegisterModal(true)}
-                                >
-                                    {ticketLabel === 'Free'
-                                        ? 'Click to Register'
-                                        : `RSVP · ${ticketLabel}`}
-                                </Button>
+                                        return (
+                                            <button
+                                                key={ticket.id}
+                                                type="button"
+                                                onClick={() => setSelectedTicketId(ticket.id)}
+                                                className="w-full text-left rounded-xl p-2 sm:p-2 transition-all cursor-pointer"
+                                                style={{
+                                                    background: isSelected
+                                                        ? 'rgba(166,255,0,0.08)'
+                                                        : 'rgba(255,255,255,0.03)',
+                                                }}
+                                            >
+                                                <div className="flex items-center gap-3 sm:gap-4">
+                                                    {/* Ticket image */}
+                                                    <div
+                                                        className="relative w-12 h-12 sm:w-12 sm:h-12 shrink-0 rounded overflow-hidden"
+                                                        style={{
+                                                            background: 'rgba(255,255,255,0.06)',
+                                                        }}
+                                                    >
+                                                        {ticket.image ? (
+                                                            <img
+                                                                src={ticket.image}
+                                                                alt={ticket.name}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <FiTag
+                                                                    size={18}
+                                                                    className="text-white/25"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Info */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="min-w-0">
+                                                                <p className="text-white text-sm font-semibold truncate">
+                                                                    {ticket.name}
+                                                                </p>
+                                                                {ticket.description && (
+                                                                    <p className="text-white/40 text-xs mt-0.5 line-clamp-2 leading-relaxed">
+                                                                        {ticket.description}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+
+                                                            <span
+                                                                className="text-sm font-bold shrink-0"
+                                                                style={{
+                                                                    color:
+                                                                        ticket.price === 0
+                                                                            ? 'rgba(255,255,255,0.5)'
+                                                                            : '#a6ff00',
+                                                                }}
+                                                            >
+                                                                {priceText}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Radio indicator */}
+                                                    <span
+                                                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
+                                                        style={{
+                                                            border: isSelected
+                                                                ? '2px solid #a6ff00'
+                                                                : '2px solid rgba(255,255,255,0.25)',
+                                                            background: isSelected
+                                                                ? '#a6ff00'
+                                                                : 'transparent',
+                                                        }}
+                                                    >
+                                                        {isSelected && (
+                                                            <span className="h-2 w-2 rounded-full bg-black" />
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
+                        )}
+
+                        {/* Registration CTA */}
+                        <div>
+                            <p className="text-white/50 text-sm mb-4">
+                                {hasMultipleTickets
+                                    ? 'Select a ticket above, then register to join this event.'
+                                    : 'To join this event, please register below.'}
+                            </p>
+
+                            <Button
+                                variant="white"
+                                className="w-full py-3.5 text-xs"
+                                disabled={
+                                    hasMultipleTickets && !effectiveSelected
+                                }
+                                onClick={() => setShowRegisterModal(true)}
+                            >
+                                {effectiveSelected
+                                    ? effectiveSelected.price === 0
+                                        ? `Register · ${effectiveSelected.name}`
+                                        : `Get ${effectiveSelected.name} · ₦${effectiveSelected.price.toFixed(2)}`
+                                    : hasMultipleTickets
+                                        ? 'Select a ticket to continue'
+                                        : ticketLabel === 'Free'
+                                            ? 'Click to Register'
+                                            : `RSVP · ${ticketLabel}`}
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -593,12 +940,16 @@ const EventPublicPage: React.FC = () => {
                 <RegisterModal
                     eventId={event.id}
                     eventTitle={event.title}
+                    selectedTicket={effectiveSelected}
                     onClose={() => setShowRegisterModal(false)}
                 />
             )}
 
             {showGuestsModal && (
-                <GuestsModal attendees={attendees} onClose={() => setShowGuestsModal(false)} />
+                <GuestsModal
+                    attendees={attendees}
+                    onClose={() => setShowGuestsModal(false)}
+                />
             )}
 
             {showInviteModal && (
