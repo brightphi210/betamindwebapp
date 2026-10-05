@@ -490,7 +490,6 @@ const DashNavbar = () => {
                 </div>
             </div>
 
-            {/* Logout confirmation (shared by desktop dropdown and mobile More sheet) */}
             {showLogoutConfirm && (
                 <ConfirmLogoutModal
                     onConfirm={confirmLogout}
