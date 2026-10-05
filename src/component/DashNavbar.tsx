@@ -445,20 +445,19 @@ const DashNavbar = () => {
                         </button>
                     </div>
 
-                    <div className="py-1 flex justify-between gap-3">
-                        <Link
-                            to="/dashboard/bookings"
-                            onClick={() => setShowMoreMenu(false)}
-                            className="justify-center flex w-full bg-neutral-900 items-center gap-2 border-2 border-neutral-800 text-white rounded-md px-5 py-3.5 text-sm font-semibold transition-colors"
-                        >
-                            <FiBookOpen className='text-lg' />
-                            Bookings
-                        </Link>
-                    </div>
 
-                    <div className="my-2 h-px w-full p-0.1" style={{ background: 'rgba(255,255,255,0.13)' }} />
 
-                    <div className="pb-1 flex flex-col gap-3">
+                    <div className="pb-1 flex flex-col gap-2">
+                        <div className="py-1 flex justify-between gap-3">
+                            <Link
+                                to="/dashboard/bookings"
+                                onClick={() => setShowMoreMenu(false)}
+                                className="justify-center flex w-full bg-neutral-800 items-center gap-2  text-white rounded-md px-5 py-3.5 text-sm font-semibold transition-colors"
+                            >
+                                <FiBookOpen className='text-lg' />
+                                My Bookings
+                            </Link>
+                        </div>
                         {userProfile?.is_mentor ? (
                             <Link
                                 to="/dashboard/mentor"
@@ -478,17 +477,16 @@ const DashNavbar = () => {
                                 Become a Mentor
                             </Link>
                         )}
-
-                        {/* Logout — opens the confirmation modal */}
-                        <button
-                            type="button"
-                            onClick={requestLogout}
-                            className="flex w-full items-center justify-center gap-2 rounded-md border-2 border-red-500/30 bg-red-500/10 px-5 py-3.5 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/15 cursor-pointer"
-                        >
-                            <FiLogOut className="text-lg" />
-                            Log Out
-                        </button>
                     </div>
+                    <div className="my-2 h-px w-full p-0.1" style={{ background: 'rgba(255,255,255,0.13)' }} />
+                    <button
+                        type="button"
+                        onClick={requestLogout}
+                        className="flex w-full items-center justify-center gap-2 rounded-md bg-red-500/20 px-5 py-3.5 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/15 cursor-pointer"
+                    >
+                        <FiLogOut className="text-lg" />
+                        Log Out
+                    </button>
                 </div>
             </div>
 

@@ -887,7 +887,7 @@ const Wallet = () => {
                 className="relative mb-8 overflow-hidden rounded-2xl p-6 sm:p-8"
                 style={{
                     background:
-                        "radial-gradient(ellipse 300px 200px at 100% 0%, rgba(166,255,0,0.2), transparent), rgba(255,255,255,0.02)",
+                        "radial-gradient(ellipse 300px 200px at 100% 0%, rgba(166,255,0,0.2), transparent), rgba(255,255,255,0.04)",
                 }}
             >
                 <p className="mb-2 text-xs font-semibold tracking-wide text-white/40">
@@ -950,7 +950,7 @@ const Wallet = () => {
 
                 <Button
                     onClick={() => setShowWithdraw(true)}
-                    variant="green"
+                    variant="white"
                 >
                     Withdraw funds
                 </Button>
@@ -985,7 +985,6 @@ const Wallet = () => {
                                 className="flex items-center gap-3 rounded-xl p-4"
                                 style={{
                                     background: cardBg,
-                                    border: cardBorder,
                                 }}
                             >
                                 <div
