@@ -12,3 +12,83 @@
   font-family: "DM Sans", sans-serif;
   /* font-family: "Saira", sans-serif; */
 }
+
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes step-forward {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes step-back {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: scale(.92) translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.anim-fade-up {
+  opacity: 0;
+  animation: fade-up .6s cubic-bezier(.22, 1, .36, 1) forwards;
+}
+
+.anim-step-fwd {
+  opacity: 0;
+  animation: step-forward .4s cubic-bezier(.22, 1, .36, 1) forwards;
+}
+
+.anim-step-back {
+  opacity: 0;
+  animation: step-back .4s cubic-bezier(.22, 1, .36, 1) forwards;
+}
+
+.anim-chip {
+  opacity: 0;
+  animation: chip-in .35s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .anim-fade-up,
+  .anim-step-fwd,
+  .anim-step-back,
+  .anim-chip {
+    animation: none;
+    opacity: 1;
+  }
+}

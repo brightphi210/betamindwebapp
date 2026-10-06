@@ -5,48 +5,7 @@ import LoadingOverlay from "../../component/LoadingOverlay";
 import Button from "../../component/ui/Button";
 import { useCreateMentor } from "../../hooks/mutations/allMutation";
 import { useGlobalContext } from "../../providers/GlobalContext";
-
-// Hardcoded category options for the button picker — same list used in
-// MentorProfile.tsx so the onboarding and edit flows stay in sync. Edit
-// this list to match what you actually want mentors to choose from.
-const CATEGORY_OPTIONS = [
-    "tech",
-    "finance",
-    "business",
-    "design",
-    "product",
-    "marketing",
-    "leadership",
-    "education",
-    "politics",
-    "media",
-    "health",
-    "lifestyle",
-    "sports",
-    "entertainment",
-    "science",
-];
-
-// Fixed expertise/skill options — same pattern as categories, kept in sync
-// with MentorProfile.tsx since there's no expertise endpoint.
-const EXPERTISE_OPTIONS = [
-    "career coaching",
-    "resume review",
-    "interview prep",
-    "public speaking",
-    "leadership coaching",
-    "technical mentoring",
-    "startup advice",
-    "product strategy",
-    "ux design",
-    "data analysis",
-    "marketing strategy",
-    "financial planning",
-    "personal branding",
-    "networking",
-    "time management",
-    "fundraising",
-];
+import { CATEGORY_OPTIONS, EXPERTISE_OPTIONS } from "../../utils/interest";
 
 // Major world languages for the language dropdown — matches MentorProfile.tsx.
 const LANGUAGE_OPTIONS = [
@@ -256,9 +215,10 @@ const MentorOnboarding = () => {
     const professionalComplete = !!(nickname && occupation && bio && experience);
     const socialComplete = categories.length > 0;
 
-    const toggleCategory = (cat: string) => {
-        setCategories((prev) =>
-            prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    const toggleCategory = (cat: { id: string; name: string }) => {
+        const categoryName = cat.name;
+        setSelectedCategories((prev) =>
+            prev.includes(categoryName) ? prev.filter((c) => c !== categoryName) : [...prev, categoryName]
         );
     };
 
@@ -467,10 +427,10 @@ const MentorOnboarding = () => {
                                 <p className="mb-2 text-sm font-semibold text-white">Category</p>
                                 <div className="flex flex-wrap gap-2">
                                     {CATEGORY_OPTIONS.map((cat) => {
-                                        const active = categories.includes(cat);
+                                        const active = categories.includes(cat.name);
                                         return (
                                             <button
-                                                key={cat}
+                                                key={cat.id}
                                                 type="button"
                                                 onClick={() => toggleCategory(cat)}
                                                 className={`rounded-full px-3.5 py-2 text-sm font-medium capitalize transition-all ${active
@@ -479,7 +439,7 @@ const MentorOnboarding = () => {
                                                     }`}
                                                 style={active ? undefined : { background: cardBg, border: cardBorder }}
                                             >
-                                                {cat}
+                                                {cat.name}
                                             </button>
                                         );
                                     })}
@@ -489,7 +449,7 @@ const MentorOnboarding = () => {
                             <MultiPillSelect
                                 label="Expertise"
                                 values={expertise}
-                                options={EXPERTISE_OPTIONS}
+                                options={EXPERTISE_OPTIONS.map((item) => item.name)}
                                 onChange={setExpertise}
                             />
 

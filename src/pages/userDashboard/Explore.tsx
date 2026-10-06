@@ -24,7 +24,8 @@ import {
 import { Link } from "react-router-dom";
 import DashFooter from "../../component/DashFooter";
 import LoadingOverlay from "../../component/LoadingOverlay";
-import { useGetAllEvents, useGetDigitalProduct, useGetMentors } from "../../hooks/queries/allQueriess";
+import { useGetAllEvents, useGetDigitalProduct, useGetMentors, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
+import { HARD_CODED_INTERESTS, extractInterestNames } from "../../utils/interest";
 import { LocationIcon } from "./EventShared";
 import {
     AvatarStack,
@@ -630,6 +631,14 @@ const NoProductsState: React.FC = () => (
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 const Explore: React.FC = () => {
+    const { myProfile } = useGetMyUserProfile();
+    const userProfile = myProfile?.data;
+    const savedInterestNames = useMemo(
+        () => extractInterestNames(userProfile?.interests, HARD_CODED_INTERESTS),
+        [userProfile]
+    );
+    const [filterMode, setFilterMode] = useState<"recommended" | "my-interests">("recommended");
+
     const { mentors, isLoading: mentorsLoading } = useGetMentors();
     const allMentors: any[] = useMemo(() => mentors?.data?.results ?? [], [mentors]);
     const topics = useMemo(() => buildTopicsFromMentors(allMentors), [allMentors]);
@@ -654,10 +663,53 @@ const Explore: React.FC = () => {
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [allEvents]);
 
+    const matchesSavedInterests = useMemo(() => {
+        const normalized = savedInterestNames.map((name) => name.toLowerCase());
+        if (!normalized.length) return () => true;
+        return (value: string | null | undefined) => {
+            const combined = (value ?? "").toLowerCase();
+            return normalized.some((interest) => combined.includes(interest));
+        };
+    }, [savedInterestNames]);
+
+    const filteredMentors = useMemo(() => {
+        if (filterMode !== "my-interests") return allMentors;
+        return allMentors.filter((mentor) => {
+            const haystack = [
+                mentor?.name,
+                mentor?.nick_name,
+                mentor?.occupation,
+                mentor?.bio,
+                mentor?.tag,
+                ...(mentor?.categories ?? []),
+                ...(mentor?.interests ?? []),
+            ]
+                .filter(Boolean)
+                .join(" ");
+            return matchesSavedInterests(haystack);
+        });
+    }, [allMentors, filterMode, matchesSavedInterests]);
+
+    const filteredEvents = useMemo(() => {
+        if (filterMode !== "my-interests") return upcomingEvents;
+        return upcomingEvents.filter((event) => {
+            const haystack = [event.title, event.description, event.location, event.host].filter(Boolean).join(" ");
+            return matchesSavedInterests(haystack);
+        });
+    }, [upcomingEvents, filterMode, matchesSavedInterests]);
+
+    const filteredProducts = useMemo(() => {
+        if (filterMode !== "my-interests") return allProduct;
+        return allProduct.filter((product) => {
+            const haystack = [product.title, product.author, product.category, product.type].filter(Boolean).join(" ");
+            return matchesSavedInterests(haystack);
+        });
+    }, [allProduct, filterMode, matchesSavedInterests]);
+
     // Pagination (one per section)
-    const mentorsPager = usePagination(allMentors, MENTORS_PER_PAGE);
-    const eventsPager = usePagination(upcomingEvents, EVENTS_PER_PAGE);
-    const productsPager = usePagination(allProduct, PRODUCTS_PER_PAGE);
+    const mentorsPager = usePagination(filteredMentors, MENTORS_PER_PAGE);
+    const eventsPager = usePagination(filteredEvents, EVENTS_PER_PAGE);
+    const productsPager = usePagination(filteredProducts, PRODUCTS_PER_PAGE);
 
     const mentorsSectionRef = useRef<HTMLElement>(null);
     const eventsSectionRef = useRef<HTMLElement>(null);
@@ -671,7 +723,7 @@ const Explore: React.FC = () => {
         };
 
     return (
-        <div className="relative isolate flex w-full min-h-screen flex-col bg-black">
+        <div className="relative isolate flex w-full min-h-screen flex-col bg-black anim-fade-up">
             {/* Fixed background layer: painted once instead of re-painted while scrolling */}
             <div
                 aria-hidden
@@ -682,10 +734,34 @@ const Explore: React.FC = () => {
 
             <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                 <div className="mb-14">
-                    <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Explore</h1>
-                    <p className="text-white/40 text-base max-w-2xl">
-                        Find topics you care about, connect with mentors, or pick up a course or book to level up.
-                    </p>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Explore</h1>
+                            <p className="text-white/40 text-base max-w-2xl">
+                                Find topics you care about, connect with mentors, or pick up a course or book to level up.
+                            </p>
+                        </div>
+
+                        <div className="inline-flex rounded-full border p-1" style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.08)" }}>
+                            {[
+                                { id: "recommended", label: "Recommended" },
+                                { id: "my-interests", label: "My interests" },
+                            ].map((option) => (
+                                <button
+                                    key={option.id}
+                                    type="button"
+                                    onClick={() => setFilterMode(option.id as "recommended" | "my-interests")}
+                                    className="rounded-full px-3 py-2 text-xs font-semibold transition-colors cursor-pointer"
+                                    style={{
+                                        background: filterMode === option.id ? "#a6ff00" : "transparent",
+                                        color: filterMode === option.id ? "#000" : "rgba(255,255,255,0.7)",
+                                    }}
+                                >
+                                    {option.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Topics */}
@@ -727,11 +803,11 @@ const Explore: React.FC = () => {
 
                 {/* Mentors */}
                 <section ref={mentorsSectionRef} className="mb-16 scroll-mt-24">
-                    <SectionHeader title="Featured Mentors" subtitle="Learn 1:1 from people who've done it" />
+                    <SectionHeader title="Featured Mentors" subtitle={filterMode === "my-interests" ? "Results matched to your saved interests" : "Learn 1:1 from people who've done it"} />
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {mentorsLoading ? (
                             Array.from({ length: MENTORS_PER_PAGE }).map((_, i) => <MentorCardSkeleton key={i} />)
-                        ) : allMentors.length > 0 ? (
+                        ) : filteredMentors.length > 0 ? (
                             mentorsPager.pageItems.map((mentor) => <MentorCard key={mentor.id} mentor={mentor} />)
                         ) : (
                             <NoMentorsState />
@@ -748,11 +824,11 @@ const Explore: React.FC = () => {
 
                 {/* Events */}
                 <section ref={eventsSectionRef} className="mb-16 scroll-mt-24">
-                    <SectionHeader title="Events You Can Explore" subtitle="Join a session hosted by the community" />
+                    <SectionHeader title="Events You Can Explore" subtitle={filterMode === "my-interests" ? "Events matched to your saved interests" : "Join a session hosted by the community"} />
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-2">
                         {eventsLoading ? (
                             Array.from({ length: EVENTS_PER_PAGE }).map((_, i) => <EventCardSkeleton key={i} />)
-                        ) : upcomingEvents.length > 0 ? (
+                        ) : filteredEvents.length > 0 ? (
                             eventsPager.pageItems.map((event) => <EventCard key={event.id} event={event} />)
                         ) : (
                             <NoEventsState />
@@ -769,11 +845,11 @@ const Explore: React.FC = () => {
 
                 {/* Digital Products */}
                 <section ref={productsSectionRef} className="scroll-mt-24">
-                    <SectionHeader title="Digital Products" subtitle="Self-paced learning from top mentors" />
+                    <SectionHeader title="Digital Products" subtitle={filterMode === "my-interests" ? "Products matched to your saved interests" : "Self-paced learning from top mentors"} />
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         {productLoading ? (
                             Array.from({ length: PRODUCTS_PER_PAGE }).map((_, i) => <ProductCardSkeleton key={i} />)
-                        ) : allProduct.length > 0 ? (
+                        ) : filteredProducts.length > 0 ? (
                             productsPager.pageItems.map((product) => <ProductCard key={product.id} product={product} />)
                         ) : (
                             <NoProductsState />

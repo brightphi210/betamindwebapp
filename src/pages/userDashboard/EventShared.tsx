@@ -76,12 +76,23 @@ export interface ApiEventUser {
     is_mentor?: boolean;
 }
 
+export interface EventTicket {
+    id?: string | number | null;
+    name: string;
+    amount?: string | number | null;
+    price?: string | number | null;
+    image?: string | null;
+    description?: string | null;
+    created_at?: string | null;
+}
+
 export interface ApiEvent {
     id: string;
     user: ApiEventUser;
     user_name: string;
     title: string;
     description: string;
+    tickets?: EventTicket[];
     image: string;
     online?: boolean;
     onsite?: boolean;

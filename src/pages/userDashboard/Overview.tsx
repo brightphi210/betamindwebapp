@@ -692,7 +692,7 @@ const Overview: React.FC = () => {
     };
 
     return (
-        <div className="drawer drawer-end">
+        <div className="drawer drawer-end anim-fade-up">
             <input
                 ref={drawerCheckboxRef}
                 id="event-drawer-toggle"

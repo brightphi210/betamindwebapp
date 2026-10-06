@@ -1,13 +1,16 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import { FiArrowLeft, FiArrowRight, FiCamera, FiCheck, FiPlus, FiUser, FiX } from "react-icons/fi";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { FiArrowLeft, FiArrowRight, FiCamera, FiCheck, FiUser } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/beta1.png";
+import InterestPicker from "../component/InterestPicker";
 import LoadingOverlay from "../component/LoadingOverlay";
 import Button from "../component/ui/Button";
 import { useUpdateUserProfile } from "../hooks/mutations/allMutation";
-import { useGetMyUserProfile } from "../hooks/queries/allQueriess";
+import { useGetInterests, useGetMyUserProfile } from "../hooks/queries/allQueriess";
 import { useGlobalContext } from "../providers/GlobalContext";
+import { getApiErrorMessage, prepareAvatar } from "../utils/avatar";
+import { createCustomInterest, extractInterestIds, HARD_CODED_INTERESTS, mergeOptions, normalizeInterests } from "../utils/interest";
 
 const cardBg = "rgba(255,255,255,0.02)";
 const cardBorder = "1px solid rgba(205,220,57,.08)";
@@ -16,27 +19,10 @@ const fieldClass =
 const pageBackground =
   "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)";
 
-const MAX_AVATAR_SIZE_BYTES = 7 * 1024 * 1024; // 7MB
-
-const SUGGESTED_INTERESTS = [
-  "Software Development",
-  "Product Design",
-  "Data & AI",
-  "Marketing",
-  "Entrepreneurship",
-  "Finance",
-  "Content Creation",
-  "Career Growth",
-  "Leadership",
-  "Public Speaking",
-  "Writing",
-  "Health & Wellness",
-];
-
 const STEPS = [
   { title: "About you", hint: "Tell us who you are." },
   { title: "Where you're based", hint: "Helps us connect you with the right people." },
-  { title: "Your interests", hint: "Pick what you'd like to learn or teach." },
+  { title: "Your interests", hint: "Pick what you'd like to learn or teach. We'll tailor Explore around them." },
 ];
 
 type FormState = {
@@ -46,16 +32,14 @@ type FormState = {
   address: string;
   city: string;
   country: string;
-  interests: string[];
 };
 
+type ErrorState = Partial<Record<keyof FormState | "interests" | "avatar", string>>;
+
+const delay = (ms: number) => ({ animationDelay: `${ms}ms` });
+
 const Field = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  error,
+  label, value, onChange, placeholder, type = "text", error,
 }: {
   label: string;
   value: string;
@@ -68,8 +52,9 @@ const Field = ({
     <label className="mb-2 block text-sm font-semibold text-white">{label}</label>
     <input
       type={type}
+      inputMode={type === "tel" ? "numeric" : undefined}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChange(type === "tel" ? e.target.value.replace(/\D/g, "") : e.target.value)}
       placeholder={placeholder}
       className={fieldClass}
       style={{ background: cardBg, border: error ? "1px solid rgba(248,113,113,.6)" : cardBorder }}
@@ -84,28 +69,34 @@ const Onboarding = () => {
   const { addToast } = useGlobalContext();
   const { myProfile, isLoading } = useGetMyUserProfile();
   const userProfile = myProfile?.data;
+  const { interests: interestsRes, isLoading: interestsLoading } = useGetInterests();
+  const [customInterests, setCustomInterests] = useState<any[]>([]);
+  const allInterests = useMemo(
+    () => mergeOptions(normalizeInterests(interestsRes?.data ?? HARD_CODED_INTERESTS), customInterests),
+    [customInterests, interestsRes]
+  );
   const { mutate: updateProfile, isPending } = useUpdateUserProfile();
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
+  const hydrated = useRef(false);
+
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   const [step, setStep] = useState(0);
-  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
-  const [customInterest, setCustomInterest] = useState("");
+  const [direction, setDirection] = useState<"fwd" | "back">("fwd");
+  const [errors, setErrors] = useState<ErrorState>({});
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [form, setForm] = useState<FormState>({
-    first_name: "",
-    last_name: "",
-    phone_number: "",
-    address: "",
-    city: "",
-    country: "",
-    interests: [],
+    first_name: "", last_name: "", phone_number: "", address: "", city: "", country: "",
   });
 
-  // Prefill anything we already know (e.g. name from Google)
+  // Prefill ONCE. Re-running on every refetch (e.g. after the file picker closes)
+  // used to wipe what the user was typing.
   useEffect(() => {
-    if (!userProfile) return;
+    if (hydrated.current || !userProfile || interestsLoading) return;
+    hydrated.current = true;
     setForm({
       first_name: userProfile.first_name ?? "",
       last_name: userProfile.last_name ?? "",
@@ -113,72 +104,92 @@ const Onboarding = () => {
       address: userProfile.address ?? "",
       city: userProfile.city ?? "",
       country: userProfile.country ?? "",
-      interests: Array.isArray(userProfile.interests) ? userProfile.interests : [],
     });
+    setSelectedIds(extractInterestIds(userProfile.interests, allInterests));
     setAvatarPreview(userProfile.avatar ?? null);
-  }, [userProfile]);
+  }, [userProfile, interestsLoading, allInterests]);
+
+  useEffect(() => () => {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+  }, []);
 
   const set = (key: keyof FormState) => (v: string) => {
     setForm((f) => ({ ...f, [key]: v }));
     setErrors((e) => ({ ...e, [key]: undefined }));
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = ""; // lets the user re-pick the same file after an error
     if (!file) return;
 
-    if (file.size > MAX_AVATAR_SIZE_BYTES) {
-      addToast("Profile photo must be 7MB or smaller.", "error");
-      e.target.value = "";
-      return;
+    try {
+      const prepared = await prepareAvatar(file);
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      const url = URL.createObjectURL(prepared);
+      objectUrlRef.current = url;
+      setAvatarPreview(url);
+      setAvatarFile(prepared);
+      setErrors((e) => ({ ...e, avatar: undefined }));
+    } catch (err: any) {
+      addToast(err?.message || "Couldn't use that image.", "error");
     }
-
-    setAvatarPreview(URL.createObjectURL(file));
-    setAvatarFile(file);
   };
 
-  const toggleInterest = (interest: string) => {
-    setForm((f) => ({
-      ...f,
-      interests: f.interests.includes(interest)
-        ? f.interests.filter((i) => i !== interest)
-        : [...f.interests, interest],
-    }));
+  const toggleInterest = (id: string) => {
+    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id]));
     setErrors((e) => ({ ...e, interests: undefined }));
   };
 
-  const addCustomInterest = () => {
-    const value = customInterest.trim();
-    if (!value) return;
-    const exists = form.interests.some((i) => i.toLowerCase() === value.toLowerCase());
-    if (!exists) toggleInterest(value);
-    setCustomInterest("");
+  const handleAddCustomInterest = (value: string) => {
+    const nextInterest = createCustomInterest(value);
+    if (!nextInterest) return;
+
+    setCustomInterests((existing) => {
+      const alreadyExists = existing.some((item) => item.id === nextInterest.id) ||
+        HARD_CODED_INTERESTS.some((item) => item.id === nextInterest.id || item.name.toLowerCase() === nextInterest.name.toLowerCase());
+      if (alreadyExists) {
+        setSelectedIds((ids) => (ids.includes(nextInterest.id) ? ids : [...ids, nextInterest.id]));
+        return existing;
+      }
+
+      setSelectedIds((ids) => (ids.includes(nextInterest.id) ? ids : [...ids, nextInterest.id]));
+      return [nextInterest, ...existing];
+    });
   };
 
   const validateStep = (): boolean => {
-    const next: typeof errors = {};
+    const next: ErrorState = {};
     if (step === 0) {
+      if (!avatarPreview && !avatarFile) next.avatar = "Profile photo is required";
       if (!form.first_name.trim()) next.first_name = "First name is required";
       if (!form.last_name.trim()) next.last_name = "Last name is required";
-      if (!form.phone_number.trim()) next.phone_number = "Phone number is required";
+      const digits = form.phone_number.replace(/\D/g, "");
+      if (!digits) next.phone_number = "Phone number is required";
+      else if (digits.length < 10) next.phone_number = "Phone number must be at least 10 digits";
     }
     if (step === 1) {
       if (!form.city.trim()) next.city = "City is required";
       if (!form.country.trim()) next.country = "Country is required";
     }
-    if (step === 2 && form.interests.length === 0) {
-      next.interests = "Pick at least one interest";
-    }
+    if (step === 2 && selectedIds.length === 0) next.interests = "Pick at least one interest";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
 
   const handleNext = () => {
-    if (validateStep()) setStep((s) => s + 1);
+    if (!validateStep()) return;
+    setDirection("fwd");
+    setStep((s) => s + 1);
+  };
+
+  const handleBack = () => {
+    setDirection("back");
+    setStep((s) => s - 1);
   };
 
   const handleFinish = () => {
-    if (!validateStep()) return;
+    if (isPending || !validateStep()) return;
 
     const formData = new FormData();
     formData.append("first_name", form.first_name.trim());
@@ -187,23 +198,16 @@ const Onboarding = () => {
     formData.append("address", form.address.trim());
     formData.append("city", form.city.trim());
     formData.append("country", form.country.trim());
-    form.interests.forEach((i) => formData.append("interests", i));
+    selectedIds.forEach((id) => formData.append("interest_ids", id));
     if (avatarFile) formData.append("avatar", avatarFile);
 
     updateProfile(formData, {
-      onSuccess: async (res: any) => {
+      onSuccess: async () => {
         await queryClient.invalidateQueries();
         addToast("Profile completed. Welcome aboard!", "success");
-        console.log("This is the response", res);
         navigate("/dashboard/overview", { replace: true });
       },
-      onError: (error: any) => {
-        const message =
-          error?.response?.data?.message ||
-          error?.response?.data?.detail ||
-          "Something went wrong. Please try again.";
-        addToast(message, "error");
-      },
+      onError: (error: any) => addToast(getApiErrorMessage(error), "error"),
     });
   };
 
@@ -219,218 +223,121 @@ const Onboarding = () => {
   }
 
   const isLast = step === STEPS.length - 1;
+  const stepAnim = direction === "fwd" ? "anim-step-fwd" : "anim-step-back";
 
   return (
     <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
       <LoadingOverlay visible={isPending} />
       <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
         {/* Logo */}
-        <div className="mb-10 flex h-9 w-9 items-center justify-center overflow-hidden rounded-sm lg:mb-8 lg:h-7 lg:w-7">
+        <div
+          className="anim-fade-up mb-10 flex h-9 w-9 items-center justify-center overflow-hidden rounded-sm lg:mb-8 lg:h-7 lg:w-7"
+          style={delay(0)}
+        >
           <img src={logo} alt="Betamind Logo" className="h-full w-full object-cover" />
         </div>
 
         {/* Progress */}
-        <div className="mb-8">
+        <div className="anim-fade-up mb-8" style={delay(80)}>
           <div className="mb-3 flex items-center justify-between text-xs text-white/50">
-            <span>
-              Step {step + 1} of {STEPS.length}
-            </span>
+            <span>Step {step + 1} of {STEPS.length}</span>
             <span>{STEPS[step].title}</span>
           </div>
           <div className="flex gap-2">
             {STEPS.map((_, i) => (
-              <div
-                key={i}
-                className="h-1 flex-1 rounded-full transition-colors duration-300"
-                style={{ background: i <= step ? "#a6ff00" : "rgba(255,255,255,0.1)" }}
-              />
+              <div key={i} className="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full transition-[width] duration-500 ease-out"
+                  style={{ width: i <= step ? "100%" : "0%", background: "#a6ff00" }}
+                />
+              </div>
             ))}
           </div>
         </div>
 
-        <div className="mb-8">
-          <h1 className="text-3xl font-black leading-tight sm:text-4xl">
-            {step === 0 ? "Complete your profile" : STEPS[step].title}
-          </h1>
-          <p className="mt-3 text-sm text-white/40 sm:text-base">{STEPS[step].hint}</p>
-        </div>
+        {/* Heading + step content re-animate whenever the step changes */}
+        <div key={step} className={stepAnim}>
+          <div className="mb-8">
+            <h1 className="text-3xl font-black leading-tight sm:text-4xl">
+              {step === 0 ? "Complete your profile" : STEPS[step].title}
+            </h1>
+            <p className="mt-3 text-sm text-white/40 sm:text-base">{STEPS[step].hint}</p>
+          </div>
 
-        <div className="space-y-6">
-          {step === 0 && (
-            <>
-              {/* Avatar */}
-              <div>
-                <p className="mb-2 text-sm font-semibold text-white">Profile Photo (optional)</p>
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    <div
-                      className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl"
-                      style={{ background: cardBg, border: cardBorder }}
-                    >
-                      {avatarPreview ? (
-                        <img src={avatarPreview} alt="Avatar" className="h-full w-full object-cover" />
-                      ) : (
-                        <FiUser size={26} className="text-white/20" />
-                      )}
+          <div className="space-y-6">
+            {step === 0 && (
+              <>
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-white">Profile Photo</p>
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <div
+                        className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl"
+                        style={{ background: cardBg, border: errors.avatar ? "1px solid rgba(248,113,113,.6)" : cardBorder }}
+                      >
+                        {avatarPreview ? (
+                          <img src={avatarPreview} alt="Avatar" className="h-full w-full object-cover" />
+                        ) : (
+                          <FiUser size={26} className="text-white/20" />
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => avatarInputRef.current?.click()}
+                        aria-label="Upload profile photo"
+                        className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-white text-black shadow transition-transform hover:scale-110"
+                      >
+                        <FiCamera size={13} />
+                      </button>
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={handleAvatarChange}
+                      />
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => avatarInputRef.current?.click()}
-                      aria-label="Upload profile photo"
-                      className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-white text-black shadow"
-                    >
-                      <FiCamera size={13} />
-                    </button>
-                    <input
-                      ref={avatarInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleAvatarChange}
-                    />
+                    <p className="text-xs text-white/40">JPG, PNG or WebP, up to 7MB.</p>
                   </div>
-                  <p className="text-xs text-white/40">PNG or JPG, up to 7MB.</p>
+                  {errors.avatar && <p className="mt-2 text-xs text-red-400">{errors.avatar}</p>}
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field
-                  label="First Name"
-                  value={form.first_name}
-                  onChange={set("first_name")}
-                  placeholder="Bright"
-                  error={errors.first_name}
-                />
-                <Field
-                  label="Last Name"
-                  value={form.last_name}
-                  onChange={set("last_name")}
-                  placeholder="Philip"
-                  error={errors.last_name}
-                />
-              </div>
-              <Field
-                label="Phone Number"
-                type="tel"
-                value={form.phone_number}
-                onChange={set("phone_number")}
-                placeholder="08012345678"
-                error={errors.phone_number}
-              />
-            </>
-          )}
-
-          {step === 1 && (
-            <>
-              <Field
-                label="Address (optional)"
-                value={form.address}
-                onChange={set("address")}
-                placeholder="Street address"
-              />
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field
-                  label="City"
-                  value={form.city}
-                  onChange={set("city")}
-                  placeholder="Port Harcourt"
-                  error={errors.city}
-                />
-                <Field
-                  label="Country"
-                  value={form.country}
-                  onChange={set("country")}
-                  placeholder="Nigeria"
-                  error={errors.country}
-                />
-              </div>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <div className="flex flex-wrap gap-2.5">
-                {SUGGESTED_INTERESTS.map((interest) => {
-                  const selected = form.interests.includes(interest);
-                  return (
-                    <button
-                      key={interest}
-                      type="button"
-                      onClick={() => toggleInterest(interest)}
-                      aria-pressed={selected}
-                      className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors"
-                      style={{
-                        background: selected ? "rgba(166,255,0,0.12)" : cardBg,
-                        border: selected ? "1px solid #a6ff00" : cardBorder,
-                        color: selected ? "#a6ff00" : "rgba(255,255,255,0.7)",
-                      }}
-                    >
-                      {selected && <FiCheck size={13} />}
-                      {interest}
-                    </button>
-                  );
-                })}
-                {/* Custom interests the user added */}
-                {form.interests
-                  .filter((i) => !SUGGESTED_INTERESTS.includes(i))
-                  .map((interest) => (
-                    <button
-                      key={interest}
-                      type="button"
-                      onClick={() => toggleInterest(interest)}
-                      className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium"
-                      style={{
-                        background: "rgba(166,255,0,0.12)",
-                        border: "1px solid #a6ff00",
-                        color: "#a6ff00",
-                      }}
-                    >
-                      {interest}
-                      <FiX size={13} />
-                    </button>
-                  ))}
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-white">
-                  Something else?
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    value={customInterest}
-                    onChange={(e) => setCustomInterest(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addCustomInterest();
-                      }
-                    }}
-                    placeholder="Add your own interest"
-                    className={fieldClass}
-                    style={{ background: cardBg, border: cardBorder }}
-                  />
-                  <button
-                    type="button"
-                    onClick={addCustomInterest}
-                    aria-label="Add interest"
-                    className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-xl bg-white text-black"
-                  >
-                    <FiPlus size={16} />
-                  </button>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="First Name" value={form.first_name} onChange={set("first_name")} placeholder="Bright" error={errors.first_name} />
+                  <Field label="Last Name" value={form.last_name} onChange={set("last_name")} placeholder="Philip" error={errors.last_name} />
                 </div>
-              </div>
+                <Field label="Phone Number" type="tel" value={form.phone_number} onChange={set("phone_number")} placeholder="08012345678" error={errors.phone_number} />
+              </>
+            )}
 
-              <p className="text-xs text-white/40">{form.interests.length} selected</p>
-              {errors.interests && <p className="text-xs text-red-400">{errors.interests}</p>}
-            </>
-          )}
+            {step === 1 && (
+              <>
+                <Field label="Address (optional)" value={form.address} onChange={set("address")} placeholder="Street address" />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="City" value={form.city} onChange={set("city")} placeholder="Port Harcourt" error={errors.city} />
+                  <Field label="Country" value={form.country} onChange={set("country")} placeholder="Nigeria" error={errors.country} />
+                </div>
+              </>
+            )}
+
+            {step === 2 && (
+              <InterestPicker
+                interests={allInterests}
+                selected={selectedIds}
+                onToggle={toggleInterest}
+                onAddCustom={handleAddCustomInterest}
+                isLoading={interestsLoading}
+                error={errors.interests}
+              />
+            )}
+          </div>
         </div>
 
-        <div className="mt-10 flex items-center justify-between">
+        <div className="anim-fade-up mt-10 flex items-center justify-between" style={delay(320)}>
           {step > 0 ? (
             <button
               type="button"
-              onClick={() => setStep((s) => s - 1)}
+              onClick={handleBack}
               className="inline-flex items-center gap-2 text-sm font-semibold text-white/50 transition-colors hover:text-white"
             >
               <FiArrowLeft size={15} />
@@ -441,7 +348,7 @@ const Onboarding = () => {
           )}
 
           {isLast ? (
-            <Button variant="green" onClick={handleFinish} disabled={isPending}>
+            <Button variant="green" onClick={handleFinish} disabled={isPending || interestsLoading}>
               <span className="flex items-center justify-center gap-2">
                 <FiCheck size={15} />
                 Finish

@@ -21,7 +21,7 @@ const DashFooter = () => (
     <footer className="mt-auto w-full pt-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* pb-28 on mobile keeps the footer clear of the fixed bottom tab bar */}
-            <div className="flex flex-col gap-5 border-t border-white/10 pt-6 pb-28 sm:flex-row sm:items-center sm:justify-between lg:pb-8">
+            <div className="flex flex-col gap-5 border-t border-white/10 pt-6 pb-14 sm:flex-row sm:items-center sm:justify-between lg:pb-8">
                 {/* Left: logo + links */}
                 <div className="flex items-center gap-6">
                     <img src={betamindLogo} alt="Betamind" className="w-20 shrink-0" loading="lazy" decoding="async" />

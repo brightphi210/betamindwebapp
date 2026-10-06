@@ -7,6 +7,7 @@ import { useGetMyUserProfile } from "../../hooks/queries/allQueriess";
 // ASSUMPTION: adjust to your real update-profile mutation hook
 import { useUpdateUserProfile } from "../../hooks/mutations/allMutation";
 import { useGlobalContext } from "../../providers/GlobalContext";
+import { HARD_CODED_INTERESTS, extractInterestNames } from "../../utils/interest";
 
 const cardBg = "rgba(255,255,255,0.02)";
 const cardBorder = "1px solid rgba(205,220,57,.08)";
@@ -65,6 +66,8 @@ const SettingsPage = () => {
         city: "",
         country: "",
     });
+
+    const savedInterests = extractInterestNames(userProfile?.interests, HARD_CODED_INTERESTS);
 
     // Populate the form once the profile loads
     useEffect(() => {
@@ -226,6 +229,25 @@ const SettingsPage = () => {
                             onChange={(v) => setForm((f) => ({ ...f, country: v }))}
                             placeholder="Nigeria"
                         />
+                    </div>
+
+                    <div className="rounded-2xl p-4" style={{ background: cardBg, border: cardBorder }}>
+                        <p className="mb-3 text-sm font-semibold text-white">Your Interests</p>
+                        {savedInterests.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                                {savedInterests.map((interest) => (
+                                    <span
+                                        key={interest}
+                                        className="inline-flex items-center rounded-full border px-2.5 py-1.5 text-xs font-medium text-white/80"
+                                        style={{ borderColor: "rgba(166,255,0,0.25)", background: "rgba(166,255,0,0.08)" }}
+                                    >
+                                        {interest}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-white/40">No interests saved yet. Complete onboarding to add your interests.</p>
+                        )}
                     </div>
                 </div>
 

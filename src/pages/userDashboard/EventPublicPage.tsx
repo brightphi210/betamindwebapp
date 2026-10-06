@@ -39,7 +39,6 @@ const pageBg =
 const fieldClass =
     'w-full rounded-xl px-4 py-4 text-sm text-white placeholder-white/30 outline-none';
 
-// ─── Dummy tickets (used when API has no tickets array yet) ───────────────
 type PublicTicket = {
     id: string;
     name: string;
@@ -47,31 +46,6 @@ type PublicTicket = {
     description: string;
     image?: string | null;
 };
-
-const DUMMY_TICKETS: PublicTicket[] = [
-    {
-        id: 't1',
-        name: 'General Admission',
-        price: 0,
-        description: 'Access to the main event hall and networking area.',
-        image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200&h=200&fit=crop',
-    },
-    {
-        id: 't2',
-        name: 'Early Bird',
-        price: 15,
-        description: 'Discounted entry · limited spots · includes welcome drink.',
-        image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=200&h=200&fit=crop',
-    },
-    {
-        id: 't3',
-        name: 'VIP Pass',
-        price: 45,
-        description:
-            'Front-row seating, exclusive lounge access, and a gift bag.',
-        image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=200&h=200&fit=crop',
-    },
-];
 
 const PartyIcon = () => (
     <svg
@@ -539,21 +513,17 @@ const EventPublicPage: React.FC = () => {
     }));
     const registeredCount = event.attendess_count ?? attendees.length;
 
-    // Prefer real tickets from API if available, otherwise fall back to dummy
-    const apiTickets: PublicTicket[] | null =
-        // @ts-expect-error – tickets may not be typed yet
-        Array.isArray(event.tickets) && event.tickets.length > 0
-            ? // @ts-expect-error
-            event.tickets.map((t: any) => ({
-                id: String(t.id),
-                name: t.name,
-                price: Number(t.price) || 0,
-                description: t.description || '',
-                image: t.image || null,
-            }))
-            : null;
+    const apiTickets: PublicTicket[] = Array.isArray(event.tickets) && event.tickets.length > 0
+        ? event.tickets.map((t: any) => ({
+            id: String(t.id ?? `${t.name}-${Math.random()}`),
+            name: t.name || 'Ticket',
+            price: Number(t.amount ?? t.price ?? 0) || 0,
+            description: t.description || '',
+            image: t.image || null,
+        }))
+        : [];
 
-    const tickets: PublicTicket[] = apiTickets ?? DUMMY_TICKETS;
+    const tickets: PublicTicket[] = apiTickets;
     const hasMultipleTickets = tickets.length > 0;
     const selectedTicket =
         tickets.find((t) => t.id === selectedTicketId) ?? null;

@@ -1,8 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
+import { HARD_CODED_INTERESTS } from "../../utils/interest";
 import { get_requests } from "../helper/AxioHelper";
 
-
-
+export const useGetInterests = () => {
+    return {
+        interests: { data: HARD_CODED_INTERESTS },
+        isLoading: false,
+        isError: false,
+        isFetched: true,
+        refetch: async () => ({ data: HARD_CODED_INTERESTS }),
+    };
+};
 
 export const useGetMyMentorProfile = () => {
     const { data, isLoading, isError, isFetched, refetch } = useQuery({

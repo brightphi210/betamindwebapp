@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BsMicrosoftTeams } from 'react-icons/bs';
 import {
     FiCamera,
@@ -10,13 +10,14 @@ import {
     FiTag,
     FiTrash2,
     FiUserCheck,
-    FiUsers,
+    FiUsers
 } from 'react-icons/fi';
 import { SiGooglemeet, SiZoom } from 'react-icons/si';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { useNavigate } from 'react-router-dom';
 import LoadingOverlay from '../../component/LoadingOverlay';
+import MyButton from '../../component/ui/Button';
 import { useCreateEvents } from '../../hooks/mutations/allMutation';
 import { useGlobalContext } from '../../providers/GlobalContext';
 
@@ -341,6 +342,117 @@ type LocationType = 'offline' | 'online';
 type MeetingPlatform = 'google_meet' | 'zoom' | 'teams';
 
 const MIN_DESCRIPTION_LENGTH = 30;
+const COMMISSION_RATE = 0.03;
+
+const TicketCommissionModal: React.FC<{
+    open: boolean;
+    ticketTotal: number;
+    commission: number;
+    onCancel: () => void;
+    onConfirm: () => void;
+}> = ({ open, ticketTotal, commission, onCancel, onConfirm }) => {
+    const [visible, setVisible] = useState(false);
+    const closingRef = useRef(false);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const frame = requestAnimationFrame(() => setVisible(true));
+        return () => {
+            cancelAnimationFrame(frame);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
+    }, [open]);
+
+    const closeThen = (action: () => void) => {
+        if (closingRef.current) return;
+        closingRef.current = true;
+        setVisible(false);
+        timeoutRef.current = setTimeout(action, 300);
+    };
+
+    useEffect(() => {
+        if (!open) return;
+        const onEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') closeThen(onCancel);
+        };
+        window.addEventListener('keydown', onEscape);
+        return () => window.removeEventListener('keydown', onEscape);
+    }, [open, onCancel]);
+
+    if (!open) return null;
+
+    return (
+        <div
+            className={`fixed inset-0 z-[90] flex items-center justify-center px-4 backdrop-blur-sm transition-all duration-300 ease-out ${visible ? 'bg-black/50 opacity-100' : 'bg-black/0 opacity-0'
+                }`}
+            onClick={() => closeThen(onCancel)}
+        >
+            <div
+                className={`w-full max-w-md rounded-xl overflow-hidden shadow-2xl transition-all duration-300 ease-out ${visible
+                    ? 'opacity-100 scale-100 translate-y-0'
+                    : 'opacity-0 scale-95 translate-y-4'
+                    }`}
+                style={{
+                    background: 'rgba(10,12,9,0.98)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)',
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="p-6 sm:p-7">
+                    <div
+                        className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
+                        style={{ background: 'rgba(166,255,0,0.12)' }}
+                    >
+                        <FiTag size={22} className="text-[#a6ff00]" />
+                    </div>
+
+                    <h3 className="text-white text-xl sm:text-2xl font-black mb-2">
+                        3% platform fee
+                    </h3>
+                    <p className="text-white/45 text-sm leading-relaxed mb-6">
+                        For events with tickets, Betamind takes a{' '}
+                        <span className="font-semibold text-[#a6ff00]">3% commission</span>{' '}
+                        on each ticket sold.
+                    </p>
+
+                    <div className="rounded-xl border border-white/10 bg-white/3 p-4 text-sm text-white/70 mb-6">
+                        <div className="flex items-center justify-between gap-3 text-white/60">
+                            <span>Ticket total</span>
+                            <span className="font-semibold text-white">
+                                ₦{ticketTotal.toLocaleString()}
+                            </span>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between gap-3 text-white/60">
+                            <span>Betamind fee</span>
+                            <span className="font-semibold text-[#a6ff00]">
+                                ₦{commission.toLocaleString()}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2.5">
+                        <MyButton variant="white" onClick={() => closeThen(onConfirm)} className="w-full sm:flex-1">
+                            <span className="flex items-center justify-center gap-2">
+                                Create Event
+                            </span>
+                        </MyButton>
+                        <button
+                            type="button"
+                            onClick={() => closeThen(onCancel)}
+                            className="w-full sm:w-auto px-5 py-2.5 rounded-md text-sm font-semibold text-white/60 hover:text-white transition-colors cursor-pointer"
+                            style={{ background: 'rgba(255,255,255,0.06)' }}
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const EventCreate: React.FC = () => {
     const navigate = useNavigate();
@@ -369,6 +481,7 @@ const EventCreate: React.FC = () => {
 
     const [hasTickets, setHasTickets] = useState(false);
     const [tickets, setTickets] = useState<TicketDraft[]>([]);
+    const [showCommissionModal, setShowCommissionModal] = useState(false);
 
     const [requireApproval, setRequireApproval] = useState(false);
 
@@ -409,6 +522,11 @@ const EventCreate: React.FC = () => {
                 (t) => t.name.trim() && t.price !== '' && Number(t.price) >= 0
             ));
 
+    const totalTicketValue = hasTickets
+        ? tickets.reduce((sum, ticket) => sum + Number(ticket.price || 0), 0)
+        : 0;
+    const commissionEstimate = totalTicketValue * COMMISSION_RATE;
+
     const isValid = !!(
         eventName.trim() &&
         startDate &&
@@ -418,9 +536,7 @@ const EventCreate: React.FC = () => {
         ticketsValid
     );
 
-    const handleCreate = () => {
-        if (!isValid) return;
-
+    const submitEvent = () => {
         const formData = new FormData();
         formData.append('title', eventName);
         formData.append('description', description);
@@ -443,14 +559,15 @@ const EventCreate: React.FC = () => {
         if (hasTickets) {
             const payload = tickets.map((t, index) => ({
                 name: t.name.trim(),
-                price: t.price || '0',
+                amount: String(Number(t.price || 0)),
+                image: t.imageFile ? `ticket_image_${index}` : '',
                 description: t.description.trim(),
-                image_field: t.imageFile ? `ticket_image_${index}` : null,
             }));
             formData.append('tickets', JSON.stringify(payload));
             tickets.forEach((t, index) => {
-                if (t.imageFile)
+                if (t.imageFile) {
                     formData.append(`ticket_image_${index}`, t.imageFile);
+                }
             });
             const lowest = Math.min(
                 ...tickets.map((t) => Number(t.price || 0))
@@ -481,6 +598,18 @@ const EventCreate: React.FC = () => {
             },
         });
     };
+
+    const handleCreate = () => {
+        if (!isValid) return;
+
+        if (hasTickets) {
+            setShowCommissionModal(true);
+            return;
+        }
+
+        submitEvent();
+    };
+
 
     // ─── Success screen ─────────────────────────────────────────────────
     if (step === 'success') {
@@ -1018,6 +1147,18 @@ const EventCreate: React.FC = () => {
                             </div>
                         </div>
 
+                        {hasTickets && (
+                            <div className="-mt-5 mb-4 rounded-xl border border-[#a6ff00]/20 bg-[#a6ff00]/6 p-3 text-xs text-white/70">
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="font-semibold text-white">Ticket fee</span>
+                                    <span className="text-[#a6ff00]">3% commission</span>
+                                </div>
+                                <p className="mt-1">
+                                    Betamind will take <span className="font-semibold text-[#a6ff00]">₦{commissionEstimate.toLocaleString()}</span> from ticket sales for this event.
+                                </p>
+                            </div>
+                        )}
+
                         {hasTickets && !ticketsValid && (
                             <p className="text-xs text-red-400/80 -mt-5 mb-4">
                                 Every ticket needs a name and a price (use 0 for
@@ -1035,6 +1176,17 @@ const EventCreate: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            <TicketCommissionModal
+                open={showCommissionModal}
+                ticketTotal={totalTicketValue}
+                commission={commissionEstimate}
+                onCancel={() => setShowCommissionModal(false)}
+                onConfirm={() => {
+                    setShowCommissionModal(false);
+                    submitEvent();
+                }}
+            />
 
             <style>{`
                 .quill-dark-wrapper .ql-toolbar.ql-snow {

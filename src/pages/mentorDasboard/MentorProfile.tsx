@@ -18,20 +18,7 @@ import Button from "../../component/ui/Button";
 import { useUpdateMentorProfile } from "../../hooks/mutations/allMutation";
 import { useGetMyMentorProfile, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
 import { useGlobalContext } from "../../providers/GlobalContext";
-
-const CATEGORY_OPTIONS = [
-    "tech", "finance", "business", "design", "product", "marketing",
-    "leadership", "education", "politics", "media", "health",
-    "lifestyle", "sports", "entertainment", "science",
-];
-
-const EXPERTISE_OPTIONS = [
-    "career coaching", "resume review", "interview prep", "public speaking",
-    "leadership coaching", "technical mentoring", "startup advice",
-    "product strategy", "ux design", "data analysis", "marketing strategy",
-    "financial planning", "personal branding", "networking",
-    "time management", "fundraising",
-];
+import { CATEGORY_OPTIONS, EXPERTISE_OPTIONS } from "../../utils/interest";
 
 const LANGUAGE_OPTIONS = [
     "English", "Spanish", "French", "Portuguese", "German", "Italian",
@@ -382,12 +369,13 @@ const MentorProfile = () => {
         setDraft((d) => ({ ...d, banner: URL.createObjectURL(file), bannerFile: file }));
     };
 
-    const toggleCategory = (cat: string) => {
+    const toggleCategory = (cat: { id: string; name: string }) => {
+        const categoryName = cat.name;
         setDraft((d) => ({
             ...d,
-            categories: d.categories.includes(cat)
-                ? d.categories.filter((c) => c !== cat)
-                : [...d.categories, cat],
+            categories: d.categories.includes(categoryName)
+                ? d.categories.filter((c) => c !== categoryName)
+                : [...d.categories, categoryName],
         }));
     };
 
@@ -657,10 +645,10 @@ const MentorProfile = () => {
                                 {isEditing ? (
                                     <div className="flex flex-wrap gap-2">
                                         {CATEGORY_OPTIONS.map((cat) => {
-                                            const active = draft.categories.includes(cat);
+                                            const active = draft.categories.includes(cat.name);
                                             return (
                                                 <button
-                                                    key={cat}
+                                                    key={cat.id}
                                                     type="button"
                                                     onClick={() => toggleCategory(cat)}
                                                     className={`rounded-full px-3.5 py-2 text-sm font-medium capitalize transition-all ${active
@@ -669,7 +657,7 @@ const MentorProfile = () => {
                                                         }`}
                                                     style={active ? undefined : { background: cardBg, border: cardBorder }}
                                                 >
-                                                    {cat}
+                                                    {cat.name}
                                                 </button>
                                             );
                                         })}
@@ -694,7 +682,7 @@ const MentorProfile = () => {
                                 <MultiPillSelect
                                     label="Expertise"
                                     values={draft.expertise}
-                                    options={EXPERTISE_OPTIONS}
+                                    options={EXPERTISE_OPTIONS.map((item) => item.name)}
                                     onChange={(v) => setDraft((d) => ({ ...d, expertise: v }))}
                                 />
                             ) : (

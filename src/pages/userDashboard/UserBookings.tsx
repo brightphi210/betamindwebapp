@@ -894,7 +894,7 @@ const UserBookings = () => {
     };
 
     return (
-        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8 anim-fade-up">
             <ToastContainer theme="dark" />
             <h2 className="mb-1 text-xl font-bold text-white sm:text-2xl">My Bookings</h2>
             <p className="mb-6 text-sm text-white/40">

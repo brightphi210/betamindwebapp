@@ -44,16 +44,13 @@ const DashNavbar = () => {
 
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
     const userProfile = myProfile?.data;
+    console.log('userProfile:', userProfile);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
                 setShowProfileMenu(false);
             }
-            // The bottom-sheet panel is portal-less but sits outside moreMenuRef (the
-            // trigger button), so it needs its own ref checked here too - otherwise a
-            // mousedown on a Link inside the sheet counts as "outside" and closes the
-            // menu before the click/navigation can register.
             if (
                 moreMenuRef.current &&
                 !moreMenuRef.current.contains(e.target as Node) &&
