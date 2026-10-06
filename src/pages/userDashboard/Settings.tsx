@@ -43,6 +43,15 @@ type FormState = {
     country: string;
 };
 
+const sanitizePhoneInput = (value: string) => value.replace(/[^\d+]/g, "").replace(/(?!^)\+/g, "");
+
+const validatePhoneNumber = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (!digits) return "Phone number is required";
+    if (digits.length < 10) return "Phone number must be at least 10 digits";
+    return "";
+};
+
 const SettingsPage = () => {
     const navigate = useNavigate();
     const { addToast } = useGlobalContext();
@@ -58,6 +67,7 @@ const SettingsPage = () => {
 
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
+    const [phoneError, setPhoneError] = useState("");
     const [form, setForm] = useState<FormState>({
         first_name: "",
         last_name: "",
@@ -99,13 +109,21 @@ const SettingsPage = () => {
     };
 
     const handleSave = () => {
+        const nextPhoneError = validatePhoneNumber(form.phone_number);
+        setPhoneError(nextPhoneError);
+
+        if (nextPhoneError) {
+            addToast(nextPhoneError, "error");
+            return;
+        }
+
         const formData = new FormData();
-        formData.append("first_name", form.first_name);
-        formData.append("last_name", form.last_name);
-        formData.append("phone_number", form.phone_number);
-        formData.append("address", form.address);
-        formData.append("city", form.city);
-        formData.append("country", form.country);
+        formData.append("first_name", form.first_name.trim());
+        formData.append("last_name", form.last_name.trim());
+        formData.append("phone_number", form.phone_number.trim());
+        formData.append("address", form.address.trim());
+        formData.append("city", form.city.trim());
+        formData.append("country", form.country.trim());
         if (avatarFile) formData.append("avatar", avatarFile);
 
         updateProfile(formData, {
@@ -114,6 +132,8 @@ const SettingsPage = () => {
                 const message =
                     error?.response?.data?.message ||
                     error?.response?.data?.detail ||
+                    error?.response?.data?.errors?.phone_number?.[0] ||
+                    error?.response?.data?.phone_number?.[0] ||
                     "Something went wrong. Please try again.";
                 addToast(message, "error");
             },
@@ -201,13 +221,20 @@ const SettingsPage = () => {
                         />
                     </div>
 
-                    <Field
-                        label="Phone Number"
-                        value={form.phone_number}
-                        onChange={(v) => setForm((f) => ({ ...f, phone_number: v }))}
-                        placeholder="+234 800 000 0000"
-                        type="tel"
-                    />
+                    <div>
+                        <Field
+                            label="Phone Number"
+                            value={form.phone_number}
+                            onChange={(v) => {
+                                const cleaned = sanitizePhoneInput(v);
+                                setForm((f) => ({ ...f, phone_number: cleaned }));
+                                setPhoneError("");
+                            }}
+                            placeholder="+234 800 000 0000"
+                            type="tel"
+                        />
+                        {phoneError && <p className="mt-1.5 text-xs text-red-400">{phoneError}</p>}
+                    </div>
 
                     <Field
                         label="Address"

@@ -252,6 +252,8 @@ const EditEvent: React.FC = () => {
     const { event: eventRes, isLoading } = useGetEventById(id);
     const { mutate: updateEvent, isPending } = useEditEvents(id);
 
+    console.log('event data', eventRes?.data);
+
     const [form, setForm] = useState({
         title: '',
         description: '',
@@ -357,16 +359,17 @@ const EditEvent: React.FC = () => {
         if (!ticketsValid)
             return addToast('Every ticket needs a name and a valid price (0 for free).', 'error');
 
+        // Keep id + existingImage so backend can preserve image when not replaced
         const cleanTickets = hasTickets
             ? tickets
                 .filter((t) => t.name.trim())
                 .map((t) => ({
+                    id: t.id,
                     name: t.name.trim(),
                     amount: String(Number(t.price || 0)),
                     description: t.description.trim(),
                     imageFile: t.imageFile,
-                    // if your API needs existing ticket id on update:
-                    // id: t.id,
+                    existingImage: t.existingImage ?? null,
                 }))
             : [];
 
@@ -385,9 +388,10 @@ const EditEvent: React.FC = () => {
                 require_approval: form.require_approval,
                 ticket_price: String(lowestPrice),
                 capacity: form.capacity === '' ? null : Number(form.capacity),
-                tickets: cleanTickets.map(({ imageFile, ...rest }) => ({
+                tickets: cleanTickets.map(({ imageFile, existingImage, ...rest }) => ({
                     ...rest,
-                    image: '',
+                    // keep existing image URL when user did not replace it
+                    image: imageFile ? '' : (existingImage || ''),
                 })),
             };
             updateEvent(body as any, {
@@ -427,21 +431,32 @@ const EditEvent: React.FC = () => {
                     (i, f) => `tickets[${i}].${f}`,
                     (i, f) => `tickets[${i}][${f}]`,
                 ];
+
                 cleanTickets.forEach((t, i) => {
                     keyStyles.forEach((k) => {
+                        // send id so backend knows this is an update of an existing ticket
+                        if (t.id) {
+                            body.append(k(i, 'id'), String(t.id));
+                        }
+
                         body.append(k(i, 'name'), t.name);
                         body.append(k(i, 'amount'), t.amount);
                         body.append(k(i, 'description'), t.description);
-                        if (t.imageFile) body.append(k(i, 'image'), t.imageFile);
+
+                        if (t.imageFile) {
+                            body.append(k(i, 'image'), t.imageFile);
+                        }
                     });
                 });
             } else {
+                // json-string mode
                 body.append(
                     'tickets',
                     JSON.stringify(
-                        cleanTickets.map(({ imageFile, ...rest }) => ({
+                        cleanTickets.map(({ imageFile, existingImage, ...rest }) => ({
                             ...rest,
-                            image: '',
+                            // keep existing image when no new file was chosen
+                            image: imageFile ? '' : (existingImage || ''),
                         }))
                     )
                 );

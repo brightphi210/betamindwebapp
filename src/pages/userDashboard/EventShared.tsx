@@ -11,6 +11,7 @@ import {
     FiMessageCircle,
     FiSend,
     FiShare2,
+    FiTag,
     FiTrash2,
     FiUserCheck,
     FiUsers,
@@ -18,6 +19,7 @@ import {
     FiX
 } from 'react-icons/fi';
 import { SiGooglemeet } from 'react-icons/si';
+import { formatNaira } from '../../utils/currency';
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
 export interface Attendee {
@@ -47,6 +49,7 @@ export interface RegisteredEvent {
     publicUrl: string;
     meetingLink?: string;
     ticketPrice: string;
+    tickets?: EventTicket[];
     requireApproval: boolean;
     capacity: number | null;
     isOnline: boolean;
@@ -145,8 +148,11 @@ export const formatDateLabel = (iso: string) => {
 export const formatTicketPrice = (price?: string) => {
     const numeric = parseFloat(price || '0');
     if (!numeric || numeric <= 0) return 'Free';
-    const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
-    return `₦${trimmed}`;
+    return 'Paid';
+};
+
+export const formatTicketAmount = (value?: string | number | null) => {
+    return formatNaira(value, 'Free');
 };
 
 const RichText: React.FC<{ html: string }> = ({ html }) => (
@@ -219,6 +225,7 @@ export const mapApiEventToRegistered = (event: ApiEvent): RegisteredEvent => {
         publicUrl: `/events/${event.id}`,
         meetingLink: event.meeting_link ?? undefined,
         ticketPrice: event.ticket_price,
+        tickets: Array.isArray(event.tickets) ? event.tickets : [],
         requireApproval: event.require_approval,
         capacity: event.capacity,
         isOnline: getIsOnline(event),
@@ -448,6 +455,8 @@ export const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | '
     const padding = size === 'sm' ? 'px-2 py-1' : 'px-2.5 py-1.5';
     const iconSize = size === 'sm' ? 11 : 13;
 
+    const ticketStatus = formatTicketPrice(event.ticketPrice);
+
     return (
         <div className="flex flex-wrap items-center gap-1.5">
             <OnlineBadge
@@ -455,6 +464,17 @@ export const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | '
                 className={`${textSize} ${padding}`}
                 iconSize={iconSize}
             />
+
+            <span
+                className={`inline-flex items-center gap-1 rounded-md font-semibold ${textSize} ${padding}`}
+                style={{
+                    background: ticketStatus === 'Free' ? 'rgba(255,255,255,0.06)' : 'rgba(166,255,0,0.12)',
+                    color: ticketStatus === 'Free' ? 'rgba(255,255,255,0.6)' : '#a6ff00',
+                }}
+            >
+                <FiTag size={iconSize} />
+                {ticketStatus}
+            </span>
 
             {event.requireApproval && (
                 <span
@@ -988,6 +1008,18 @@ export const EventDrawerContent: React.FC<{
                                 {event.requireApproval ? 'Yes' : 'No'}
                             </span>
                         </div>
+                        <div
+                            className="flex items-center justify-between gap-3 px-4 py-3"
+                            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                        >
+                            <div className="flex items-center gap-2.5 text-white/70 text-sm">
+                                <FiTag size={15} className="text-white/40" />
+                                Tickets
+                            </div>
+                            <span className="text-sm font-semibold text-white/70">
+                                {formatTicketPrice(event.ticketPrice)}
+                            </span>
+                        </div>
                         <div className="flex items-center justify-between gap-3 px-4 py-3">
                             <div className="flex items-center gap-2.5 text-white/70 text-sm">
                                 <FiUsers size={15} className="text-white/40" />
@@ -1001,6 +1033,74 @@ export const EventDrawerContent: React.FC<{
                         </div>
                     </div>
                 </div>
+
+                {event.tickets && event.tickets.length > 0 && (
+                    <div className="mb-8">
+                        <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
+                            Available Tickets
+                        </h3>
+                        <div className="flex flex-col gap-3">
+                            {event.tickets.map((ticket, index) => {
+                                const ticketPrice = Number(ticket.amount ?? ticket.price ?? 0) || 0;
+                                const priceText = ticketPrice === 0 ? 'Free' : formatNaira(ticketPrice, 'Free');
+
+                                return (
+                                    <div
+                                        key={ticket.id ?? `${ticket.name}-${index}`}
+                                        className="w-full text-left rounded-xl p-2.5 transition-all"
+                                        style={{
+                                            background: 'rgba(255,255,255,0.03)',
+                                            border: '1px solid rgba(205,220,57,.08)',
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-3 sm:gap-4">
+                                            <div
+                                                className="relative w-12 h-12 shrink-0 rounded overflow-hidden"
+                                                style={{ background: 'rgba(255,255,255,0.06)' }}
+                                            >
+                                                {ticket.image ? (
+                                                    <img
+                                                        src={ticket.image}
+                                                        alt={ticket.name || 'Ticket'}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <FiTag size={18} className="text-white/25" />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <p className="text-white text-sm font-semibold truncate">
+                                                            {ticket.name || 'Ticket'}
+                                                        </p>
+                                                        {ticket.description && (
+                                                            <p className="text-white/40 text-xs mt-0.5 line-clamp-2 leading-relaxed">
+                                                                {ticket.description}
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    <span
+                                                        className="text-sm font-bold shrink-0"
+                                                        style={{
+                                                            color: ticketPrice === 0 ? 'rgba(255,255,255,0.5)' : '#a6ff00',
+                                                        }}
+                                                    >
+                                                        {priceText}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {event.attendees.length > 0 && (
                     <div className="mb-8">
@@ -1097,3 +1197,5 @@ export const EventDrawerContent: React.FC<{
         </div>
     );
 };
+
+

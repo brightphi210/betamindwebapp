@@ -34,6 +34,7 @@ import {
 } from "../../hooks/mutations/allMutation";
 import { useGetMentorGroupSessions, useGetMentorIndividualSession, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
 import { useGlobalContext } from "../../providers/GlobalContext";
+import { formatNaira } from "../../utils/currency";
 
 // ─────────────────────────────────────────────
 // Types
@@ -408,7 +409,7 @@ const formatTime = (t: string) => {
     return `${hour}:${m.toString().padStart(2, "0")} ${ampm}`;
 };
 
-const formatPrice = (amount: number) => `₦${amount.toLocaleString()}`;
+const formatPrice = (amount: number) => formatNaira(amount, "₦0.00");
 
 const formatDuration = (mins: number) => {
     if (mins < 60) return `${mins} mins`;

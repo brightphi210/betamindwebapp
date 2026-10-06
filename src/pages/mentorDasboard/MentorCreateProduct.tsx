@@ -24,6 +24,7 @@ import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
 import { useCreateDigitalProduct } from "../../hooks/mutations/allMutation";
 import { useGlobalContext } from "../../providers/GlobalContext";
+import { formatNaira } from "../../utils/currency";
 import type { ProductType } from "../userDashboard/MentorProductSuccess";
 import MentorProductSuccess from "../userDashboard/MentorProductSuccess";
 import { type MentorDashboardContext } from "./MentorDashboardLayout";
@@ -60,12 +61,7 @@ const isTextEmpty = (html: string) => {
     return stripped.length === 0;
 };
 
-const formatPrice = (price: string) => {
-    const numeric = parseFloat(price);
-    if (!numeric || numeric <= 0) return "Free";
-    const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
-    return `$${trimmed}`;
-};
+const formatPrice = (price: string) => formatNaira(price, "Free");
 
 const makeModuleId = () => Math.random().toString(36).slice(2, 10);
 

@@ -12,11 +12,13 @@ import {
     FiX,
 } from 'react-icons/fi';
 import { Link, useParams } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import PoweredByBadge from '../../component/PowereByBadge';
 import PublicNavbar from '../../component/PublicNavbar';
 import Button from '../../component/ui/Button';
-import { useRegisterEvents } from '../../hooks/mutations/allMutation';
+import { usePayEventTicket, useRegisterEvents } from '../../hooks/mutations/allMutation';
 import { useGetEvent } from '../../hooks/queries/allQueriess';
+import { formatNaira } from '../../utils/currency';
 import {
     type ApiEvent,
     type Attendee,
@@ -189,6 +191,19 @@ type RegisterDraft = {
     whatsapp: string;
 };
 
+const sanitizePhoneInput = (value: string) => value.replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '');
+
+const validateRegistrationDraft = (draft: RegisterDraft): string => {
+    if (!draft.name.trim()) return 'Full name is required.';
+    if (!/\S+@\S+\.\S+/.test(draft.email.trim())) return 'Enter a valid email address.';
+
+    const digits = draft.whatsapp.replace(/\D/g, '');
+    if (!digits) return 'Phone number is required.';
+    if (digits.length < 10) return 'Phone number must be at least 10 digits.';
+
+    return '';
+};
+
 const emptyRegisterDraft: RegisterDraft = {
     name: '',
     email: '',
@@ -205,33 +220,74 @@ const RegisterModal: React.FC<{
     const [draft, setDraft] = useState<RegisterDraft>(emptyRegisterDraft);
     const [error, setError] = useState('');
 
-    const { mutateAsync: registerForEvent, isPending: isSubmitting } =
+    const { mutateAsync: registerForEvent, isPending: isRegistering } =
         useRegisterEvents();
+    const { mutateAsync: payEventTicket, isPending: isPaying } =
+        usePayEventTicket();
 
-    const isValid = !!(
-        draft.name.trim() &&
-        /\S+@\S+\.\S+/.test(draft.email) &&
-        draft.whatsapp.trim().length >= 7
-    );
+    const validationError = validateRegistrationDraft(draft);
+    const isValid = !validationError;
 
     const handleSubmit = async () => {
-        if (!isValid) return;
+        const nextError = validateRegistrationDraft(draft);
+        if (nextError) {
+            setError(nextError);
+            return;
+        }
         setError('');
+
+        const ticketPayload = {
+            name: draft.name.trim(),
+            email: draft.email.trim(),
+            phone_number: draft.whatsapp.trim(),
+        };
+
         try {
+            const hasPaidTicket = !!selectedTicket && Number(selectedTicket.price) > 0;
+
+            if (hasPaidTicket) {
+                const response = await payEventTicket({
+                    eventId,
+                    data: {
+                        ...ticketPayload,
+                        ticket: selectedTicket.id,
+                    },
+                });
+
+                const paymentResponse = response as any;
+                const authUrl =
+                    paymentResponse?.data?.authorization_url ||
+                    paymentResponse?.authorization_url;
+
+                if (authUrl) {
+                    toast.success('Payment initiated successfully.');
+                    window.location.href = authUrl;
+                    return;
+                }
+
+                toast.success('Payment initiated successfully.');
+                setStep('success');
+                return;
+            }
+
             await registerForEvent({
-                name: draft.name.trim(),
-                email: draft.email.trim(),
-                phone_number: draft.whatsapp.trim(),
+                ...ticketPayload,
                 event: eventId,
                 // ticket_id: selectedTicket?.id, // uncomment when backend supports it
             });
             setStep('success');
         } catch (err: any) {
-            setError(
-                err?.response?.data?.message ||
-                err?.response?.data?.detail ||
-                'Could not register. Please try again.'
-            );
+            const data = err?.response?.data;
+            const message =
+                data?.message ||
+                data?.detail ||
+                data?.error ||
+                (Array.isArray(data?.email) ? data.email[0] : undefined) ||
+                (Array.isArray(data?.phone_number) ? data.phone_number[0] : undefined) ||
+                (Array.isArray(data?.non_field_errors) ? data.non_field_errors[0] : undefined) ||
+                'Could not register. Please try again.';
+
+            setError(Array.isArray(message) ? message[0] : message);
         }
     };
 
@@ -240,7 +296,7 @@ const RegisterModal: React.FC<{
             ? 'Free'
             : selectedTicket.price === 0
                 ? 'Free'
-                : `₦${selectedTicket.price.toFixed(2)}`;
+                : formatNaira(selectedTicket.price, 'Free');
 
     return (
         <ModalShell onClose={onClose} maxWidth="max-w-md" className="overflow-y-auto">
@@ -384,7 +440,7 @@ const RegisterModal: React.FC<{
                                         onChange={(e) =>
                                             setDraft((d) => ({
                                                 ...d,
-                                                whatsapp: e.target.value,
+                                                whatsapp: sanitizePhoneInput(e.target.value),
                                             }))
                                         }
                                         placeholder="08012345678"
@@ -401,13 +457,13 @@ const RegisterModal: React.FC<{
                         <Button
                             variant="green"
                             className="mt-6 w-full"
-                            disabled={!isValid || isSubmitting}
+                            disabled={!isValid || isRegistering || isPaying}
                             onClick={() => {
                                 void handleSubmit();
                             }}
                         >
                             <span className="flex items-center justify-center gap-2">
-                                {isSubmitting ? (
+                                {isRegistering || isPaying ? (
                                     <FiLoader
                                         size={15}
                                         className="animate-spin"
@@ -415,9 +471,9 @@ const RegisterModal: React.FC<{
                                 ) : (
                                     <FiCheck size={15} />
                                 )}
-                                {isSubmitting
-                                    ? 'Registering...'
-                                    : selectedTicket && selectedTicket.price > 0
+                                {isRegistering || isPaying
+                                    ? (selectedTicket && Number(selectedTicket.price) > 0 ? 'Processing payment...' : 'Registering...')
+                                    : selectedTicket && Number(selectedTicket.price) > 0
                                         ? `Pay ${priceLabel} & Register`
                                         : 'Confirm Registration'}
                             </span>
@@ -793,7 +849,7 @@ const EventPublicPage: React.FC = () => {
                                         const priceText =
                                             ticket.price === 0
                                                 ? 'Free'
-                                                : `₦${ticket.price.toFixed(2)}`;
+                                                : formatNaira(ticket.price, 'Free');
 
                                         return (
                                             <button
@@ -902,7 +958,7 @@ const EventPublicPage: React.FC = () => {
                                 {effectiveSelected
                                     ? effectiveSelected.price === 0
                                         ? `Register · ${effectiveSelected.name}`
-                                        : `Get ${effectiveSelected.name} · ₦${effectiveSelected.price.toFixed(2)}`
+                                        : `Get ${effectiveSelected.name} · ${formatNaira(effectiveSelected.price, 'Free')}`
                                     : hasMultipleTickets
                                         ? 'Select a ticket to continue'
                                         : 'Click to Register'}

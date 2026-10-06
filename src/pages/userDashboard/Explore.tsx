@@ -27,6 +27,7 @@ import { Link } from "react-router-dom";
 import DashFooter from "../../component/DashFooter";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import { useGetAllEvents, useGetDigitalProduct, useGetMentors, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
+import { formatNaira } from "../../utils/currency";
 import { HARD_CODED_INTERESTS, extractInterestNames } from "../../utils/interest";
 import { LocationIcon } from "./EventShared";
 import {
@@ -109,12 +110,7 @@ const MENTORS_PER_PAGE = 8;
 const EVENTS_PER_PAGE = 8;
 const PRODUCTS_PER_PAGE = 8;
 
-const formatPrice = (price: string) => {
-    const numeric = parseFloat(price);
-    if (!numeric || numeric <= 0) return "Free";
-    const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
-    return `₦${trimmed}`;
-};
+const formatPrice = (price: string) => formatNaira(price, "Free");
 
 const toTitleCase = (s: string): ProductType =>
     (s.charAt(0).toUpperCase() + s.slice(1)) as ProductType;

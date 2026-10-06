@@ -23,6 +23,7 @@ import Button from "../../component/ui/Button";
 import { useDeleteDigitalProduct } from "../../hooks/mutations/allMutation";
 import { useGetMentorDigitalProduct } from "../../hooks/queries/allQueriess";
 import { useGlobalContext } from "../../providers/GlobalContext";
+import { formatNaira } from "../../utils/currency";
 import { type MentorDashboardContext } from "./MentorDashboardLayout";
 
 export type ProductType = "Course" | "Book" | "Manual" | "Template" | "Workbook" | "Toolkit";
@@ -160,7 +161,7 @@ const ProductRow: React.FC<{
                 </div>
                 <h3 className="truncate text-sm font-bold text-white sm:text-base">{product.title}</h3>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/40">
-                    <span className="font-semibold text-white/70">${product.price}</span>
+                    <span className="font-semibold text-white/70">{formatNaira(product.price, "Free")}</span>
                     <span>{product.sold} sold</span>
                     {product.rating > 0 ? (
                         <span className="flex items-center gap-1">

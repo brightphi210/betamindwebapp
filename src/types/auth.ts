@@ -1,4 +1,4 @@
-export type FieldErrors = Partial<Record<"name" | "email" | "password", string>>;
+export type FieldErrors = Partial<Record<"name" | "email" | "password" | "phone_number", string>>;
 
 export const TOKEN_KEY = "betamindToken";
 export const REFRESH_KEY = "betamindRefresh";
@@ -38,7 +38,7 @@ export const parseApiError = (e: any) => {
     message = data.message || data.detail;
     if (!message && data.non_field_errors) message = first(data.non_field_errors);
 
-    for (const key of ["name", "email", "password"] as const) {
+    for (const key of ["name", "email", "password", "phone_number"] as const) {
       const v = data[key] ?? data?.errors?.[key];
       if (v) fieldErrors[key] = first(v);
     }

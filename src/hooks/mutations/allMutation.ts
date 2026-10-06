@@ -143,6 +143,21 @@ export const useRegisterEvents = () => {
   return createEventAttendance
 }
 
+export const usePayEventTicket = () => {
+  const queryClient = useQueryClient()
+
+  const payEventTicket = useMutation({
+    mutationFn: async ({ eventId, data }: { eventId: string; data: any }) => {
+      const token = (await localStorage.getItem("betamindToken")) || ""
+      return post_requests(`events/${eventId}/pay/`, data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] })
+    },
+  })
+
+  return payEventTicket
+}
 
 
 // ================ CREATE PRODUCT =================

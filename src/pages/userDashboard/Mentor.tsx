@@ -28,6 +28,7 @@ import { toast, ToastContainer } from 'react-toastify';
 import Button from '../../component/ui/Button';
 import { useBookMentorship } from '../../hooks/mutations/allMutation';
 import { useGetMentorProfile } from '../../hooks/queries/allQueriess';
+import { formatNaira } from '../../utils/currency';
 
 type MentorReview = {
     id: string | number;
@@ -150,7 +151,7 @@ const mapIndividualSessionToPublicSession = (session: any, fallbackImage?: strin
         : null,
 });
 
-const formatCurrency = (value: number) => `₦${value.toLocaleString()}`;
+const formatCurrency = (value: number) => formatNaira(value, "₦0.00");
 const formatDayDate = (value: string) => {
     if (!value) return 'TBD';
     const date = new Date(`${value}T00:00:00`);

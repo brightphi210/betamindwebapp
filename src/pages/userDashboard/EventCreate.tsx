@@ -20,6 +20,7 @@ import LoadingOverlay from '../../component/LoadingOverlay';
 import MyButton from '../../component/ui/Button';
 import { useCreateEvents } from '../../hooks/mutations/allMutation';
 import { useGlobalContext } from '../../providers/GlobalContext';
+import { formatNaira } from '../../utils/currency';
 
 const cardBg = 'rgba(255,255,255,0.02)';
 const cardBorder = '1px solid rgba(255,255,255,0.08)';
@@ -442,13 +443,13 @@ const TicketCommissionModal: React.FC<{
                         <div className="flex items-center justify-between gap-3 text-white/60">
                             <span>Ticket total</span>
                             <span className="font-semibold text-white">
-                                ₦{ticketTotal.toLocaleString()}
+                                {formatNaira(ticketTotal, '₦0.00')}
                             </span>
                         </div>
                         <div className="mt-3 flex items-center justify-between gap-3 text-white/60">
                             <span>Betamind fee</span>
                             <span className="font-semibold text-[#a6ff00]">
-                                ₦{commission.toLocaleString()}
+                                {formatNaira(commission, '₦0.00')}
                             </span>
                         </div>
                     </div>
@@ -1352,7 +1353,7 @@ const EventCreate: React.FC = () => {
                                     <span className="text-[#a6ff00]">3% commission</span>
                                 </div>
                                 <p className="mt-1">
-                                    Betamind will take <span className="font-semibold text-[#a6ff00]">₦{commissionEstimate.toLocaleString()}</span> from ticket sales for this event.
+                                    Betamind will take <span className="font-semibold text-[#a6ff00]">{formatNaira(commissionEstimate, '₦0.00')}</span> from ticket sales for this event.
                                 </p>
                             </div>
                         )}

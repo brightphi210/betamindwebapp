@@ -22,6 +22,7 @@ import PublicNavbar from "../../component/PublicNavbar";
 import Button from "../../component/ui/Button";
 import { usePurchaseProducts } from "../../hooks/mutations/allMutation";
 import { useGetSingleDigitalProduct } from "../../hooks/queries/allQueriess";
+import { formatNaira } from "../../utils/currency";
 
 type ApiCourseModule = {
     title: string;
@@ -69,12 +70,7 @@ type ApiProduct = {
     created_at: string;
 };
 
-const formatPrice = (price: string) => {
-    const numeric = parseFloat(price);
-    if (!numeric || numeric <= 0) return "Free";
-    const trimmed = numeric % 1 === 0 ? numeric.toString() : numeric.toFixed(2);
-    return `₦${trimmed}`;
-};
+const formatPrice = (price: string) => formatNaira(price, "Free");
 
 const toTitleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 

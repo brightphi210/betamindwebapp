@@ -16,6 +16,7 @@ import Button from "../../component/ui/Button";
 import { useGetUserSession } from "../../hooks/queries/allQueriess";
 import type { ApiBooking, ApiBookingsResponse } from "../../types/bookingShare";
 import { normalizeStatus } from "../../types/bookingShare";
+import { formatNaira } from "../../utils/currency";
 
 const TABS = [
     { key: "pending", label: "Pending" },
@@ -132,7 +133,7 @@ const getBookingTypeLabel = (booking: any) => {
 const formatPrice = (amount: unknown) => {
     const n = Number(amount);
     if (!Number.isFinite(n)) return "---";
-    return `₦${n.toLocaleString()}`;
+    return formatNaira(n, "₦0.00");
 };
 
 const formatDate = (iso?: string | null) => {
