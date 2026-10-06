@@ -238,8 +238,12 @@ const SettingsPage = () => {
                                 {savedInterests.map((interest) => (
                                     <span
                                         key={interest}
-                                        className="inline-flex items-center rounded-full border px-2.5 py-1.5 text-xs font-medium text-white/80"
-                                        style={{ borderColor: "rgba(166,255,0,0.25)", background: "rgba(166,255,0,0.08)" }}
+                                        className="inline-flex items-center rounded-full border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/80"
+                                        style={{
+                                            borderColor: "rgba(166,255,0,0.28)",
+                                            background: "rgba(166,255,0,0.08)",
+                                            letterSpacing: "0.08em",
+                                        }}
                                     >
                                         {interest}
                                     </span>

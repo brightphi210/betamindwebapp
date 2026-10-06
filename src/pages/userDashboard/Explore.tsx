@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     FiAlertTriangle,
     FiArrowRight,
@@ -7,12 +7,14 @@ import {
     FiBriefcase,
     FiCalendar,
     FiCamera,
+    FiChevronDown,
     FiChevronLeft,
     FiChevronRight,
     FiClock,
     FiCode,
     FiDollarSign,
     FiEdit3,
+    FiFilter,
     FiPackage,
     FiPenTool,
     FiPlayCircle,
@@ -271,7 +273,7 @@ const SectionHeader: React.FC<{ title: string; subtitle?: string }> = ({ title, 
 const TopicCard: React.FC<{ topic: Topic }> = ({ topic }) => (
     <Link
         to={`/dashboard/search?category=${encodeURIComponent(topic.name)}`}
-        className="flex items-center gap-4 rounded-xl p-3 sm:p-5 text-left transition-colors hover:bg-white/[0.04] cursor-pointer lg:w-full w-fit"
+        className="flex items-center gap-4 rounded-xl p-3 sm:p-5 text-left transition-colors hover:bg-white/4 cursor-pointer lg:w-full w-fit"
         style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
     >
         <div style={{ color: topic.color }}>{topic.icon}</div>
@@ -331,7 +333,7 @@ export const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
 
 const MentorCardSkeleton: React.FC = () => (
     <div
-        className="rounded-2xl lg:p-5 p-3 flex flex-col animate-pulse"
+        className="rounded-2xl lg:p-5 p-3 flex flex-col"
         style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(205,220,57,.08)" }}
     >
         <div className="flex items-start justify-between mb-4">
@@ -365,7 +367,7 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
             <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                     <p className="text-white/50 text-sm mb-1">{event.time}</p>
-                    <h3 className="text-white font-bold text-lg break-words mb-2 line-clamp-2">{event.title}</h3>
+                    <h3 className="text-white font-bold text-lg wrap-break-word mb-2 line-clamp-2">{event.title}</h3>
 
                     {event.location ? (
                         <div className="flex items-center gap-2 text-white/40 text-sm mb-1.5">
@@ -463,7 +465,7 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
                     )}
                 </div>
 
-                <h3 className="text-white font-bold text-base mb-2 break-words line-clamp-2">{event.title}</h3>
+                <h3 className="text-white font-bold text-base mb-2 wrap-break-word line-clamp-2">{event.title}</h3>
 
                 <div className="mb-3">
                     <EventMetaBadges event={event} size="sm" />
@@ -489,7 +491,7 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
 const EventCardSkeleton: React.FC = () => (
     <>
         <div
-            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 animate-pulse"
+            className="flex sm:hidden flex-col gap-0 rounded-xl p-4"
             style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
             <div className="flex items-start justify-between gap-3">
@@ -505,7 +507,7 @@ const EventCardSkeleton: React.FC = () => (
         </div>
 
         <div
-            className="hidden sm:flex rounded-xl overflow-hidden flex-col animate-pulse"
+            className="hidden sm:flex rounded-xl overflow-hidden flex-col"
             style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
             <div className="w-full h-40 sm:h-48 bg-white/5" />
@@ -568,7 +570,7 @@ export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) 
             </span>
         </div>
         <div className="p-3 sm:p-5 flex flex-col flex-1">
-            <h3 className="text-white font-bold text-base mb-1 break-words">{product.title}</h3>
+            <h3 className="text-white font-bold text-base mb-1 wrap-break-word">{product.title}</h3>
             <div className="flex justify-between items-center pt-3 gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                     <div
@@ -608,7 +610,7 @@ export const ProductCard: React.FC<{ product: DigitalProduct }> = ({ product }) 
 
 const ProductCardSkeleton: React.FC = () => (
     <div
-        className="rounded-md overflow-hidden flex flex-col animate-pulse"
+        className="rounded-md overflow-hidden flex flex-col"
         style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
     >
         <div className="w-full h-40 sm:h-48 bg-white/5" />
@@ -638,6 +640,23 @@ const Explore: React.FC = () => {
         [userProfile]
     );
     const [filterMode, setFilterMode] = useState<"recommended" | "my-interests">("recommended");
+    const [showFilterMenu, setShowFilterMenu] = useState(false);
+    const filterMenuRef = useRef<HTMLDivElement | null>(null);
+    const filterOptions = [
+        { id: "recommended", label: "Recommended" },
+        { id: "my-interests", label: "My interests" },
+    ] as const;
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
+                setShowFilterMenu(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const { mentors, isLoading: mentorsLoading } = useGetMentors();
     const allMentors: any[] = useMemo(() => mentors?.data?.results ?? [], [mentors]);
@@ -742,24 +761,51 @@ const Explore: React.FC = () => {
                             </p>
                         </div>
 
-                        <div className="inline-flex rounded-full border p-1" style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.08)" }}>
-                            {[
-                                { id: "recommended", label: "Recommended" },
-                                { id: "my-interests", label: "My interests" },
-                            ].map((option) => (
-                                <button
-                                    key={option.id}
-                                    type="button"
-                                    onClick={() => setFilterMode(option.id as "recommended" | "my-interests")}
-                                    className="rounded-full px-3 py-2 text-xs font-semibold transition-colors cursor-pointer"
+                        <div ref={filterMenuRef} className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setShowFilterMenu((prev) => !prev)}
+                                className="flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold text-white/80 transition-colors hover:text-white"
+                                style={{
+                                    background: "rgba(255,255,255,0.04)",
+                                    borderColor: "rgba(255,255,255,0.08)",
+                                }}
+                                aria-label="Open filter menu"
+                            >
+                                <FiFilter size={14} />
+                                <span>{filterOptions.find((option) => option.id === filterMode)?.label}</span>
+                                <FiChevronDown size={14} className={showFilterMenu ? "rotate-180 transition-transform" : "transition-transform"} />
+                            </button>
+
+                            {showFilterMenu && (
+                                <div
+                                    className="absolute right-0 top-full z-20 mt-2 min-w-45 overflow-hidden rounded-xl border"
                                     style={{
-                                        background: filterMode === option.id ? "#a6ff00" : "transparent",
-                                        color: filterMode === option.id ? "#000" : "rgba(255,255,255,0.7)",
+                                        background: "rgba(12,15,12,0.96)",
+                                        borderColor: "rgba(255,255,255,0.08)",
+                                        boxShadow: "0 18px 50px rgba(0,0,0,0.4)",
                                     }}
                                 >
-                                    {option.label}
-                                </button>
-                            ))}
+                                    {filterOptions.map((option) => (
+                                        <button
+                                            key={option.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setFilterMode(option.id);
+                                                setShowFilterMenu(false);
+                                            }}
+                                            className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-white/5"
+                                            style={{
+                                                color: filterMode === option.id ? "#a6ff00" : "rgba(255,255,255,0.8)",
+                                                background: filterMode === option.id ? "rgba(166,255,0,0.06)" : "transparent",
+                                            }}
+                                        >
+                                            <span>{option.label}</span>
+                                            {filterMode === option.id && <span className="text-[10px] uppercase tracking-[0.12em]">On</span>}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -772,7 +818,7 @@ const Explore: React.FC = () => {
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <div
                                     key={i}
-                                    className="h-16 rounded-xl animate-pulse"
+                                    className="h-16 rounded-xl"
                                     style={{
                                         background: "rgba(255,255,255,0.02)",
                                         border: "1px solid rgba(255,255,255,0.08)",

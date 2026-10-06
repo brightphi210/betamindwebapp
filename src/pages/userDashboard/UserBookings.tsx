@@ -366,13 +366,13 @@ const RowSkeleton: React.FC = () => (
         style={{ background: cardBg, border: cardBorder }}
     >
         <div
-            className="h-16 w-16 shrink-0 animate-pulse rounded-lg sm:h-20 sm:w-20"
+            className="h-16 w-16 shrink-0 rounded-lg sm:h-20 sm:w-20"
             style={{ background: "rgba(255,255,255,0.06)" }}
         />
         <div className="flex-1 space-y-2">
-            <div className="h-3 w-16 animate-pulse rounded" style={{ background: "rgba(255,255,255,0.06)" }} />
-            <div className="h-4 w-40 animate-pulse rounded" style={{ background: "rgba(255,255,255,0.06)" }} />
-            <div className="h-3 w-56 animate-pulse rounded" style={{ background: "rgba(255,255,255,0.06)" }} />
+            <div className="h-3 w-16 rounded" style={{ background: "rgba(255,255,255,0.06)" }} />
+            <div className="h-4 w-40 rounded" style={{ background: "rgba(255,255,255,0.06)" }} />
+            <div className="h-3 w-56 rounded" style={{ background: "rgba(255,255,255,0.06)" }} />
         </div>
     </div>
 );
@@ -391,26 +391,19 @@ const DailyCheckInModal: React.FC<{
 
     return (
         <div
-            className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm transition-opacity duration-300 ${isClosing ? "opacity-0" : "opacity-100"
-                }`}
+            className="fixed inset-0 z-60 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
             onClick={onClose}
-            style={{
-                animation: isClosing
-                    ? "modalFadeOut 0.22s ease-out forwards"
-                    : "modalFadeIn 0.22s ease-out forwards",
-            }}
+            style={{ opacity: isClosing ? 0 : 1 }}
         >
             <div
-                className={`w-full max-w-md rounded-2xl p-6 shadow-2xl transition-all duration-300 ${isClosing ? "translate-y-3 scale-[0.98] opacity-0" : "translate-y-0 scale-100 opacity-100"
-                    }`}
+                className="w-full max-w-md rounded-2xl p-6 shadow-2xl"
                 style={{
                     background: "rgba(10,13,9,0.55)",
                     border: "1px solid rgba(255,255,255,0.1)",
                     backdropFilter: "blur(24px)",
                     WebkitBackdropFilter: "blur(24px)",
-                    animation: isClosing
-                        ? "modalPanelOut 0.22s ease-out forwards"
-                        : "modalPanelIn 0.22s ease-out forwards",
+                    opacity: isClosing ? 0 : 1,
+                    transform: isClosing ? "translateY(8px) scale(0.98)" : "translateY(0) scale(1)",
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
@@ -566,28 +559,19 @@ const BookingDetailModal: React.FC<{
 
     return (
         <div
-            className={`fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm transition-opacity duration-300 ${isClosing ? "opacity-0" : "opacity-100"
-                }`}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
             onClick={onClose}
-            style={{
-                animation: isClosing
-                    ? "modalFadeOut 0.22s ease-out forwards"
-                    : "modalFadeIn 0.22s ease-out forwards",
-            }}
+            style={{ opacity: isClosing ? 0 : 1 }}
         >
             <div
-                className={`w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl transition-all duration-300 ${isClosing
-                    ? "translate-y-3 scale-[0.98] opacity-0"
-                    : "translate-y-0 scale-100 opacity-100"
-                    }`}
+                className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl"
                 style={{
                     background: "rgba(10,13,9,0.55)",
                     border: "1px solid rgba(255,255,255,0.1)",
                     backdropFilter: "blur(24px)",
                     WebkitBackdropFilter: "blur(24px)",
-                    animation: isClosing
-                        ? "modalPanelOut 0.22s ease-out forwards"
-                        : "modalPanelIn 0.22s ease-out forwards",
+                    opacity: isClosing ? 0 : 1,
+                    transform: isClosing ? "translateY(8px) scale(0.98)" : "translateY(0) scale(1)",
                 }}
                 onClick={(e) => e.stopPropagation()}
             >

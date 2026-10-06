@@ -217,8 +217,10 @@ const MentorOnboarding = () => {
 
     const toggleCategory = (cat: { id: string; name: string }) => {
         const categoryName = cat.name;
-        setSelectedCategories((prev) =>
-            prev.includes(categoryName) ? prev.filter((c) => c !== categoryName) : [...prev, categoryName]
+        setCategories((prev) =>
+            prev.includes(categoryName)
+                ? prev.filter((c: string) => c !== categoryName)
+                : [...prev, categoryName]
         );
     };
 

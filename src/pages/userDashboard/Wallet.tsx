@@ -227,62 +227,31 @@ const AnimatedModal: React.FC<{
     onClose: () => void;
     children: React.ReactNode;
 }> = ({ open, onClose, children }) => {
-    const [mounted, setMounted] = useState(open);
-    const [visible, setVisible] = useState(false);
-
-    const reduceMotion =
-        typeof window !== "undefined" &&
-        window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const duration = reduceMotion ? 0 : 280;
-
     useEffect(() => {
-        if (open) {
-            setMounted(true);
-            return;
-        }
-        setVisible(false);
-        const t = setTimeout(() => setMounted(false), duration);
-        return () => clearTimeout(t);
-    }, [open, duration]);
-
-    useEffect(() => {
-        if (!mounted || !open) return;
-        let raf2 = 0;
-        const raf1 = requestAnimationFrame(() => {
-            raf2 = requestAnimationFrame(() => setVisible(true));
-        });
-        return () => {
-            cancelAnimationFrame(raf1);
-            cancelAnimationFrame(raf2);
-        };
-    }, [mounted, open]);
-
-    useEffect(() => {
-        if (!mounted) return;
+        if (!open) return;
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
         const onKey = (e: KeyboardEvent) => {
             if (e.key === "Escape") onClose();
         };
-        const prevOverflow = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
         window.addEventListener("keydown", onKey);
         return () => {
             window.removeEventListener("keydown", onKey);
             document.body.style.overflow = prevOverflow;
         };
-    }, [mounted, onClose]);
+    }, [open, onClose]);
 
-    if (!mounted) return null;
+    if (!open) return null;
 
     return (
         <div
             role="dialog"
             aria-modal="true"
-            className="fixed inset-0 z-[80] flex items-center justify-center px-4"
+            className="fixed inset-0 z-80 flex items-center justify-center px-4"
             style={{
-                background: visible ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0)",
-                backdropFilter: visible ? "blur(8px)" : "blur(0px)",
-                WebkitBackdropFilter: visible ? "blur(8px)" : "blur(0px)",
-                transition: `background ${duration}ms ease, backdrop-filter ${duration}ms ease`,
+                background: "rgba(0,0,0,0.6)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
             }}
             onClick={onClose}
         >
@@ -293,12 +262,6 @@ const AnimatedModal: React.FC<{
                     border: "1px solid rgba(255,255,255,0.1)",
                     backdropFilter: "blur(24px)",
                     WebkitBackdropFilter: "blur(24px)",
-                    opacity: visible ? 1 : 0,
-                    transform: visible
-                        ? "scale(1) translateY(0)"
-                        : "scale(0.94) translateY(14px)",
-                    transition: `opacity ${duration}ms ease, transform ${duration}ms cubic-bezier(0.16, 1, 0.3, 1)`,
-                    willChange: "opacity, transform",
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
@@ -308,7 +271,10 @@ const AnimatedModal: React.FC<{
     );
 };
 
-// ─── Add bank account modal ─────────────────────────────────────────────────
+/*
+ * NOTE: the legacy animation state was removed so dashboard pages remain static.
+ * Onboarding retains its own motion behavior.
+ */
 type LookupState = "idle" | "resolving" | "resolved" | "error";
 
 const AddBankModal: React.FC<{
@@ -594,7 +560,7 @@ const AddBankModal: React.FC<{
                 Account name
             </label>
             <div
-                className="mb-2 flex min-h-[46px] items-center rounded-xl px-4 py-3 text-sm"
+                className="mb-2 flex min-h-11.5 items-center rounded-xl px-4 py-3 text-sm"
                 style={{
                     ...fieldStyle,
                     border: `1px solid ${state === "resolved"

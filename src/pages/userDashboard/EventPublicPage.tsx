@@ -27,11 +27,37 @@ import {
     LocationIcon,
     ModalShell,
     OnlineBadge,
-    formatTicketPrice,
     formatTime,
     getHostName,
-    getIsOnline,
+    getIsOnline
 } from './EventShared';
+
+const RichText: React.FC<{ html: string }> = ({ html }) => (
+    <>
+        <div
+            className="rich-text-content text-sm text-white/50 leading-relaxed wrap-break-word"
+            dangerouslySetInnerHTML={{ __html: html }}
+        />
+        <style>{`
+            .rich-text-content p { margin: 0 0 0.75em; }
+            .rich-text-content p:last-child { margin-bottom: 0; }
+            .rich-text-content strong { color: rgba(255,255,255,0.85); }
+            .rich-text-content a { color: #a6ff00; text-decoration: underline; }
+            .rich-text-content ul, .rich-text-content ol { margin: 0 0 0.75em; padding-left: 1.25em; }
+            .rich-text-content li { margin-bottom: 0.25em; }
+            .rich-text-content blockquote {
+                margin: 0.75em 0; padding-left: 0.9em; border-left: 2px solid rgba(166,255,0,0.45); color: rgba(255,255,255,0.7);
+            }
+            .rich-text-content img { max-width: 100%; border-radius: 8px; margin: 0.5em 0; }
+            .rich-text-content h1, .rich-text-content h2, .rich-text-content h3, .rich-text-content h4 {
+                color: rgba(255,255,255,0.9); font-weight: 700; margin: 0 0 0.5em;
+            }
+            .rich-text-content pre {
+                background: rgba(255,255,255,0.06); border-radius: 8px; padding: 0.75em; overflow-x: auto; color: rgba(255,255,255,0.8);
+            }
+        `}</style>
+    </>
+);
 
 const pageBg =
     'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)';
@@ -97,12 +123,12 @@ const PublicEventSkeleton: React.FC = () => (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-16">
             <div>
                 <div
-                    className="w-full aspect-square rounded-2xl animate-pulse"
+                    className="w-full aspect-square rounded-2xl"
                     style={{ background: 'rgba(255,255,255,0.06)' }}
                 />
                 <div className="mt-6 space-y-3">
                     <div
-                        className="h-4 w-24 rounded animate-pulse"
+                        className="h-4 w-24 rounded"
                         style={{ background: 'rgba(255,255,255,0.06)' }}
                     />
                     <div
@@ -110,26 +136,26 @@ const PublicEventSkeleton: React.FC = () => (
                         style={{ background: 'rgba(205,220,57,.1)' }}
                     />
                     <div
-                        className="h-9 w-40 rounded animate-pulse"
+                        className="h-9 w-40 rounded"
                         style={{ background: 'rgba(255,255,255,0.06)' }}
                     />
                 </div>
             </div>
             <div className="lg:col-span-2 space-y-6">
                 <div
-                    className="h-9 w-3/4 rounded animate-pulse"
+                    className="h-9 w-3/4 rounded"
                     style={{ background: 'rgba(255,255,255,0.06)' }}
                 />
                 <div
-                    className="h-14 w-56 rounded animate-pulse"
+                    className="h-14 w-56 rounded"
                     style={{ background: 'rgba(255,255,255,0.06)' }}
                 />
                 <div
-                    className="h-14 w-64 rounded animate-pulse"
+                    className="h-14 w-64 rounded"
                     style={{ background: 'rgba(255,255,255,0.06)' }}
                 />
                 <div
-                    className="h-56 w-full rounded-2xl animate-pulse"
+                    className="h-56 w-full rounded-2xl"
                     style={{ background: 'rgba(255,255,255,0.06)' }}
                 />
             </div>
@@ -450,6 +476,7 @@ const EventPublicPage: React.FC = () => {
     );
 
     const event: ApiEvent | undefined = eventDetail?.data;
+    console.log('Event detail:', eventDetail?.data);
 
     if (isLoading) {
         return (
@@ -494,7 +521,6 @@ const EventPublicPage: React.FC = () => {
     });
     const startTime = formatTime(event.start_date);
     const endTime = formatTime(event.end_date);
-    const ticketLabel = formatTicketPrice(event.ticket_price);
     const publicUrl =
         typeof window !== 'undefined'
             ? window.location.href
@@ -592,7 +618,7 @@ const EventPublicPage: React.FC = () => {
                     {/* Right column */}
                     <div className="lg:col-span-2">
                         <div className="flex items-start justify-between gap-3 mb-6">
-                            <h1 className="text-white text-2xl sm:text-3xl font-black break-words">
+                            <h1 className="text-white text-2xl sm:text-3xl font-black wrap-break-word">
                                 {event.title}
                             </h1>
                             <button
@@ -689,22 +715,6 @@ const EventPublicPage: React.FC = () => {
                                 isOnline={isOnline}
                                 className="text-xs px-2.5 py-1.5"
                             />
-                            <span
-                                className="inline-flex items-center gap-1 rounded-md font-semibold text-xs px-2.5 py-1.5"
-                                style={{
-                                    background:
-                                        ticketLabel === 'Free'
-                                            ? 'rgba(255,255,255,0.06)'
-                                            : 'rgba(166,255,0,0.1)',
-                                    color:
-                                        ticketLabel === 'Free'
-                                            ? 'rgba(255,255,255,0.6)'
-                                            : '#a6ff00',
-                                }}
-                            >
-                                <FiTag size={13} />
-                                {ticketLabel}
-                            </span>
                             {event.require_approval && (
                                 <span
                                     className="inline-flex items-center gap-1 rounded-md font-semibold text-xs px-2.5 py-1.5"
@@ -763,9 +773,7 @@ const EventPublicPage: React.FC = () => {
                                 <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">
                                     About
                                 </h3>
-                                <p className="text-white/50 text-sm leading-relaxed whitespace-pre-line">
-                                    {event.description}
-                                </p>
+                                <RichText html={event.description} />
                             </div>
                         )}
 
@@ -897,9 +905,7 @@ const EventPublicPage: React.FC = () => {
                                         : `Get ${effectiveSelected.name} · ₦${effectiveSelected.price.toFixed(2)}`
                                     : hasMultipleTickets
                                         ? 'Select a ticket to continue'
-                                        : ticketLabel === 'Free'
-                                            ? 'Click to Register'
-                                            : `RSVP · ${ticketLabel}`}
+                                        : 'Click to Register'}
                             </Button>
                         </div>
                     </div>

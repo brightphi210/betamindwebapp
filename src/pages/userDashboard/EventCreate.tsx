@@ -24,6 +24,23 @@ import { useGlobalContext } from '../../providers/GlobalContext';
 const cardBg = 'rgba(255,255,255,0.02)';
 const cardBorder = '1px solid rgba(255,255,255,0.08)';
 
+/**
+ * How tickets are sent to the backend. If tickets don't save, change this
+ * value and try again (one of these will match your backend):
+ *
+ * 'bracket'     -> tickets[0]name, tickets[0].name, tickets[0][name] ... (multipart,
+ *                  nested fields, DRF-style). Best for Django REST Framework nested
+ *                  serializers, and lets ticket images upload as real files.
+ * 'json-string' -> tickets = '[{"name":...}]' (multipart, one JSON string field)
+ *                  Works only if the backend JSON-parses that field.
+ * 'json-body'   -> whole request as application/json (matches your schema exactly).
+ *                  NOTE: the cover image file and ticket images are NOT sent in this
+ *                  mode, because JSON can't carry files. Needs useCreateEvents to
+ *                  accept a plain object.
+ */
+type TicketMode = 'bracket' | 'json-string' | 'json-body';
+const TICKET_MODE = { mode: 'bracket' as TicketMode };
+
 // ─── Bubble splash background ─────────────────────────────────────────────
 const BUBBLE_COLORS = ['#a6ff00', '#7ee6c0', '#ff8fb0', '#8f8fff'];
 
@@ -357,6 +374,9 @@ const TicketCommissionModal: React.FC<{
 
     useEffect(() => {
         if (!open) return;
+        // Reset so the modal works again after a previous cancel/confirm
+        closingRef.current = false;
+        setVisible(false);
         const frame = requestAnimationFrame(() => setVisible(true));
         return () => {
             cancelAnimationFrame(frame);
@@ -484,6 +504,7 @@ const EventCreate: React.FC = () => {
     const [showCommissionModal, setShowCommissionModal] = useState(false);
 
     const [requireApproval, setRequireApproval] = useState(false);
+    const [serverErrors, setServerErrors] = useState<Record<string, string[]>>({});
 
     const [editingCapacity, setEditingCapacity] = useState(false);
     const [capacityMode, setCapacityMode] = useState<'unlimited' | 'limited'>(
@@ -500,11 +521,9 @@ const EventCreate: React.FC = () => {
     };
 
     const handleToggleTickets = () => {
-        setHasTickets((on) => {
-            const next = !on;
-            if (next && tickets.length === 0) setTickets([emptyTicket()]);
-            return next;
-        });
+        const next = !hasTickets;
+        setHasTickets(next);
+        if (next && tickets.length === 0) setTickets([emptyTicket()]);
     };
 
     const toIso = (date: string, time: string) => {
@@ -514,6 +533,67 @@ const EventCreate: React.FC = () => {
     };
 
     const descriptionLength = getPlainText(description).length;
+
+    useEffect(() => {
+        setServerErrors({});
+    }, [coverImageFile, description, endDate, endTime, eventName, hasTickets, location, locationType, startDate, startTime, tickets]);
+
+    const localErrors = useMemo<Record<string, string[]>>(() => {
+        const errors: Record<string, string[]> = {};
+
+        if (!eventName.trim()) {
+            errors.title = ['Event name is required.'];
+        }
+
+        if (!startDate) {
+            errors.start_date = ['Start date is required.'];
+        }
+
+        if (!endDate) {
+            errors.end_date = ['End date is required.'];
+        }
+
+        if (startDate && endDate) {
+            const startAt = new Date(`${startDate}T${startTime || '00:00'}:00`);
+            const endAt = new Date(`${endDate}T${endTime || '00:00'}:00`);
+
+            if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) {
+                errors.end_date = ['End date must be after start date.'];
+            }
+        }
+
+        if (locationType === 'offline' && !location.trim()) {
+            errors.location = ['Venue address is required for in-person events.'];
+        }
+
+        if (!coverImageFile) {
+            errors.image = ['Cover image is required.'];
+        }
+
+        if (descriptionLength < MIN_DESCRIPTION_LENGTH) {
+            errors.description = [`Description must be at least ${MIN_DESCRIPTION_LENGTH} characters.`];
+        }
+
+        if (hasTickets) {
+            const ticketErrors: string[] = [];
+
+            tickets.forEach((ticket, index) => {
+                if (!ticket.name.trim()) {
+                    ticketErrors.push(`Ticket ${index + 1} is missing a name.`);
+                }
+
+                if (ticket.price === '' || Number(ticket.price) < 0) {
+                    ticketErrors.push(`Ticket ${index + 1} needs a valid price.`);
+                }
+            });
+
+            if (ticketErrors.length > 0) {
+                errors.tickets = ticketErrors;
+            }
+        }
+
+        return errors;
+    }, [coverImageFile, descriptionLength, endDate, endTime, eventName, hasTickets, location, locationType, startDate, startTime, tickets]);
 
     const ticketsValid =
         !hasTickets ||
@@ -527,54 +607,177 @@ const EventCreate: React.FC = () => {
         : 0;
     const commissionEstimate = totalTicketValue * COMMISSION_RATE;
 
-    const isValid = !!(
-        eventName.trim() &&
-        startDate &&
-        endDate &&
-        (locationType === 'online' || location.trim()) &&
-        descriptionLength >= MIN_DESCRIPTION_LENGTH &&
-        ticketsValid
-    );
+    const allErrors: Record<string, string[]> = {
+        ...localErrors,
+        ...serverErrors,
+    };
 
-    const submitEvent = () => {
-        const formData = new FormData();
-        formData.append('title', eventName);
-        formData.append('description', description);
-        formData.append('location_type', locationType);
-        formData.append(
-            'location',
-            locationType === 'online' ? 'Google Meet' : location
+    const visibleErrors = Object.entries(allErrors)
+        .flatMap(([field, messages]) =>
+            messages.map((message) => ({
+                field:
+                    field === 'title'
+                        ? 'Event name'
+                        : field === 'start_date'
+                            ? 'Start date'
+                            : field === 'end_date'
+                                ? 'End date'
+                                : field === 'location'
+                                    ? 'Location'
+                                    : field === 'image'
+                                        ? 'Cover image'
+                                        : field === 'description'
+                                            ? 'Description'
+                                            : field === 'tickets'
+                                                ? 'Tickets'
+                                                : field,
+                message,
+            }))
         );
-        if (locationType === 'online') {
-            formData.append('meeting_platform', meetingPlatform);
+
+    const isValid = Object.keys(localErrors).length === 0 && ticketsValid;
+
+    const handleSuccess = (response: unknown) => {
+        console.log('Event created successfully:', response);
+        setStep('success');
+    };
+
+    const normalizeApiErrors = (payload: any): Record<string, string[]> => {
+        if (!payload || typeof payload !== 'object') {
+            return {};
         }
 
+        const normalized: Record<string, string[]> = {};
+
+        Object.entries(payload).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                normalized[key] = value.filter((item) => typeof item === 'string');
+                return;
+            }
+
+            if (typeof value === 'string') {
+                normalized[key] = [value];
+                return;
+            }
+
+            if (value && typeof value === 'object') {
+                const nested = normalizeApiErrors(value);
+                if (Object.keys(nested).length > 0) {
+                    normalized[key] = Object.values(nested).flat();
+                }
+            }
+        });
+
+        return normalized;
+    };
+
+    const handleError = (error: any) => {
+        console.error('Error creating event:', error?.response?.data ?? error);
+        const data = error?.response?.data;
+        const normalized = normalizeApiErrors(data);
+        setServerErrors(normalized);
+
+        const raw =
+            data?.tickets?.[0] ||
+            data?.tickets ||
+            data?.message ||
+            data?.detail ||
+            'Something went wrong. Please try again.';
+        addToast(
+            typeof raw === 'string' ? raw : JSON.stringify(raw),
+            'error'
+        );
+    };
+
+    const submitEvent = () => {
+        // Clean ticket list (only tickets with a name)
+        const cleanTickets = hasTickets
+            ? tickets
+                .filter((t) => t.name.trim())
+                .map((t) => ({
+                    name: t.name.trim(),
+                    amount: String(Number(t.price || 0)),
+                    description: t.description.trim(),
+                    imageFile: t.imageFile,
+                }))
+            : [];
+
+        const lowestPrice = cleanTickets.length
+            ? Math.min(...cleanTickets.map((t) => Number(t.amount)))
+            : 0;
+
+        const locationValue =
+            locationType === 'online' ? 'Google Meet' : location.trim();
+
+        // ── JSON body mode (matches the schema exactly, no files) ──────────
+        if (TICKET_MODE.mode === 'json-body') {
+            const body = {
+                title: eventName.trim(),
+                description,
+                location: locationValue,
+                online: locationType === 'online',
+                onsite: locationType === 'offline',
+                start_date: toIso(startDate, startTime),
+                end_date: toIso(endDate, endTime),
+                require_approval: requireApproval,
+                ticket_price: String(lowestPrice),
+                tickets: cleanTickets.map(({ imageFile, ...rest }) => ({
+                    ...rest,
+                    image: '',
+                })),
+                ...(capacityMode === 'limited' && capacity
+                    ? { capacity: Number(capacity) }
+                    : {}),
+            };
+            mutate(body as any, { onSuccess: handleSuccess, onError: handleError });
+            return;
+        }
+
+        // ── Multipart modes ────────────────────────────────────────────────
+        const formData = new FormData();
+        formData.append('title', eventName.trim());
+        formData.append('description', description);
+        formData.append('location', locationValue);
         formData.append('online', String(locationType === 'online'));
         formData.append('onsite', String(locationType === 'offline'));
-
         formData.append('start_date', toIso(startDate, startTime));
         formData.append('end_date', toIso(endDate, endTime));
         formData.append('require_approval', String(requireApproval));
+        formData.append('ticket_price', String(lowestPrice));
 
-        if (hasTickets) {
-            const payload = tickets.map((t, index) => ({
-                name: t.name.trim(),
-                amount: String(Number(t.price || 0)),
-                image: t.imageFile ? `ticket_image_${index}` : '',
-                description: t.description.trim(),
-            }));
-            formData.append('tickets', JSON.stringify(payload));
-            tickets.forEach((t, index) => {
-                if (t.imageFile) {
-                    formData.append(`ticket_image_${index}`, t.imageFile);
-                }
-            });
-            const lowest = Math.min(
-                ...tickets.map((t) => Number(t.price || 0))
-            );
-            formData.append('ticket_price', String(lowest));
-        } else {
-            formData.append('ticket_price', '0');
+        if (cleanTickets.length > 0) {
+            if (TICKET_MODE.mode === 'bracket') {
+                // DRF parses nested lists from multipart as `tickets[0]name`.
+                // We also send the `.name` and `[name]` spellings; backends
+                // ignore keys they don't recognise, so this is harmless and
+                // covers the common variants.
+                const keyStyles: Array<(i: number, f: string) => string> = [
+                    (i, f) => `tickets[${i}]${f}`,
+                    (i, f) => `tickets[${i}].${f}`,
+                    (i, f) => `tickets[${i}][${f}]`,
+                ];
+                cleanTickets.forEach((t, i) => {
+                    keyStyles.forEach((k) => {
+                        formData.append(k(i, 'name'), t.name);
+                        formData.append(k(i, 'amount'), t.amount);
+                        formData.append(k(i, 'description'), t.description);
+                        if (t.imageFile) {
+                            formData.append(k(i, 'image'), t.imageFile);
+                        }
+                    });
+                });
+            } else {
+                // 'json-string'
+                formData.append(
+                    'tickets',
+                    JSON.stringify(
+                        cleanTickets.map(({ imageFile, ...rest }) => ({
+                            ...rest,
+                            image: '',
+                        }))
+                    )
+                );
+            }
         }
 
         if (capacityMode === 'limited' && capacity) {
@@ -583,20 +786,12 @@ const EventCreate: React.FC = () => {
 
         if (coverImageFile) formData.append('image', coverImageFile);
 
-        mutate(formData, {
-            onSuccess: (response) => {
-                console.log('Event created successfully:', response);
-                setStep('success');
-            },
-            onError: (error: any) => {
-                console.error('Error creating event:', error);
-                const message =
-                    error?.response?.data?.message ||
-                    error?.response?.data?.detail ||
-                    'Something went wrong. Please try again.';
-                addToast(message, 'error');
-            },
-        });
+        // Debug: see exactly what is being sent
+        for (const [key, value] of formData.entries()) {
+            console.log('formData >', key, value instanceof File ? `File(${value.name})` : value);
+        }
+
+        mutate(formData, { onSuccess: handleSuccess, onError: handleError });
     };
 
     const handleCreate = () => {
@@ -609,7 +804,6 @@ const EventCreate: React.FC = () => {
 
         submitEvent();
     };
-
 
     // ─── Success screen ─────────────────────────────────────────────────
     if (step === 'success') {
@@ -825,6 +1019,7 @@ const EventCreate: React.FC = () => {
                                         ).map((type) => (
                                             <button
                                                 key={type}
+                                                type="button"
                                                 onClick={() =>
                                                     setLocationType(type)
                                                 }
@@ -868,6 +1063,7 @@ const EventCreate: React.FC = () => {
                                         </p>
                                         <div className="flex flex-col gap-2">
                                             <button
+                                                type="button"
                                                 onClick={() =>
                                                     setMeetingPlatform(
                                                         'google_meet'
@@ -1077,6 +1273,7 @@ const EventCreate: React.FC = () => {
                                         </div>
                                     </div>
                                     <button
+                                        type="button"
                                         onClick={() =>
                                             setEditingCapacity((v) => !v)
                                         }
@@ -1101,6 +1298,7 @@ const EventCreate: React.FC = () => {
                                             ).map((mode) => (
                                                 <button
                                                     key={mode}
+                                                    type="button"
                                                     onClick={() =>
                                                         setCapacityMode(mode)
                                                     }
@@ -1159,6 +1357,24 @@ const EventCreate: React.FC = () => {
                             </div>
                         )}
 
+                        {visibleErrors.length > 0 && (
+                            <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-left">
+                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-300">
+                                    Please fix the following
+                                </p>
+                                <ul className="space-y-1.5 text-xs text-red-200/90">
+                                    {visibleErrors.map(({ field, message }, index) => (
+                                        <li key={`${field}-${index}`} className="flex gap-2">
+                                            <span className="mt-0.5 text-red-300">•</span>
+                                            <span>
+                                                <span className="font-semibold text-red-100">{field}:</span> {message}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
                         {hasTickets && !ticketsValid && (
                             <p className="text-xs text-red-400/80 -mt-5 mb-4">
                                 Every ticket needs a name and a price (use 0 for
@@ -1167,6 +1383,7 @@ const EventCreate: React.FC = () => {
                         )}
 
                         <button
+                            type="button"
                             onClick={handleCreate}
                             disabled={!isValid || isPending}
                             className="w-full px-6 py-3 bg-white rounded-md text-xs font-bold text-black transition-transform hover:scale-[1.005] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"

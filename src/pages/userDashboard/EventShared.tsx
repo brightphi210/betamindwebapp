@@ -11,7 +11,6 @@ import {
     FiMessageCircle,
     FiSend,
     FiShare2,
-    FiTag,
     FiTrash2,
     FiUserCheck,
     FiUsers,
@@ -150,6 +149,33 @@ export const formatTicketPrice = (price?: string) => {
     return `₦${trimmed}`;
 };
 
+const RichText: React.FC<{ html: string }> = ({ html }) => (
+    <>
+        <div
+            className="rich-text-content text-sm text-white/60 leading-relaxed wrap-break-word"
+            dangerouslySetInnerHTML={{ __html: html }}
+        />
+        <style>{`
+            .rich-text-content p { margin: 0 0 0.75em; }
+            .rich-text-content p:last-child { margin-bottom: 0; }
+            .rich-text-content strong { color: rgba(255,255,255,0.85); }
+            .rich-text-content a { color: #a6ff00; text-decoration: underline; }
+            .rich-text-content ul, .rich-text-content ol { margin: 0 0 0.75em; padding-left: 1.25em; }
+            .rich-text-content li { margin-bottom: 0.25em; }
+            .rich-text-content blockquote {
+                margin: 0.75em 0; padding-left: 0.9em; border-left: 2px solid rgba(166,255,0,0.45); color: rgba(255,255,255,0.7);
+            }
+            .rich-text-content img { max-width: 100%; border-radius: 8px; margin: 0.5em 0; }
+            .rich-text-content h1, .rich-text-content h2, .rich-text-content h3, .rich-text-content h4 {
+                color: rgba(255,255,255,0.9); font-weight: 700; margin: 0 0 0.5em;
+            }
+            .rich-text-content pre {
+                background: rgba(255,255,255,0.06); border-radius: 8px; padding: 0.75em; overflow-x: auto; color: rgba(255,255,255,0.8);
+            }
+        `}</style>
+    </>
+);
+
 export const isGoogleMeet = (v?: string | null) => !!v && /google\s*meet|meet\.google\.com/i.test(v);
 
 export const getHostName = (event: Pick<ApiEvent, 'user' | 'user_name'>) =>
@@ -272,7 +298,7 @@ export const SkeletonBlock: React.FC<{ className?: string; style?: React.CSSProp
     style,
 }) => (
     <div
-        className={`animate-pulse rounded-md ${className}`}
+        className={`rounded-md ${className}`}
         style={{ background: 'rgba(255,255,255,0.06)', ...style }}
     />
 );
@@ -421,7 +447,6 @@ export const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | '
     const textSize = size === 'sm' ? 'text-[11px]' : 'text-xs';
     const padding = size === 'sm' ? 'px-2 py-1' : 'px-2.5 py-1.5';
     const iconSize = size === 'sm' ? 11 : 13;
-    const isFree = formatTicketPrice(event.ticketPrice) === 'Free';
 
     return (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -430,17 +455,6 @@ export const EventMetaBadges: React.FC<{ event: RegisteredEvent; size?: 'sm' | '
                 className={`${textSize} ${padding}`}
                 iconSize={iconSize}
             />
-
-            <span
-                className={`inline-flex items-center gap-1 rounded-md font-semibold ${textSize} ${padding}`}
-                style={{
-                    background: isFree ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.06)',
-                    color: isFree ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.6)',
-                }}
-            >
-                <FiTag size={iconSize} />
-                {formatTicketPrice(event.ticketPrice)}
-            </span>
 
             {event.requireApproval && (
                 <span
@@ -559,7 +573,7 @@ export const GuestsModal: React.FC<{ attendees: Attendee[]; onClose: () => void 
                     {attendees.map((a) => (
                         <div
                             key={a.id}
-                            className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-white/[0.03]"
+                            className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-white/3"
                         >
                             <AttendeeAvatar name={a.name} avatar={a.avatar} size={36} />
                             <div className="min-w-0">
@@ -820,8 +834,6 @@ export const EventDrawerContent: React.FC<{
         }
     };
 
-    const isFree = formatTicketPrice(event.ticketPrice) === 'Free';
-
     return (
         <div className="bg-neutral-950 h-dvh w-full sm:w-[500px] flex flex-col shadow-xl overflow-hidden">
             <div className="flex flex-wrap items-center justify-between p-5 border-b border-[rgba(205,220,57,.08)] shrink-0 gap-4 bg-neutral-950 z-10">
@@ -907,7 +919,7 @@ export const EventDrawerContent: React.FC<{
                     className="w-full aspect-square rounded-xl mb-6 object-cover"
                 />
 
-                <h2 className="text-white text-2xl font-black mb-3 break-words">{event.title}</h2>
+                <h2 className="text-white text-2xl font-black mb-3 wrap-break-word">{event.title}</h2>
 
                 {event.host && (
                     <div className="mb-6 border-y border-neutral-200/10 py-2 pb-4 w-full">
@@ -969,21 +981,6 @@ export const EventDrawerContent: React.FC<{
                             style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
                         >
                             <div className="flex items-center gap-2.5 text-white/70 text-sm">
-                                <FiTag size={15} className="text-white/40" />
-                                Ticket Price
-                            </div>
-                            <span
-                                className="text-sm font-semibold"
-                                style={{ color: isFree ? 'rgba(255,255,255,0.7)' : '#a6ff00' }}
-                            >
-                                {formatTicketPrice(event.ticketPrice)}
-                            </span>
-                        </div>
-                        <div
-                            className="flex items-center justify-between gap-3 px-4 py-3"
-                            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-                        >
-                            <div className="flex items-center gap-2.5 text-white/70 text-sm">
                                 <FiUserCheck size={15} className="text-white/40" />
                                 Requires Approval
                             </div>
@@ -1032,9 +1029,7 @@ export const EventDrawerContent: React.FC<{
                         <h3 className="text-white font-bold text-sm mb-2 uppercase tracking-wide">
                             About
                         </h3>
-                        <p className="text-white/50 text-sm leading-relaxed whitespace-pre-line">
-                            {event.description}
-                        </p>
+                        <RichText html={event.description} />
                     </div>
                 )}
 
