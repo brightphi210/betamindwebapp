@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     FiCamera,
     FiChevronDown,
@@ -19,13 +19,20 @@ import {
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 import { useOutletContext } from "react-router-dom";
-import LoadingOverlay from "../../component/LoadingOverlay";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
 import { useCreateDigitalProduct } from "../../hooks/mutations/allMutation";
 import { useGlobalContext } from "../../providers/GlobalContext";
 import { compressImage, formatBytes } from "../../utils/compressimage";
 import { formatNaira } from "../../utils/currency";
+import {
+    canUploadOriginal,
+    getErrorMessage,
+    getErrorMessages,
+    isFileReadable,
+    toStableFile,
+    validateImageFile,
+} from "../../utils/uploadhelpers";
 import type { ProductType } from "../userDashboard/MentorProductSuccess";
 import MentorProductSuccess from "../userDashboard/MentorProductSuccess";
 import { type MentorDashboardContext } from "./MentorDashboardLayout";
@@ -39,6 +46,8 @@ type CourseModuleDraft = {
     title: string;
     description: string; // Quill HTML
 };
+
+type FormError = { field?: string; message: string };
 
 const PRODUCT_TYPES: ProductType[] = ["Book", "Course", "Manual", "Template", "Workbook", "Toolkit"];
 
@@ -96,38 +105,20 @@ const moduleQuillModules = {
     ],
 };
 
-// ---------- API error parsing ----------
-
-const FIELD_LABELS: Record<string, string> = {
+// Labels used when turning backend field names into readable text.
+// The backend's own message text is never changed — only the field name.
+const PRODUCT_FIELD_LABELS: Record<string, string> = {
     title: "Title",
     price: "Price",
     link: "Access link",
     description: "Description",
     category: "Category",
     cover_image: "Thumbnail",
+    image: "Thumbnail",
     product_type: "Product type",
     course_content: "Course content",
+    is_published: "Publish status",
 };
-
-function parseProductError(error: any): string {
-    const data = error?.response?.data;
-    if (!data) return "Could not create product. Please try again.";
-    if (typeof data === "string") return data;
-    if (data.detail) return data.detail;
-
-    for (const [field, value] of Object.entries(data)) {
-        const msg: string | null = Array.isArray(value)
-            ? (value[0] as string)
-            : typeof value === "string"
-                ? value
-                : null;
-        if (msg) {
-            const label = field === "non_field_errors" ? "" : `${FIELD_LABELS[field] ?? field}: `;
-            return `${label}${msg}`;
-        }
-    }
-    return "Could not create product. Please try again.";
-}
 
 // ---------- Small building blocks ----------
 
@@ -146,6 +137,67 @@ const ProgressBar: React.FC<{ value: number; className?: string }> = ({ value, c
         />
     </div>
 );
+
+// Full-screen progress shown while the product is being created/uploaded.
+const SubmitProgressModal: React.FC<{
+    open: boolean;
+    progress: number;
+    stage: string;
+}> = ({ open, progress, stage }) => {
+    if (!open) return null;
+    const pct = Math.round(progress);
+    return (
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+            role="alertdialog"
+            aria-live="polite"
+            aria-label="Creating product"
+        >
+            <div
+                className="w-full max-w-sm rounded-xl p-6 shadow-2xl sm:p-7"
+                style={{
+                    background: "rgba(10,12,9,0.98)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                }}
+            >
+                <div className="mb-4 flex items-end justify-between">
+                    <div>
+                        <h3 className="text-lg font-black text-white">
+                            {pct >= 100 ? "Product created" : "Creating your product"}
+                        </h3>
+                        <p className="mt-1 text-xs text-white/45">{stage}</p>
+                    </div>
+                    <span className="text-3xl font-black tabular-nums text-[#a6ff00]">{pct}%</span>
+                </div>
+                <ProgressBar value={progress} />
+                <p className="mt-3 text-xs text-white/30">Please keep this page open until it finishes.</p>
+            </div>
+        </div>
+    );
+};
+
+const ErrorList: React.FC<{ errors: FormError[]; title?: string }> = ({
+    errors,
+    title = "Please fix the following",
+}) => {
+    if (errors.length === 0) return null;
+    return (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-left">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-300">{title}</p>
+            <ul className="space-y-1.5 text-xs text-red-200/90">
+                {errors.map(({ field, message }, i) => (
+                    <li key={`${field ?? "err"}-${i}`} className="flex gap-2">
+                        <span className="mt-0.5 text-red-300">•</span>
+                        <span className="min-w-0 break-words">
+                            {field && <span className="font-semibold text-red-100">{field}: </span>}
+                            {message}
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+};
 
 const SectionLabel: React.FC<{ children: React.ReactNode; hint?: string }> = ({ children, hint }) => (
     <div className="mb-2">
@@ -488,84 +540,256 @@ const MentorProductCreate: React.FC = () => {
     // Thumbnail compression
     const [thumbnailProgress, setThumbnailProgress] = useState<number | null>(null); // null = not compressing
     const [thumbnailInfo, setThumbnailInfo] = useState<string | null>(null);
+    const [thumbnailError, setThumbnailError] = useState<string | null>(null);
 
     const [showPreview, setShowPreview] = useState(false);
 
+    // Errors
+    const [showValidation, setShowValidation] = useState(false); // local field errors appear after a failed attempt
+    const [serverErrors, setServerErrors] = useState<string[]>([]);
+
+    // Submit progress modal
+    const [showSubmitModal, setShowSubmitModal] = useState(false);
+    const [submitProgress, setSubmitProgress] = useState(0);
+    const [submitStage, setSubmitStage] = useState("Preparing upload…");
+    const trickleRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const finishRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const isCourse = type === "Course";
     const isCompressing = thumbnailProgress !== null;
+
+    const stopTrickle = () => {
+        if (trickleRef.current) {
+            clearInterval(trickleRef.current);
+            trickleRef.current = null;
+        }
+    };
+
+    useEffect(
+        () => () => {
+            stopTrickle();
+            if (finishRef.current) clearTimeout(finishRef.current);
+        },
+        []
+    );
+
+    // Old server errors no longer apply once the user edits something
+    useEffect(() => {
+        setServerErrors([]);
+    }, [type, category, title, price, link, description, courseModules, thumbnailFile]);
+
+    const stageFor = (p: number) =>
+        p < 15
+            ? "Preparing upload…"
+            : p < 90
+                ? "Uploading product details and thumbnail…"
+                : p < 100
+                    ? "Finishing up…"
+                    : "Done!";
+
+    const startSubmitProgress = () => {
+        setSubmitProgress(0);
+        setSubmitStage("Preparing upload…");
+        setShowSubmitModal(true);
+        // Simulated: ease toward 90%, jump to 100% when the API responds.
+        stopTrickle();
+        trickleRef.current = setInterval(() => {
+            setSubmitProgress((p) => {
+                const next = p + Math.max(0.4, (90 - p) * 0.06);
+                const capped = Math.min(next, 90);
+                setSubmitStage(stageFor(capped));
+                return capped;
+            });
+        }, 200);
+    };
 
     const handleThumbnailChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const input = e.target;
         const file = input.files?.[0];
         if (!file) return;
 
+        setThumbnailError(null);
+
+        const problem = validateImageFile(file);
+        if (problem) {
+            setThumbnailError(problem);
+            addToast(problem, "error");
+            input.value = "";
+            return;
+        }
+
         setThumbnailProgress(0);
         setThumbnailInfo(null);
         try {
-            const compressed = await compressImage(file, {
-                maxDimension: 1600,
-                maxSizeMB: 1,
-                onProgress: setThumbnailProgress,
-            });
-            setThumbnail(URL.createObjectURL(compressed));
-            setThumbnailFile(compressed);
-            setThumbnailInfo(`${formatBytes(file.size)} → ${formatBytes(compressed.size)}`);
+            // Copy into memory first so mobile browsers can't invalidate the file later
+            const stable = await toStableFile(file);
+            let finalFile: File = stable;
+            try {
+                const compressed = await compressImage(stable, {
+                    maxDimension: 1600,
+                    maxSizeMB: 1,
+                    onProgress: setThumbnailProgress,
+                });
+                finalFile = await toStableFile(compressed);
+            } catch (err) {
+                console.error("Thumbnail compression failed", err);
+                if (!canUploadOriginal(stable)) {
+                    const msg = "Could not process this image format. Please choose a JPG, PNG or WebP photo.";
+                    setThumbnailError(msg);
+                    addToast(msg, "error");
+                    return;
+                }
+                // else: fall back to the in-memory copy of the original
+            }
+            setThumbnail(URL.createObjectURL(finalFile));
+            setThumbnailFile(finalFile);
+            setThumbnailInfo(`${formatBytes(file.size)} → ${formatBytes(finalFile.size)}`);
         } catch (err) {
-            console.error("Thumbnail compression failed, using original", err);
-            setThumbnail(URL.createObjectURL(file));
-            setThumbnailFile(file);
+            const msg = getErrorMessage(err);
+            setThumbnailError(msg);
+            addToast(msg, "error");
         } finally {
             setThumbnailProgress(null);
             input.value = "";
         }
     };
 
-    // For a course, require at least one module with a title and non-empty description
-    // in addition to the usual fields; for everything else, course content is irrelevant.
-    const courseModulesValid =
-        !isCourse ||
-        (courseModules.length > 0 && courseModules.every((m) => m.title.trim() && !isTextEmpty(m.description)));
+    // ---- Local validation: every problem, with a clear message ----
+    const localErrors = useMemo<FormError[]>(() => {
+        const errors: FormError[] = [];
 
-    const isValid = !!(
-        type &&
-        category &&
-        title.trim() &&
-        price !== "" &&
-        Number(price) >= 0 &&
-        link.trim() &&
-        !isTextEmpty(description) &&
-        courseModulesValid
-    );
+        if (!type) errors.push({ field: "Product type", message: "Select a product type." });
+        if (!category) errors.push({ field: "Category", message: "Select a category." });
+        if (!title.trim()) errors.push({ field: "Title", message: "Title is required." });
 
-    const handleCreate = () => {
-        if (!isValid || !type || isCompressing) return;
-
-        const formData = new FormData();
-        formData.append("product_type", type.toLowerCase());
-        formData.append("category", category);
-        formData.append("title", title);
-        formData.append("link", link);
-        formData.append("description", description);
-        formData.append("price", price);
-        formData.append("is_published", "false");
-
-        if (isCourse) {
-            const payload = courseModules.map((m) => ({ title: m.title, description: m.description }));
-            formData.append("course_content", JSON.stringify(payload));
+        if (price === "") {
+            errors.push({ field: "Price", message: "Enter a price (use 0 for free)." });
+        } else if (Number.isNaN(Number(price))) {
+            errors.push({ field: "Price", message: "Price must be a valid number." });
+        } else if (Number(price) < 0) {
+            errors.push({ field: "Price", message: "Price cannot be negative." });
         }
 
-        // thumbnailFile is the compressed image when compression succeeded
-        if (thumbnailFile) formData.append("cover_image", thumbnailFile);
+        if (!link.trim()) errors.push({ field: "Access link", message: "Access link is required." });
+        if (isTextEmpty(description)) errors.push({ field: "Description", message: "Description is required." });
 
-        mutate(formData, {
-            onSuccess: () => {
+        if (isCourse) {
+            if (courseModules.length === 0) {
+                errors.push({ field: "Course content", message: "Add at least one module." });
+            }
+            courseModules.forEach((m, i) => {
+                if (!m.title.trim()) {
+                    errors.push({ field: `Module ${i + 1}`, message: "Title is required." });
+                }
+                if (isTextEmpty(m.description)) {
+                    errors.push({ field: `Module ${i + 1}`, message: "Description is required." });
+                }
+            });
+        }
+
+        return errors;
+    }, [type, category, title, price, link, description, isCourse, courseModules]);
+
+    // What the red box shows: file problem, local validation (after a failed attempt), server errors
+    const visibleErrors: FormError[] = [
+        ...(thumbnailError ? [{ field: "Thumbnail", message: thumbnailError }] : []),
+        ...(showValidation ? localErrors : []),
+        ...serverErrors.map((message) => ({ message })),
+    ];
+
+    const handlePreview = () => {
+        if (isCompressing) return;
+        if (localErrors.length > 0) {
+            setShowValidation(true);
+            const first = localErrors[0];
+            addToast(`${first.field}: ${first.message}`, "error");
+            return;
+        }
+        setShowValidation(false);
+        setShowPreview(true);
+    };
+
+    const handleSuccess = () => {
+        stopTrickle();
+        setSubmitProgress(100);
+        setSubmitStage("Done!");
+        // Let the user see 100% before switching screens.
+        finishRef.current = setTimeout(() => {
+            setShowSubmitModal(false);
+            setShowPreview(false);
+            setStep("success");
+        }, 600);
+    };
+
+    // Shows the backend's own error text exactly as the server sent it (plus the HTTP
+    // status). Network failures (no server reply) get a clear explanation instead.
+    const handleError = (error: any) => {
+        stopTrickle();
+        setShowSubmitModal(false);
+        setSubmitProgress(0);
+        setShowPreview(false); // so the error list is visible
+        console.error("Error creating product:", error?.response?.status, error?.response?.data ?? error);
+
+        const messages = getErrorMessages(error, "Could not create product. Please try again.", PRODUCT_FIELD_LABELS);
+        setServerErrors(messages);
+        addToast(messages.join(" • "), "error");
+    };
+
+    const handleCreate = async () => {
+        if (!type || isPending || isCompressing) return;
+
+        if (localErrors.length > 0) {
+            setShowPreview(false);
+            setShowValidation(true);
+            addToast(`${localErrors[0].field}: ${localErrors[0].message}`, "error");
+            return;
+        }
+
+        try {
+            // Mobile browsers can invalidate picked files; make sure it's still readable.
+            if (thumbnailFile && !(await isFileReadable(thumbnailFile))) {
+                const msg = "Your thumbnail can no longer be read by the browser. Remove it, pick it again and retry.";
                 setShowPreview(false);
-                setStep("success");
-            },
-            onError: (error: any) => {
-                addToast(parseProductError(error), "error");
-            },
-        });
+                setThumbnailError(msg);
+                addToast(msg, "error");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("product_type", type.toLowerCase());
+            formData.append("category", category);
+            formData.append("title", title);
+            formData.append("link", link);
+            formData.append("description", description);
+            formData.append("price", price);
+            formData.append("is_published", "false");
+
+            if (isCourse) {
+                const payload = courseModules.map((m) => ({ title: m.title, description: m.description }));
+                formData.append("course_content", JSON.stringify(payload));
+            }
+
+            // thumbnailFile is the compressed, in-memory copy
+            if (thumbnailFile) formData.append("cover_image", thumbnailFile);
+
+            // Debug: see exactly what is being sent
+            for (const [key, value] of formData.entries()) {
+                console.log(
+                    "formData >",
+                    key,
+                    value instanceof File ? `File(${value.name}, ${value.size} bytes, ${value.type})` : value
+                );
+            }
+
+            startSubmitProgress();
+            mutate(formData, { onSuccess: handleSuccess, onError: handleError });
+        } catch (err) {
+            stopTrickle();
+            setShowSubmitModal(false);
+            const msg = getErrorMessage(err, undefined, PRODUCT_FIELD_LABELS);
+            setServerErrors([msg]);
+            addToast(msg, "error");
+        }
     };
 
     if (step === "success" && type) {
@@ -580,7 +804,7 @@ const MentorProductCreate: React.FC = () => {
                     "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
             }}
         >
-            <LoadingOverlay visible={isPending} />
+            <SubmitProgressModal open={showSubmitModal} progress={submitProgress} stage={submitStage} />
             <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
                 <div className="mb-8">
                     <h2 className="mb-1 text-xl font-bold text-white sm:text-2xl">Digital Products</h2>
@@ -648,6 +872,7 @@ const MentorProductCreate: React.FC = () => {
                                     setThumbnail(null);
                                     setThumbnailFile(null);
                                     setThumbnailInfo(null);
+                                    setThumbnailError(null);
                                     if (thumbnailInputRef.current) thumbnailInputRef.current.value = "";
                                 }}
                                 className="mt-2 w-full text-xs text-white/40 transition-colors hover:text-white/70"
@@ -732,22 +957,19 @@ const MentorProductCreate: React.FC = () => {
                             <CourseContentEditor modules={courseModules} onChange={setCourseModules} />
                         )}
 
+                        <ErrorList errors={visibleErrors} />
+
                         <Button
                             variant="green"
                             className="w-full"
-                            disabled={!isValid || isPending || isCompressing}
-                            onClick={() => setShowPreview(true)}
+                            disabled={isPending || isCompressing}
+                            onClick={handlePreview}
                         >
                             <span className="flex items-center justify-center gap-2">
                                 <FiEye size={15} />
                                 {isCompressing ? "Compressing image…" : "Preview Product"}
                             </span>
                         </Button>
-                        {isCourse && !courseModulesValid && (
-                            <p className="text-xs text-red-400/80 -mt-3">
-                                Add at least one module with a title and description to continue.
-                            </p>
-                        )}
                     </div>
                 </div>
             </div>

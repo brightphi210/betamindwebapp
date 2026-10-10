@@ -127,16 +127,20 @@ const stripHtml = (s: string) =>
 
 const looksLikeHtml = (s: string) => /<\s*(!doctype|html|body|head)/i.test(s);
 
-const labelFor = (path: string[]): string => {
+// List fields whose items are shown as "Ticket 1", "Module 2", ...
+const ITEM_LABELS: Record<string, string> = { tickets: 'Ticket', course_content: 'Module' };
+
+const labelFor = (path: string[], labels?: Record<string, string>): string => {
     const parts: string[] = [];
     path.forEach((seg, i) => {
         if (/^\d+$/.test(seg)) {
             const parent = path[i - 1];
-            parts.push(parent === 'tickets' ? `Ticket ${Number(seg) + 1}` : `#${Number(seg) + 1}`);
-            // "tickets" label would be redundant right before "Ticket N"
-            if (parent === 'tickets') parts.splice(parts.length - 2, 1);
+            const itemLabel = ITEM_LABELS[parent];
+            parts.push(itemLabel ? `${itemLabel} ${Number(seg) + 1}` : `#${Number(seg) + 1}`);
+            // the list's own label would be redundant right before "Ticket N" / "Module N"
+            if (itemLabel && parts.length >= 2) parts.splice(parts.length - 2, 1);
         } else {
-            const label = FIELD_LABELS[seg] ?? seg.replace(/_/g, ' ');
+            const label = labels?.[seg] ?? FIELD_LABELS[seg] ?? seg.replace(/_/g, ' ');
             if (label) parts.push(label);
         }
     });
@@ -144,21 +148,23 @@ const labelFor = (path: string[]): string => {
 };
 
 /** Walks DRF-style error bodies (strings, arrays, nested objects, lists of objects). */
-function flatten(value: unknown, path: string[] = []): string[] {
+function flatten(value: unknown, path: string[] = [], labels?: Record<string, string>): string[] {
     if (value == null) return [];
     if (typeof value === 'string') {
         if (looksLikeHtml(value)) return [];
-        const label = labelFor(path);
+        const label = labelFor(path, labels);
         return [`${label ? label + ': ' : ''}${friendly(value)}`];
     }
     if (typeof value === 'number' || typeof value === 'boolean') return [];
     if (Array.isArray(value)) {
         const allStrings = value.every((v) => typeof v === 'string');
-        if (allStrings) return value.flatMap((v) => flatten(v, path));
-        return value.flatMap((v, i) => flatten(v, [...path, String(i)]));
+        if (allStrings) return value.flatMap((v) => flatten(v, path, labels));
+        return value.flatMap((v, i) => flatten(v, [...path, String(i)], labels));
     }
     if (typeof value === 'object') {
-        return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) => flatten(v, [...path, k]));
+        return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) =>
+            flatten(v, [...path, k], labels)
+        );
     }
     return [];
 }
@@ -171,7 +177,8 @@ const unique = (arr: string[]) => Array.from(new Set(arr.filter(Boolean)));
  */
 export function getErrorMessages(
     error: any,
-    fallback = 'Something went wrong. Please try again.'
+    fallback = 'Something went wrong. Please try again.',
+    labels?: Record<string, string> // optional per-page field labels, e.g. { title: 'Product title' }
 ): string[] {
     if (typeof error === 'string') return [error];
 
@@ -179,7 +186,7 @@ export function getErrorMessages(
     if (error?.response) {
         const { status, data } = error.response;
         const statusText = error.response.statusText ? ` ${error.response.statusText}` : '';
-        let body = unique(flatten(data));
+        let body = unique(flatten(data, [], labels));
 
         // Non-JSON replies (nginx/proxy/Django HTML error pages): show their text
         if (body.length === 0 && typeof data === 'string' && data.trim()) {
@@ -251,7 +258,7 @@ export function getErrorMessages(
 }
 
 /** One-line version for addToast: first message + "(+N more)". */
-export function getErrorMessage(error: any, fallback?: string): string {
-    const list = getErrorMessages(error, fallback);
+export function getErrorMessage(error: any, fallback?: string, labels?: Record<string, string>): string {
+    const list = getErrorMessages(error, fallback, labels);
     return list.join(' • ');
 }

@@ -30,30 +30,11 @@ import {
     validateImageFile,
 } from '../../utils/uploadhelpers';
 
-/**
- * Set to true once useCreateEvents is updated to accept
- * `{ data, onUploadProgress }` (see the hook snippet). Until then the
- * submit modal shows a simulated counter that completes when the API responds.
- */
 const USE_REAL_UPLOAD_PROGRESS = false;
 
 const cardBg = 'rgba(255,255,255,0.02)';
 const cardBorder = '1px solid rgba(255,255,255,0.08)';
 
-/**
- * How tickets are sent to the backend. If tickets don't save, change this
- * value and try again (one of these will match your backend):
- *
- * 'bracket'     -> tickets[0]name, tickets[0].name, tickets[0][name] ... (multipart,
- *                  nested fields, DRF-style). Best for Django REST Framework nested
- *                  serializers, and lets ticket images upload as real files.
- * 'json-string' -> tickets = '[{"name":...}]' (multipart, one JSON string field)
- *                  Works only if the backend JSON-parses that field.
- * 'json-body'   -> whole request as application/json (matches your schema exactly).
- *                  NOTE: the cover image file and ticket images are NOT sent in this
- *                  mode, because JSON can't carry files. Needs useCreateEvents to
- *                  accept a plain object.
- */
 type TicketMode = 'bracket' | 'json-string' | 'json-body';
 const TICKET_MODE = { mode: 'bracket' as TicketMode };
 

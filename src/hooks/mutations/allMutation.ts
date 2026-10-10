@@ -194,7 +194,7 @@ export const useCreateDigitalProduct = () => {
   const createDigitalProduct = useMutation({
     mutationFn: async (data: any) => {
       const token = (await localStorage.getItem("betamindToken")) || ""
-      return post_request_with_image('digital-products/', data, token)
+      return post_request_with_image_compressed('digital-products/', data, token)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] })
