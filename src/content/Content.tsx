@@ -44,6 +44,7 @@ const Content = () => {
                     tab below is a nested child route so useOutletContext() works
                     and the layout's default-to-overview redirect can kick in. */}
                 <Route path="dashboard/mentor/product/create" element={<MentorCreateProduct />} />
+                <Route path="/dashboard/mentor/product/edit/:id" element={<MentorCreateProduct />} />
                 <Route path="/dashboard/mentor" element={<MentorDashboardLayout />}>
                     <Route path="overview" element={<MentorOverview />} />
                     <Route path="products" element={<MentorProducts />} />

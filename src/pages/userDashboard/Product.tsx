@@ -76,7 +76,7 @@ const toTitleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const RichText: React.FC<{ html: string }> = ({ html }) => (
     <div
-        className="rich-text-content text-sm text-white/60 leading-relaxed break-words [overflow-wrap:anywhere]"
+        className="rich-text-content overflow-visible text-sm leading-relaxed text-white/60 wrap-break-word"
         dangerouslySetInnerHTML={{ __html: html }}
     />
 );
@@ -120,7 +120,7 @@ const StatPill: React.FC<{ icon: React.ReactNode; label: string; value: string }
             {icon}
         </div>
         <div className="min-w-0">
-            <p className="text-white font-bold text-sm truncate">{value}</p>
+            <p className="text-sm font-bold text-white wrap-break-word">{value}</p>
             <p className="text-white/40 text-xs">{label}</p>
         </div>
     </div>
@@ -158,18 +158,18 @@ const CreatorCard: React.FC<{ creator: ApiCreator }> = ({ creator }) => {
 
             <div className="min-w-0 flex-1">
                 <p className="text-white/40 text-[11px] uppercase tracking-wide mb-0.5">Creator</p>
-                <p className="text-white text-sm font-bold truncate">{fullName || "Unknown creator"}</p>
+                <p className="text-white text-sm font-bold wrap-break-word">{fullName || "Unknown creator"}</p>
 
                 {(creator.occupation || location) && (
-                    <p className="flex items-center gap-1.5 text-white/40 text-xs mt-0.5 truncate">
+                    <p className="mt-0.5 flex items-center gap-1.5 text-xs text-white/40 wrap-break-word">
                         {creator.occupation && (
                             <>
                                 <FiBriefcase size={12} className="shrink-0" />
-                                <span className="truncate">{creator.occupation}</span>
+                                <span className="wrap-break-word">{creator.occupation}</span>
                             </>
                         )}
                         {creator.occupation && location && <span className="shrink-0">·</span>}
-                        {location && <span className="truncate">{location}</span>}
+                        {location && <span className="wrap-break-word">{location}</span>}
                     </p>
                 )}
 
@@ -376,7 +376,7 @@ const Product: React.FC = () => {
                             )}
                         </div>
 
-                        <h1 className="text-white text-2xl sm:text-3xl font-black mb-5 break-words">{product.title}</h1>
+                        <h1 className="text-white text-2xl sm:text-3xl font-black mb-5 wrap-break-word">{product.title}</h1>
 
                         {product.mentor && <CreatorCard creator={product.mentor} />}
 
@@ -440,7 +440,7 @@ const Product: React.FC = () => {
                                                 >
                                                     {i + 1}
                                                 </span>
-                                                <p className="text-white text-sm font-semibold truncate min-w-0">
+                                                <p className="min-w-0 text-sm font-semibold text-white wrap-break-word">
                                                     {m.title || `Module ${i + 1}`}
                                                 </p>
                                             </div>
@@ -503,7 +503,7 @@ const Product: React.FC = () => {
                             style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
                         >
                             <div className="flex items-center justify-between px-4 py-3.5">
-                                <span className="text-white/70 text-sm truncate">{product.title}</span>
+                                <span className="wrap-break-word text-sm text-white/70">{product.title}</span>
                                 <span className="text-white text-sm font-semibold shrink-0">{price}</span>
                             </div>
                             <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }} />
@@ -535,6 +535,13 @@ const Product: React.FC = () => {
             <PoweredByBadge />
 
             <style>{`
+        .rich-text-content {
+          overflow: visible;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          white-space: normal;
+        }
+        .rich-text-content * { max-width: 100%; }
         .rich-text-content p { margin: 0 0 0.75em; }
         .rich-text-content p:last-child { margin-bottom: 0; }
         .rich-text-content strong { color: rgba(255,255,255,0.85); }

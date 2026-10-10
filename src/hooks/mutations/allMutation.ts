@@ -198,10 +198,27 @@ export const useCreateDigitalProduct = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] })
+      queryClient.invalidateQueries({ queryKey: ["digital-products"] })
     },
   })
 
   return createDigitalProduct
+}
+
+export const useEditDigitalProduct = (id: string) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const token = localStorage.getItem("betamindToken") || ""
+      return put_requests(`digital-products/${id}/`, data, token)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] })
+      queryClient.invalidateQueries({ queryKey: ["digital-products"] })
+      queryClient.invalidateQueries({ queryKey: ["digital-product", id] })
+    },
+  })
 }
 
 

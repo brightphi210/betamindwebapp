@@ -268,7 +268,7 @@ export const useGetDigitalProduct = (page = 1, pageSize = 4, extra: Record<strin
 
 export const useGetSingleDigitalProduct = (id: any) => {
     const { data, isLoading, isError, isFetched, refetch } = useQuery({
-        queryKey: ["event", id],
+        queryKey: ["digital-product", id],
         queryFn: async () => {
             const token = (await localStorage.getItem("betamindToken")) || "";
             return get_requests(`digital-products/${id}/`, token);

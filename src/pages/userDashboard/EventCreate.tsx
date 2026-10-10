@@ -211,7 +211,7 @@ const SubmitProgressModal: React.FC<{
             aria-label="Creating event"
         >
             <div
-                className="w-full max-w-sm rounded-xl p-6 sm:p-7 shadow-2xl"
+                className="w-full max-w-sm rounded-xl p-10 shadow-2xl"
                 style={{
                     background: 'rgba(10,12,9,0.98)',
                     border: '1px solid rgba(255,255,255,0.1)',
@@ -224,7 +224,7 @@ const SubmitProgressModal: React.FC<{
                         </h3>
                         <p className="text-white/45 text-xs mt-1">{stage}</p>
                     </div>
-                    <span className="text-[#a6ff00] text-3xl font-black tabular-nums">
+                    <span className="text-[#a6ff00] text-2xl font-black tabular-nums">
                         {pct}%
                     </span>
                 </div>

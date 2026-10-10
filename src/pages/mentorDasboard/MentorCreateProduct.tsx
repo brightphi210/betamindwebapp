@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     FiCamera,
     FiChevronDown,
-    FiDollarSign,
     FiEye,
     FiGrid,
     FiImage,
@@ -14,14 +13,15 @@ import {
     FiTag,
     FiTrash2,
     FiType,
-    FiX,
+    FiX
 } from "react-icons/fi";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
-import { useNavigate, useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
-import { useCreateDigitalProduct } from "../../hooks/mutations/allMutation";
+import { useCreateDigitalProduct, useEditDigitalProduct } from "../../hooks/mutations/allMutation";
+import { useGetSingleDigitalProduct } from "../../hooks/queries/allQueriess";
 import { useGlobalContext } from "../../providers/GlobalContext";
 import { compressImage, formatBytes } from "../../utils/compressimage";
 import { formatNaira } from "../../utils/currency";
@@ -38,7 +38,7 @@ import { type MentorDashboardContext } from "./MentorDashboardLayout";
 
 // Where the "Back to Dashboard" button on the success screen goes.
 // Change this to your mentor dashboard route.
-const DASHBOARD_PATH = "/dashboard/overview";
+const DASHBOARD_PATH = "dashboard/mentor/products";
 
 // ---------- Types ----------
 
@@ -75,6 +75,23 @@ const isTextEmpty = (html: string) => {
 };
 
 const formatPrice = (price: string) => formatNaira(price, "Free");
+
+const formatPriceInput = (value: string) => {
+    const cleaned = value.replace(/[^\d.]/g, "");
+    if (!cleaned) return "";
+
+    const [whole, decimals = ""] = cleaned.split(".");
+    const formattedWhole = whole.replace(/^0+(?=\d)/, "") || "0";
+    const formattedInt = Number(formattedWhole).toLocaleString("en-NG");
+
+    if (decimals !== "") {
+        return `${formattedInt}.${decimals.slice(0, 2)}`;
+    }
+
+    return formattedInt;
+};
+
+const formatPriceForApi = (value: string) => value.replace(/,/g, "");
 
 const makeModuleId = () => Math.random().toString(36).slice(2, 10);
 
@@ -265,23 +282,27 @@ const SubmitProgressModal: React.FC<{
             aria-label="Creating product"
         >
             <div
-                className="w-full max-w-sm rounded-xl p-6 shadow-2xl sm:p-7"
+                className="w-full max-w-sm rounded-xl p-10 shadow-2xl"
                 style={{
-                    background: "rgba(10,12,9,0.98)",
-                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: 'rgba(10,12,9,0.98)',
+                    border: '1px solid rgba(255,255,255,0.1)',
                 }}
             >
-                <div className="mb-4 flex items-end justify-between">
+                <div className="flex items-end justify-between mb-4">
                     <div>
-                        <h3 className="text-lg font-black text-white">
-                            {pct >= 100 ? "Product created" : "Creating your product"}
+                        <h3 className="text-white text-lg font-black">
+                            {pct >= 100 ? 'Event created' : 'Creating your event'}
                         </h3>
-                        <p className="mt-1 text-xs text-white/45">{stage}</p>
+                        <p className="text-white/45 text-xs mt-1">{stage}</p>
                     </div>
-                    <span className="text-3xl font-black tabular-nums text-[#a6ff00]">{pct}%</span>
+                    <span className="text-[#a6ff00] text-2xl font-black tabular-nums">
+                        {pct}%
+                    </span>
                 </div>
                 <ProgressBar value={progress} />
-                <p className="mt-3 text-xs text-white/30">Please keep this page open until it finishes.</p>
+                <p className="text-white/30 text-xs mt-3">
+                    Please keep this page open until it finishes.
+                </p>
             </div>
         </div>
     );
@@ -631,8 +652,12 @@ const ProductPreviewModal: React.FC<{
 const MentorProductCreate: React.FC = () => {
     useOutletContext<MentorDashboardContext>();
     const navigate = useNavigate();
+    const { id } = useParams<{ id: string }>();
     const { addToast } = useGlobalContext();
     const { mutate, isPending } = useCreateDigitalProduct();
+    const isEditMode = Boolean(id);
+    const { product } = useGetSingleDigitalProduct(id);
+    const { mutate: updateProduct, isPending: isUpdating } = useEditDigitalProduct(id || "");
 
     const [step, setStep] = useState<Step>("form");
 
@@ -689,6 +714,31 @@ const MentorProductCreate: React.FC = () => {
     useEffect(() => {
         setServerErrors([]);
     }, [type, category, title, price, link, description, courseModules, thumbnailFile]);
+
+    useEffect(() => {
+        if (!product?.data || !isEditMode) return;
+
+        const item = product.data;
+        setType((item.product_type?.charAt(0).toUpperCase() + item.product_type?.slice(1)) as ProductType);
+        setCategory(item.category || "");
+        setTitle(item.title || "");
+        setPrice(String(item.price ?? ""));
+        setLink(item.link || "");
+        setDescription(item.description || "");
+        setCourseModules(
+            Array.isArray(item.course_content)
+                ? item.course_content.map((module: any) => ({
+                    id: makeModuleId(),
+                    title: module.title || "",
+                    description: module.description || "",
+                }))
+                : []
+        );
+
+        if (item.cover_image) {
+            setThumbnail(item.cover_image);
+        }
+    }, [product, isEditMode]);
 
     const stageFor = (p: number) =>
         p < 15
@@ -848,7 +898,7 @@ const MentorProductCreate: React.FC = () => {
     };
 
     const handleCreate = async () => {
-        if (!type || isPending || isCompressing) return;
+        if (!type || isPending || isUpdating || isCompressing) return;
 
         if (localErrors.length > 0) {
             setShowPreview(false);
@@ -873,7 +923,7 @@ const MentorProductCreate: React.FC = () => {
             formData.append("title", title);
             formData.append("link", link);
             formData.append("description", description);
-            formData.append("price", price);
+            formData.append("price", formatPriceForApi(price));
             formData.append("is_published", "false");
 
             if (isCourse) {
@@ -894,6 +944,24 @@ const MentorProductCreate: React.FC = () => {
             }
 
             startSubmitProgress();
+
+            if (isEditMode) {
+                updateProduct(formData, {
+                    onSuccess: () => {
+                        stopTrickle();
+                        setSubmitProgress(100);
+                        setSubmitStage("Done!");
+                        finishRef.current = setTimeout(() => {
+                            setShowSubmitModal(false);
+                            setShowPreview(false);
+                            navigate(DASHBOARD_PATH);
+                        }, 600);
+                    },
+                    onError: handleError,
+                });
+                return;
+            }
+
             mutate(formData, { onSuccess: handleSuccess, onError: handleError });
         } catch (err) {
             stopTrickle();
@@ -919,15 +987,17 @@ const MentorProductCreate: React.FC = () => {
 
                     <h1 className="mt-2 text-xl font-black text-white">Your product is ready! 🎉</h1>
                     <p className="pt-2 text-sm text-white/80 break-words max-w-full">
-                        {title ? `“${title}” has been created.` : "Your product has been created."} You can
-                        publish it whenever you're ready.
+                        {title
+                            ? `“${title}” has been ${isEditMode ? "updated" : "created"}.`
+                            : `Your product has been ${isEditMode ? "updated" : "created"}.`} You will be
+                        notified when its approved.
                     </p>
 
                     <button
                         onClick={() => navigate(DASHBOARD_PATH)}
                         className="mt-6 w-2/3 cursor-pointer rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition-transform hover:scale-[1.01]"
                     >
-                        Back to Dashboard
+                        {isEditMode ? "Back to Products" : "Back to Dashboard"}
                     </button>
                 </div>
             </div>
@@ -1055,12 +1125,16 @@ const MentorProductCreate: React.FC = () => {
                         </div>
 
                         <div>
-                            <SectionLabel>Price (USD)</SectionLabel>
+                            <SectionLabel>Price (NGN)</SectionLabel>
                             <IconInputRow
-                                icon={<FiDollarSign size={17} />}
-                                value={price}
-                                onChange={(v) => setPrice(v.replace(/[^0-9.]/g, ""))}
-                                placeholder="e.g. 49 or 0 for free"
+                                icon={<FiTag size={17} />}
+                                value={price ? formatPriceInput(price) : ""}
+                                onChange={(v) => {
+                                    const raw = v.replace(/[^\d.]/g, "");
+                                    const normalized = raw.replace(/\.(?=.*\.)/g, "");
+                                    setPrice(normalized);
+                                }}
+                                placeholder="e.g. 25000 or 0 for free"
                                 inputMode="numeric"
                             />
                         </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { BsStarFill } from "react-icons/bs";
 import {
     FiBookOpen,
@@ -18,12 +18,14 @@ import {
     FiX,
 } from "react-icons/fi";
 import { Link, useNavigate, useOutletContext } from "react-router-dom";
+import ConfirmDeleteModal from "../../component/ConfirmDeleteModal";
 import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
 import { useDeleteDigitalProduct } from "../../hooks/mutations/allMutation";
 import { useGetMentorDigitalProduct } from "../../hooks/queries/allQueriess";
 import { useGlobalContext } from "../../providers/GlobalContext";
 import { formatNaira } from "../../utils/currency";
+import { Pagination } from "../userDashboard/Explore";
 import { type MentorDashboardContext } from "./MentorDashboardLayout";
 
 export type ProductType = "Course" | "Book" | "Manual" | "Template" | "Workbook" | "Toolkit";
@@ -121,7 +123,7 @@ const ProductRow: React.FC<{
                     onClick();
                 }
             }}
-            className="flex cursor-pointer items-center gap-4 rounded-xl p-3 text-left transition-colors hover:bg-white/[0.03] sm:gap-5 sm:p-4"
+            className="flex cursor-pointer items-center gap-4 rounded-xl p-3 text-left transition-colors hover:bg-white/3 sm:gap-5 sm:p-4"
             style={{ background: cardBg, border: cardBorder }}
         >
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg sm:h-20 sm:w-20">
@@ -242,17 +244,19 @@ const ProductDrawer: React.FC<{
     const { addToast } = useGlobalContext();
     const [copied, setCopied] = useState(false);
     const statusStyle = STATUS_STYLES[product.status];
+    const publicProductUrl = typeof window !== "undefined"
+        ? `${window.location.origin}/dashboard/products/${product.id}`
+        : `/dashboard/products/${product.id}`;
 
     const handleShare = async () => {
-        if (!product.link) return;
         try {
             if (navigator.share) {
-                await navigator.share({ title: product.title, url: product.link });
+                await navigator.share({ title: product.title, url: publicProductUrl });
                 return;
             }
-            await navigator.clipboard.writeText(product.link);
+            await navigator.clipboard.writeText(publicProductUrl);
             setCopied(true);
-            addToast("Link copied to clipboard", "success");
+            addToast("Product link copied to clipboard", "success");
             setTimeout(() => setCopied(false), 2000);
         } catch (error) {
             if (!(error instanceof DOMException && error.name === "AbortError")) {
@@ -337,7 +341,7 @@ const ProductDrawer: React.FC<{
                         </span>
                     </div>
 
-                    <h2 className="mb-1 mt-4 break-words text-xl font-bold text-white">{product.title}</h2>
+                    <h2 className="mb-1 mt-4 min-w-0 overflow-visible break-words text-xl font-bold text-white">{product.title}</h2>
 
                     <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-white/50">
                         <span className="font-bold text-white">${product.price}</span>
@@ -358,7 +362,10 @@ const ProductDrawer: React.FC<{
                                 <FiTag size={12} />
                                 About this {product.type.toLowerCase()}
                             </p>
-                            <p className="text-sm leading-relaxed text-white/60">{product.description}</p>
+                            <div
+                                className="rich-text-content wrap-break-word text-sm leading-relaxed text-white/60"
+                                dangerouslySetInnerHTML={{ __html: product.description }}
+                            />
                         </div>
                     )}
 
@@ -372,7 +379,7 @@ const ProductDrawer: React.FC<{
                                 style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                             >
                                 <FiLink size={14} className="shrink-0 text-white/30" />
-                                <span className="truncate">{product.link}</span>
+                                <span className="min-w-0 overflow-visible break-all text-left">{product.link}</span>
                             </div>
                         ) : (
                             <p
@@ -388,7 +395,6 @@ const ProductDrawer: React.FC<{
                         <Button
                             variant="green"
                             className="flex-1"
-                            disabled={!product.link}
                             onClick={() => {
                                 void handleShare();
                             }}
@@ -399,32 +405,28 @@ const ProductDrawer: React.FC<{
                             </span>
                         </Button>
 
-                        {product.link && (
-                            <a
-                                href={product.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/[0.04]"
-                                style={{ border: "1px solid rgba(255,255,255,0.1)" }}
-                            >
-                                <FiExternalLink size={14} />
-                                Open Link
-                            </a>
-                        )}
+                        <a
+                            href={publicProductUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold text-white/70 transition-colors hover:bg-white/4"
+                            style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+                        >
+                            <FiExternalLink size={14} />
+                            Open Link
+                        </a>
                     </div>
 
-                    {product.link && (
-                        <button
-                            type="button"
-                            onClick={() => {
-                                void handleShare();
-                            }}
-                            className="mt-2.5 flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-white/40 hover:text-white/70"
-                        >
-                            <FiCopy size={12} />
-                            Copy raw link instead
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            void handleShare();
+                        }}
+                        className="mt-2.5 flex w-full items-center justify-center gap-1.5 text-xs font-semibold text-white/40 hover:text-white/70"
+                    >
+                        <FiCopy size={12} />
+                        Copy product link instead
+                    </button>
                 </div>
             </div>
 
@@ -432,6 +434,38 @@ const ProductDrawer: React.FC<{
                 @keyframes slideIn {
                     from { transform: translateX(100%); }
                     to { transform: translateX(0); }
+                }
+                .rich-text-content {
+                    overflow: visible;
+                    overflow-wrap: anywhere;
+                    word-break: break-word;
+                    white-space: normal;
+                }
+                .rich-text-content * { max-width: 100%; }
+                .rich-text-content p { margin: 0 0 0.75em; }
+                .rich-text-content p:last-child { margin-bottom: 0; }
+                .rich-text-content strong { color: rgba(255,255,255,0.85); }
+                .rich-text-content a { color: #a6ff00; text-decoration: underline; }
+                .rich-text-content ul, .rich-text-content ol { margin: 0 0 0.75em; padding-left: 1.25em; }
+                .rich-text-content li { margin-bottom: 0.25em; }
+                .rich-text-content img { max-width: 100%; border-radius: 8px; margin: 0.5em 0; }
+                .rich-text-content blockquote {
+                    margin: 0.75em 0;
+                    padding-left: 0.75em;
+                    border-left: 3px solid rgba(166,255,0,0.45);
+                    color: rgba(255,255,255,0.7);
+                }
+                .rich-text-content pre {
+                    overflow-x: auto;
+                    background: rgba(0,0,0,0.35);
+                    border-radius: 8px;
+                    padding: 0.75em;
+                    color: #d4ffb0;
+                }
+                .rich-text-content h1, .rich-text-content h2, .rich-text-content h3, .rich-text-content h4 {
+                    margin: 0.75em 0 0.5em;
+                    color: rgba(255,255,255,0.9);
+                    font-weight: 700;
                 }
             `}</style>
         </div>
@@ -447,25 +481,39 @@ const MentorProducts = () => {
     const { digitalProduct, isLoading, refetch } = useGetMentorDigitalProduct();
     const { mutate: deleteProduct, isPending: isDeleting, variables: deletingId } = useDeleteDigitalProduct({});
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 3;
 
     const rawProducts: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data)
         ? digitalProduct.data
         : digitalProduct?.data?.results ?? [];
 
     const products: Product[] = rawProducts.map(mapApiProductToMentorProduct);
+    const totalPages = Math.max(1, Math.ceil(products.length / pageSize));
+    const safePage = Math.min(currentPage, totalPages);
+    const paginatedProducts = useMemo(() => {
+        const start = (safePage - 1) * pageSize;
+        return products.slice(start, start + pageSize);
+    }, [products, safePage]);
 
     const handleEdit = (product: Product) => {
         navigate(`/dashboard/mentor/product/edit/${product.id}`);
     };
 
     const handleDelete = (product: Product) => {
-        const confirmed = window.confirm(`Delete "${product.title}"? This can't be undone.`);
-        if (!confirmed) return;
+        setProductToDelete(product);
+    };
 
-        deleteProduct(product.id as any, {
+    const confirmDelete = () => {
+        if (!productToDelete) return;
+
+        deleteProduct(productToDelete.id as any, {
             onSuccess: () => {
                 addToast("Product deleted", "success");
                 setSelectedProduct(null);
+                setProductToDelete(null);
+                setCurrentPage((prev) => Math.max(1, prev));
                 refetch?.();
             },
             onError: (error: any) => {
@@ -500,8 +548,8 @@ const MentorProducts = () => {
             <div className="flex flex-col gap-3">
                 {isLoading ? (
                     Array.from({ length: 3 }).map((_, i) => <ProductRowSkeleton key={i} />)
-                ) : products.length > 0 ? (
-                    products.map((product) => (
+                ) : paginatedProducts.length > 0 ? (
+                    paginatedProducts.map((product) => (
                         <ProductRow
                             key={product.id}
                             product={product}
@@ -516,6 +564,15 @@ const MentorProducts = () => {
                 )}
             </div>
 
+            {totalPages > 1 && (
+                <Pagination
+                    page={safePage}
+                    totalPages={totalPages}
+                    disabled={isLoading}
+                    onPageChange={(pageNumber) => setCurrentPage(Math.min(Math.max(pageNumber, 1), totalPages))}
+                />
+            )}
+
             {selectedProduct && (
                 <ProductDrawer
                     product={selectedProduct}
@@ -523,6 +580,16 @@ const MentorProducts = () => {
                     onEdit={() => handleEdit(selectedProduct)}
                     onDelete={() => handleDelete(selectedProduct)}
                     isDeleting={isDeleting}
+                />
+            )}
+
+            {productToDelete && (
+                <ConfirmDeleteModal
+                    title={productToDelete.title}
+                    itemLabel="product"
+                    isDeleting={isDeleting}
+                    onConfirm={confirmDelete}
+                    onCancel={() => setProductToDelete(null)}
                 />
             )}
         </div>

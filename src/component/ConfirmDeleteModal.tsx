@@ -6,15 +6,22 @@ interface Props {
     isDeleting: boolean;
     onConfirm: () => void;
     onCancel: () => void;
+    itemLabel?: string;
 }
 
-const ConfirmDeleteModal: React.FC<Props> = ({ title, isDeleting, onConfirm, onCancel }) => (
+const ConfirmDeleteModal: React.FC<Props> = ({
+    title,
+    isDeleting,
+    onConfirm,
+    onCancel,
+    itemLabel = 'event',
+}) => (
     <div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+        className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm modal-overlay"
         onClick={() => !isDeleting && onCancel()}
     >
         <div
-            className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+            className="w-full max-w-sm rounded-2xl p-6 shadow-2xl modal-panel"
             style={{
                 background: 'rgba(10,13,9,0.9)',
                 border: '1px solid rgba(255,255,255,0.1)',
@@ -28,10 +35,10 @@ const ConfirmDeleteModal: React.FC<Props> = ({ title, isDeleting, onConfirm, onC
                 <FiTrash2 className="text-red-400" size={20} />
             </div>
 
-            <h3 className="text-white text-xl font-black mb-2">Delete event?</h3>
+            <h3 className="text-white text-xl font-black mb-2">Delete {itemLabel}?</h3>
             <p className="text-white/50 text-sm leading-relaxed mb-6">
-                <span className="text-white/80 font-semibold">"{title}"</span> and its guest list
-                will be permanently removed. This can't be undone.
+                <span className="text-white/80 font-semibold">"{title}"</span> will be permanently removed.
+                This can't be undone.
             </p>
 
             <div className="flex gap-2.5">
@@ -54,6 +61,32 @@ const ConfirmDeleteModal: React.FC<Props> = ({ title, isDeleting, onConfirm, onC
                 </button>
             </div>
         </div>
+
+        <style>{`
+            @keyframes modalFadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+
+            @keyframes modalSlideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-10px) scale(0.98);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+                }
+            }
+
+            .modal-overlay {
+                animation: modalFadeIn 0.2s ease-out;
+            }
+
+            .modal-panel {
+                animation: modalSlideIn 0.22s ease-out;
+            }
+        `}</style>
     </div>
 );
 
