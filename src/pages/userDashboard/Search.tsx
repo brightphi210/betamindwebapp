@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     FiCalendar,
     FiMoreHorizontal,
@@ -16,11 +16,16 @@ import {
     EventCard,
     mapApiProductToCard,
     MentorCard,
+    PAGE_SIZE,
+    Pagination,
     ProductCard,
+    useDebouncedValue,
     type ApiDigitalProduct,
+    type DigitalProduct,
+    type Paginated,
     type Topic,
 } from "./Explore";
-import { mapApiEventToRegistered, type ApiEvent } from "./Overview";
+import { mapApiEventToRegistered, type ApiEvent, type RegisteredEvent } from "./Overview";
 
 type ResultType = "mentors" | "events" | "courses" | "products";
 
@@ -33,10 +38,12 @@ const RESULT_TYPES: { key: ResultType; label: string; icon: React.ReactNode }[] 
 
 const VISIBLE_CATEGORY_COUNT = 5;
 
-const matches = (text: string | undefined | null, query: string) => {
-    if (!query) return true;
-    return (text ?? "").toLowerCase().includes(query.toLowerCase());
-};
+// Extra query params that split digital products into "courses" and "everything else".
+// Rename the keys if your backend uses different names.
+const COURSE_PARAMS = { product_type: "course" };
+const NON_COURSE_PARAMS = { exclude_product_type: "course" };
+
+const totalPagesOf = (count: number) => Math.max(1, Math.ceil(count / PAGE_SIZE));
 
 const chipBase =
     "inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold capitalize transition-colors cursor-pointer";
@@ -51,6 +58,30 @@ const SectionHeading: React.FC<{ icon: React.ReactNode; label: string; count: nu
         <h2 className="text-white font-bold text-lg">{label}</h2>
         <span className="text-white/30 text-sm">· {count}</span>
     </div>
+);
+
+// One paginated result section (heading + grid + pager)
+const ResultSection: React.FC<{
+    icon: React.ReactNode;
+    label: string;
+    count: number;
+    page: number;
+    totalPages: number;
+    fetching: boolean;
+    sectionRef: React.RefObject<HTMLElement | null>;
+    onPageChange: (page: number) => void;
+    children: React.ReactNode;
+}> = ({ icon, label, count, page, totalPages, fetching, sectionRef, onPageChange, children }) => (
+    <section ref={sectionRef} className="mb-14 scroll-mt-24">
+        <SectionHeading icon={icon} label={label} count={count} />
+        <div
+            className={`grid grid-cols-2 lg:grid-cols-4 gap-2 transition-opacity duration-200 ${fetching ? "opacity-50 pointer-events-none" : "opacity-100"
+                }`}
+        >
+            {children}
+        </div>
+        <Pagination page={page} totalPages={totalPages} disabled={fetching} onPageChange={onPageChange} />
+    </section>
 );
 
 const MoreCategoriesModal: React.FC<{
@@ -137,6 +168,10 @@ const SearchPage: React.FC = () => {
     );
     const [showMoreCategories, setShowMoreCategories] = useState(false);
 
+    // The input updates instantly; the API only gets the debounced value
+    const debouncedQuery = useDebouncedValue(query.trim(), 400);
+    const searchParam = debouncedQuery || undefined;
+
     useEffect(() => {
         const next = new URLSearchParams();
         if (query) next.set("q", query);
@@ -145,25 +180,100 @@ const SearchPage: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query, category]);
 
-    const { mentors, isLoading: mentorsLoading } = useGetMentors();
-    const { allEvents, isLoading: eventsLoading } = useGetAllEvents();
-    const { digitalProduct, isLoading: productsLoading } = useGetDigitalProduct();
+    // ── Page state (one per section) ─────────────────────────────────────────
+    const [mentorsPage, setMentorsPage] = useState(1);
+    const [eventsPage, setEventsPage] = useState(1);
+    const [coursesPage, setCoursesPage] = useState(1);
+    const [productsPage, setProductsPage] = useState(1);
 
-    const allMentors: any[] = mentors?.data?.results ?? [];
-    const topics = useMemo(() => buildTopicsFromMentors(allMentors), [allMentors]);
+    // Back to page 1 whenever the search or category changes
+    useEffect(() => {
+        setMentorsPage(1);
+        setEventsPage(1);
+        setCoursesPage(1);
+        setProductsPage(1);
+    }, [debouncedQuery, category]);
 
-    const rawEvents: ApiEvent[] = Array.isArray(allEvents?.data)
-        ? allEvents.data
-        : allEvents?.data?.results ?? [];
-    const allRegisteredEvents = useMemo(() => rawEvents.map(mapApiEventToRegistered), [rawEvents]);
+    // ── Mentors ──────────────────────────────────────────────────────────────
+    const {
+        mentors,
+        isLoading: mentorsLoading,
+        isFetching: mentorsFetching,
+    } = useGetMentors(mentorsPage, PAGE_SIZE, {
+        search: searchParam,
+        category: category || undefined,
+    });
+    const mentorsData: Paginated<any> | undefined = mentors?.data;
+    const mentorsList: any[] = mentorsData?.results ?? [];
+    const mentorsCount = mentorsData?.count ?? 0;
 
-    const rawProducts: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data)
-        ? digitalProduct.data
-        : digitalProduct?.data?.results ?? [];
-    const publishedProducts = useMemo(
-        () => rawProducts.filter((p) => p.is_published).map(mapApiProductToCard),
-        [rawProducts]
+    // Category chips need every mentor's categories, so they come from a
+    // separate, larger, unfiltered request (shared with the Explore page).
+    const { mentors: topicMentors } = useGetMentors(1, 100);
+    const topics = useMemo(
+        () => buildTopicsFromMentors(topicMentors?.data?.results ?? []),
+        [topicMentors]
     );
+
+    // ── Events ───────────────────────────────────────────────────────────────
+    const {
+        allEvents,
+        isLoading: eventsLoading,
+        isFetching: eventsFetching,
+    } = useGetAllEvents(eventsPage, PAGE_SIZE, { search: searchParam });
+    const eventsData: Paginated<ApiEvent> | undefined = allEvents?.data;
+    const eventsList: RegisteredEvent[] = useMemo(
+        () => (eventsData?.results ?? []).map(mapApiEventToRegistered),
+        [eventsData]
+    );
+    const eventsCount = eventsData?.count ?? 0;
+
+    // ── Courses ──────────────────────────────────────────────────────────────
+    const {
+        digitalProduct: coursesRes,
+        isLoading: coursesLoading,
+        isFetching: coursesFetching,
+    } = useGetDigitalProduct(coursesPage, PAGE_SIZE, {
+        is_published: true,
+        search: searchParam,
+        ...COURSE_PARAMS,
+    });
+    const coursesData: Paginated<ApiDigitalProduct> | undefined = coursesRes?.data;
+    const coursesList: DigitalProduct[] = useMemo(
+        () => (coursesData?.results ?? []).map(mapApiProductToCard),
+        [coursesData]
+    );
+    const coursesCount = coursesData?.count ?? 0;
+
+    // ── Other digital products (Book, Manual, Template, Workbook, Toolkit) ───
+    const {
+        digitalProduct: productsRes,
+        isLoading: productsLoading,
+        isFetching: productsFetching,
+    } = useGetDigitalProduct(productsPage, PAGE_SIZE, {
+        is_published: true,
+        search: searchParam,
+        ...NON_COURSE_PARAMS,
+    });
+    const productsData: Paginated<ApiDigitalProduct> | undefined = productsRes?.data;
+    const productsList: DigitalProduct[] = useMemo(
+        () => (productsData?.results ?? []).map(mapApiProductToCard),
+        [productsData]
+    );
+    const productsCount = productsData?.count ?? 0;
+
+    // ── Scroll refs ──────────────────────────────────────────────────────────
+    const mentorsRef = useRef<HTMLElement>(null);
+    const eventsRef = useRef<HTMLElement>(null);
+    const coursesRef = useRef<HTMLElement>(null);
+    const productsRef = useRef<HTMLElement>(null);
+
+    // Change page, then bring the top of that section back into view
+    const goToPage =
+        (setPage: (p: number) => void, ref: React.RefObject<HTMLElement | null>) => (p: number) => {
+            setPage(p);
+            ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        };
 
     const toggleType = (type: ResultType) => {
         setActiveTypes((prev) => {
@@ -180,39 +290,13 @@ const SearchPage: React.FC = () => {
         setActiveTypes(new Set(["mentors", "events", "courses", "products"]));
     };
 
-    const filteredMentors = allMentors.filter((m) => {
-        const inCategory =
-            !category ||
-            (m.categories ?? []).some((c: string) => c.toLowerCase() === category.toLowerCase());
-        const inQuery =
-            !query ||
-            matches(m.name, query) ||
-            matches(m.nick_name, query) ||
-            matches(m.bio, query) ||
-            matches(m.occupation, query);
-        return inCategory && inQuery;
-    });
-
-    const filteredEvents = allRegisteredEvents.filter(
-        (e) => matches(e.title, query) || matches(e.description, query) || matches(e.location, query)
-    );
-
-    const filteredCourses = publishedProducts.filter(
-        (p) => p.type === "Course" && (matches(p.title, query) || matches(p.author, query))
-    );
-
-    // Everything that is not a Course (Book, Manual, Template, Workbook, Toolkit)
-    const filteredProducts = publishedProducts.filter(
-        (p) => p.type !== "Course" && (matches(p.title, query) || matches(p.author, query))
-    );
-
-    const isLoading = mentorsLoading || eventsLoading || productsLoading;
+    const isLoading = mentorsLoading || eventsLoading || coursesLoading || productsLoading;
     const hasAnyFilter = !!query || !!category;
     const totalResults =
-        (activeTypes.has("mentors") ? filteredMentors.length : 0) +
-        (activeTypes.has("events") ? filteredEvents.length : 0) +
-        (activeTypes.has("courses") ? filteredCourses.length : 0) +
-        (activeTypes.has("products") ? filteredProducts.length : 0);
+        (activeTypes.has("mentors") ? mentorsCount : 0) +
+        (activeTypes.has("events") ? eventsCount : 0) +
+        (activeTypes.has("courses") ? coursesCount : 0) +
+        (activeTypes.has("products") ? productsCount : 0);
 
     const visibleTopics = topics.slice(0, VISIBLE_CATEGORY_COUNT);
     const activeHiddenTopic = topics
@@ -360,10 +444,10 @@ const SearchPage: React.FC = () => {
                                     in <span className="text-white/70 font-semibold">{category}</span>
                                 </>
                             )}
-                            {query && (
+                            {debouncedQuery && (
                                 <>
                                     {" "}
-                                    for <span className="text-white/70 font-semibold">"{query}"</span>
+                                    for <span className="text-white/70 font-semibold">"{debouncedQuery}"</span>
                                 </>
                             )}
                         </p>
@@ -397,59 +481,75 @@ const SearchPage: React.FC = () => {
                 )}
 
                 {/* Mentors */}
-                {activeTypes.has("mentors") && filteredMentors.length > 0 && (
-                    <section className="mb-14">
-                        <SectionHeading icon={<FiUsers size={16} />} label="Mentors" count={filteredMentors.length} />
-                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                            {filteredMentors.map((mentor) => (
-                                <MentorCard key={mentor.id} mentor={mentor} />
-                            ))}
-                        </div>
-                    </section>
+                {activeTypes.has("mentors") && mentorsCount > 0 && (
+                    <ResultSection
+                        icon={<FiUsers size={16} />}
+                        label="Mentors"
+                        count={mentorsCount}
+                        page={mentorsPage}
+                        totalPages={totalPagesOf(mentorsCount)}
+                        fetching={mentorsFetching}
+                        sectionRef={mentorsRef}
+                        onPageChange={goToPage(setMentorsPage, mentorsRef)}
+                    >
+                        {mentorsList.map((mentor) => (
+                            <MentorCard key={mentor.id} mentor={mentor} />
+                        ))}
+                    </ResultSection>
                 )}
 
                 {/* Events */}
-                {activeTypes.has("events") && filteredEvents.length > 0 && (
-                    <section className="mb-14">
-                        <SectionHeading icon={<FiCalendar size={16} />} label="Events" count={filteredEvents.length} />
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-2">
-                            {filteredEvents.map((event) => (
-                                <EventCard key={event.id} event={event} />
-                            ))}
-                        </div>
-                    </section>
+                {activeTypes.has("events") && eventsCount > 0 && (
+                    <ResultSection
+                        icon={<FiCalendar size={16} />}
+                        label="Events"
+                        count={eventsCount}
+                        page={eventsPage}
+                        totalPages={totalPagesOf(eventsCount)}
+                        fetching={eventsFetching}
+                        sectionRef={eventsRef}
+                        onPageChange={goToPage(setEventsPage, eventsRef)}
+                    >
+                        {eventsList.map((event) => (
+                            <EventCard key={event.id} event={event} />
+                        ))}
+                    </ResultSection>
                 )}
 
                 {/* Courses */}
-                {activeTypes.has("courses") && filteredCourses.length > 0 && (
-                    <section className="mb-14">
-                        <SectionHeading
-                            icon={<FiPlayCircle size={16} />}
-                            label="Courses"
-                            count={filteredCourses.length}
-                        />
-                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                            {filteredCourses.map((product) => (
-                                <ProductCard key={product.id} product={product} />
-                            ))}
-                        </div>
-                    </section>
+                {activeTypes.has("courses") && coursesCount > 0 && (
+                    <ResultSection
+                        icon={<FiPlayCircle size={16} />}
+                        label="Courses"
+                        count={coursesCount}
+                        page={coursesPage}
+                        totalPages={totalPagesOf(coursesCount)}
+                        fetching={coursesFetching}
+                        sectionRef={coursesRef}
+                        onPageChange={goToPage(setCoursesPage, coursesRef)}
+                    >
+                        {coursesList.map((product) => (
+                            <ProductCard key={product.id} product={product} />
+                        ))}
+                    </ResultSection>
                 )}
 
                 {/* Other digital products */}
-                {activeTypes.has("products") && filteredProducts.length > 0 && (
-                    <section className="mb-14">
-                        <SectionHeading
-                            icon={<FiPackage size={16} />}
-                            label="Products"
-                            count={filteredProducts.length}
-                        />
-                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                            {filteredProducts.map((product) => (
-                                <ProductCard key={product.id} product={product} />
-                            ))}
-                        </div>
-                    </section>
+                {activeTypes.has("products") && productsCount > 0 && (
+                    <ResultSection
+                        icon={<FiPackage size={16} />}
+                        label="Products"
+                        count={productsCount}
+                        page={productsPage}
+                        totalPages={totalPagesOf(productsCount)}
+                        fetching={productsFetching}
+                        sectionRef={productsRef}
+                        onPageChange={goToPage(setProductsPage, productsRef)}
+                    >
+                        {productsList.map((product) => (
+                            <ProductCard key={product.id} product={product} />
+                        ))}
+                    </ResultSection>
                 )}
 
                 {!isLoading && totalResults === 0 && hasAnyFilter && (

@@ -1,34 +1,33 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     FiAlertTriangle,
-    FiArrowRight,
     FiBarChart2,
     FiBookOpen,
     FiBriefcase,
     FiCalendar,
     FiCamera,
-    FiChevronDown,
     FiChevronLeft,
     FiChevronRight,
     FiClock,
     FiCode,
     FiDollarSign,
     FiEdit3,
-    FiFilter,
     FiPackage,
     FiPenTool,
     FiPlayCircle,
+    FiSearch,
     FiTag,
     FiTrendingUp,
     FiUser,
     FiUsers,
+    FiX,
 } from "react-icons/fi";
+import { MdWork } from "react-icons/md";
 import { Link } from "react-router-dom";
 import DashFooter from "../../component/DashFooter";
 import LoadingOverlay from "../../component/LoadingOverlay";
-import { useGetAllEvents, useGetDigitalProduct, useGetMentors, useGetMyUserProfile } from "../../hooks/queries/allQueriess";
+import { useGetAllEvents, useGetDigitalProduct, useGetMentors } from "../../hooks/queries/allQueriess";
 import { formatNaira } from "../../utils/currency";
-import { HARD_CODED_INTERESTS, extractInterestNames } from "../../utils/interest";
 import { LocationIcon } from "./EventShared";
 import {
     AvatarStack,
@@ -105,10 +104,29 @@ export interface DigitalProduct {
     category?: string;
 }
 
+// Shape returned by every paginated endpoint
+export interface Paginated<T> {
+    count: number;
+    next: string | null;
+    previous: string | null;
+    results: T[];
+}
+
 // ─── Pagination config ──────────────────────────────────────────────────────
-const MENTORS_PER_PAGE = 8;
-const EVENTS_PER_PAGE = 8;
-const PRODUCTS_PER_PAGE = 8;
+export const PAGE_SIZE = 4;
+
+// How many topic cards are visible on mobile before "See all"
+const TOPICS_VISIBLE_ON_MOBILE = 4;
+
+// Waits until the value stops changing before returning it (used for search)
+export const useDebouncedValue = <T,>(value: T, delay = 400): T => {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+        const id = setTimeout(() => setDebounced(value), delay);
+        return () => clearTimeout(id);
+    }, [value, delay]);
+    return debounced;
+};
 
 const formatPrice = (price: string) => formatNaira(price, "Free");
 
@@ -174,14 +192,6 @@ export const buildTopicsFromMentors = (mentors: any[]): Topic[] => {
 };
 
 // ─── Pagination helpers ─────────────────────────────────────────────────────
-const usePagination = <T,>(items: T[], pageSize: number) => {
-    const [page, setPage] = useState(1);
-    const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-    const current = Math.min(page, totalPages);
-    const pageItems = items.slice((current - 1) * pageSize, current * pageSize);
-    return { page: current, setPage, totalPages, pageItems };
-};
-
 const getPageNumbers = (current: number, total: number): (number | "...")[] => {
     if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
 
@@ -197,11 +207,12 @@ const getPageNumbers = (current: number, total: number): (number | "...")[] => {
     return pages;
 };
 
-const Pagination: React.FC<{
+export const Pagination: React.FC<{
     page: number;
     totalPages: number;
     onPageChange: (page: number) => void;
-}> = ({ page, totalPages, onPageChange }) => {
+    disabled?: boolean;
+}> = ({ page, totalPages, onPageChange, disabled = false }) => {
     if (totalPages <= 1) return null;
 
     const navBtn =
@@ -212,7 +223,7 @@ const Pagination: React.FC<{
             <button
                 type="button"
                 onClick={() => onPageChange(page - 1)}
-                disabled={page === 1}
+                disabled={disabled || page === 1}
                 aria-label="Previous page"
                 className={navBtn}
                 style={{ background: "rgba(255,255,255,0.06)" }}
@@ -230,9 +241,10 @@ const Pagination: React.FC<{
                         key={p}
                         type="button"
                         onClick={() => onPageChange(p)}
+                        disabled={disabled}
                         aria-label={`Page ${p}`}
                         aria-current={p === page ? "page" : undefined}
-                        className="flex h-9 min-w-9 px-2 items-center justify-center rounded-md text-sm font-semibold transition-colors cursor-pointer"
+                        className="flex h-9 min-w-9 px-2 items-center justify-center rounded-md text-sm font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed"
                         style={{
                             background: p === page ? "white" : "rgba(255,255,255,0.06)",
                             color: p === page ? "black" : "rgba(255,255,255,0.7)",
@@ -246,7 +258,7 @@ const Pagination: React.FC<{
             <button
                 type="button"
                 onClick={() => onPageChange(page + 1)}
-                disabled={page === totalPages}
+                disabled={disabled || page === totalPages}
                 aria-label="Next page"
                 className={navBtn}
                 style={{ background: "rgba(255,255,255,0.06)" }}
@@ -266,15 +278,15 @@ const SectionHeader: React.FC<{ title: string; subtitle?: string }> = ({ title, 
 );
 
 // ─── Topic card ─────────────────────────────────────────────────────────────
-const TopicCard: React.FC<{ topic: Topic }> = ({ topic }) => (
+const TopicCard: React.FC<{ topic: Topic; hiddenOnMobile?: boolean }> = ({ topic, hiddenOnMobile = false }) => (
     <Link
         to={`/dashboard/search?category=${encodeURIComponent(topic.name)}`}
-        className="flex items-center gap-4 rounded-xl p-3 sm:p-5 text-left transition-colors hover:bg-white/4 cursor-pointer lg:w-full w-fit"
+        className={`${hiddenOnMobile ? "hidden sm:flex" : "flex"} items-center gap-3 sm:gap-4 rounded-xl p-3 sm:p-5 text-left transition-colors hover:bg-white/4 cursor-pointer w-full`}
         style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
     >
         <div style={{ color: topic.color }}>{topic.icon}</div>
         <div className="min-w-0">
-            <p className="text-white font-bold text-base truncate">{topic.name}</p>
+            <p className="text-white font-bold text-sm truncate">{topic.name?.toUpperCase()}</p>
             <p className="text-white/40 text-sm">{topic.count}</p>
         </div>
     </Link>
@@ -288,7 +300,7 @@ export const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
             to={`/dashboard/mentors/${mentor.id}`}
             className="rounded-xl lg:p-5 p-3 flex bg-white/5 flex-col"
         >
-            <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center justify-between mb-4">
                 <img
                     src={mentor?.avatar} loading="lazy" decoding="async"
                     alt={mentor?.name}
@@ -297,26 +309,28 @@ export const MentorCard: React.FC<{ mentor: any }> = ({ mentor }) => {
                 />
                 <button
                     onClick={(e) => e.preventDefault()}
-                    className="px-4 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer shrink-0"
-                    style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.85)" }}
+                    className="px-4 py-1.5 bg-white rounded-full text-xs font-semibold transition-colors cursor-pointer shrink-0"
                 >
                     Follow
                 </button>
             </div>
 
-            <h3 className="text-white font-bold text-base mb-1">{mentor?.nick_name || mentor?.name}</h3>
+            <h3 className="text-white font-bold text-base mb-1 truncate">{mentor?.first_name + " " + mentor?.last_name || mentor?.nick_name || mentor?.name}</h3>
 
-            {mentor?.occupation && <p className="text-white/30 text-xs mb-2">{mentor.occupation}</p>}
-
-            <p className="text-white/40 text-sm leading-relaxed lg:mb-4 mb-2 line-clamp-2">{mentor?.bio}</p>
+            {mentor?.occupation && (
+                <p className="text-white/60 text-sm mb-2 flex gap-1 items-center min-w-0">
+                    <MdWork className="shrink-0" />
+                    <span className="truncate">{mentor.occupation}</span>
+                </p>
+            )}
+            <p className="text-white text-sm rounded-lg leading-relaxed lg:mb-4 mb-2 line-clamp-2">{mentor?.bio}</p>
 
             {categories.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-auto">
-                    {categories.slice(0, 1).map((category) => (
+                    {categories.slice(0, 2).map((category) => (
                         <span
                             key={category}
-                            className="inline-block w-fit px-2.5 py-1 rounded-md text-xs font-semibold capitalize"
-                            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
+                            className="inline-block truncate bg-white/20 text-white w-fit px-2.5 py-1 rounded-md text-xs font-semibold capitalize"
                         >
                             {category}
                         </span>
@@ -342,71 +356,88 @@ const MentorCardSkeleton: React.FC = () => (
     </div>
 );
 
-const NoMentorsState: React.FC = () => (
+const NoMentorsState: React.FC<{ query?: string }> = ({ query }) => (
     <div
         className="flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl col-span-full"
         style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)" }}
     >
         <FiUsers size={22} className="text-white/20 mb-3" />
-        <p className="text-white/40 text-sm">No mentors available right now</p>
+        <p className="text-white/40 text-sm">
+            {query ? `No mentors match "${query}"` : "No mentors available right now"}
+        </p>
     </div>
 );
 
 // ─── Event card ─────────────────────────────────────────────────────────────
 export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
     <>
-        {/* Mobile row */}
+        {/* Mobile compact card (2 columns) */}
         <Link
             to={event.publicUrl}
-            className="flex sm:hidden flex-col gap-0 rounded-xl p-4 cursor-pointer bg-white/5"
+            className="flex sm:hidden flex-col rounded-xl overflow-hidden cursor-pointer bg-white/5"
         >
-            <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                    <p className="text-white/50 text-sm mb-1">{event.time}</p>
-                    <h3 className="text-white font-bold text-lg wrap-break-word mb-2 line-clamp-2">{event.title}</h3>
-
-                    {event.location ? (
-                        <div className="flex items-center gap-2 text-white/40 text-sm mb-1.5">
-                            <LocationIcon location={event.location} size={15} />
-                            <span className="truncate">{event.location}</span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2 text-amber-400 text-sm mb-1.5">
-                            <FiAlertTriangle size={15} />
-                            <span>Location Missing</span>
-                        </div>
-                    )}
-
-                    <div className="flex items-center gap-2 text-white/40 text-sm">
-                        <FiTag size={15} />
-                        <span>{formatTicketPrice(event.ticketPrice)}</span>
-                    </div>
-                    <div className="mt-2">
-                        <EventMetaBadges event={event} size="sm" />
-                    </div>
-                </div>
-
+            <div className="relative">
                 <img
                     src={event.thumbnail} loading="lazy" decoding="async"
                     alt={event.title}
-                    className="w-24 h-23 border-4 border-white/5 rounded-lg object-cover shrink-0"
+                    className="w-full h-28 object-cover"
                 />
+                <span
+                    className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                    style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
+                >
+                    <FiCalendar size={10} />
+                    {event.dateLabel}
+                </span>
+                <span
+                    className="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                    style={{
+                        background:
+                            formatTicketPrice(event.ticketPrice) === "Free"
+                                ? "rgba(0,0,0,0.55)"
+                                : "rgba(166,255,0,0.9)",
+                        color: formatTicketPrice(event.ticketPrice) === "Free" ? "#fff" : "#000",
+                        backdropFilter: "blur(4px)",
+                    }}
+                >
+                    {formatTicketPrice(event.ticketPrice)}
+                </span>
             </div>
 
-            <div className="flex justify-between items-center gap-3">
-                <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-semibold mt-3 bg-white text-black">
-                    View Event
-                    <FiArrowRight size={14} />
-                </span>
+            <div className="p-3 flex flex-col flex-1">
+                <h3 className="text-white font-bold text-sm mb-1.5 line-clamp-2 wrap-break-word">{event.title}</h3>
 
-                {event.attendees.length > 0 ? (
-                    <AvatarStack attendees={event.attendees} total={event.registered} size={20} />
-                ) : event.registered > 0 ? (
-                    <span className="flex items-center gap-1.5 text-white/40 text-xs">
-                        <FiUsers size={12} />
-                        {event.registered} registered
-                    </span>
-                ) : null}
+                <div className="flex items-center gap-1 text-white/40 text-[11px] mb-1">
+                    <FiClock size={11} className="shrink-0" />
+                    <span className="truncate">{event.time}</span>
+                </div>
+
+                {event.location ? (
+                    <div className="flex items-center gap-1 text-white/40 text-[11px] min-w-0">
+                        <span className="shrink-0 flex items-center">
+                            <LocationIcon location={event.location} size={11} />
+                        </span>
+                        <span className="truncate">{event.location}</span>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-1 text-amber-400 text-[11px]">
+                        <FiAlertTriangle size={11} className="shrink-0" />
+                        <span>Location Missing</span>
+                    </div>
+                )}
+
+                <div className="mt-auto pt-2.5">
+                    {event.attendees.length > 0 ? (
+                        <AvatarStack attendees={event.attendees} total={event.registered} size={18} />
+                    ) : event.registered > 0 ? (
+                        <span className="flex items-center gap-1 text-white/40 text-[11px]">
+                            <FiUsers size={11} />
+                            {event.registered} registered
+                        </span>
+                    ) : (
+                        <span className="text-white/30 text-[11px]">Be the first to join</span>
+                    )}
+                </div>
             </div>
         </Link>
 
@@ -487,19 +518,15 @@ export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
 const EventCardSkeleton: React.FC = () => (
     <>
         <div
-            className="flex sm:hidden flex-col gap-0 rounded-xl p-4"
+            className="flex sm:hidden flex-col rounded-xl overflow-hidden"
             style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
-            <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0 space-y-2">
-                    <div className="h-3 w-12 rounded bg-white/5" />
-                    <div className="h-5 w-3/4 rounded bg-white/5" />
-                    <div className="h-3 w-2/3 rounded bg-white/5" />
-                    <div className="h-3 w-1/3 rounded bg-white/5" />
-                </div>
-                <div className="w-24 h-23 rounded-lg bg-white/5 shrink-0" />
+            <div className="w-full h-28 bg-white/5" />
+            <div className="p-3 space-y-2">
+                <div className="h-4 w-4/5 rounded bg-white/5" />
+                <div className="h-3 w-1/2 rounded bg-white/5" />
+                <div className="h-3 w-2/3 rounded bg-white/5" />
             </div>
-            <div className="h-9 w-28 rounded-md bg-white/5 mt-3" />
         </div>
 
         <div
@@ -516,13 +543,15 @@ const EventCardSkeleton: React.FC = () => (
     </>
 );
 
-const NoEventsState: React.FC = () => (
+const NoEventsState: React.FC<{ query?: string }> = ({ query }) => (
     <div
         className="flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl col-span-full"
         style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)" }}
     >
         <FiCalendar size={22} className="text-white/20 mb-3" />
-        <p className="text-white/40 text-sm">No upcoming events right now</p>
+        <p className="text-white/40 text-sm">
+            {query ? `No events match "${query}"` : "No upcoming events right now"}
+        </p>
     </div>
 );
 
@@ -617,115 +646,92 @@ const ProductCardSkeleton: React.FC = () => (
     </div>
 );
 
-const NoProductsState: React.FC = () => (
+const NoProductsState: React.FC<{ query?: string }> = ({ query }) => (
     <div
         className="flex flex-col items-center justify-center text-center py-10 px-4 rounded-xl col-span-full"
         style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)" }}
     >
         <FiBookOpen size={22} className="text-white/20 mb-3" />
-        <p className="text-white/40 text-sm">No digital products available right now</p>
+        <p className="text-white/40 text-sm">
+            {query ? `No products match "${query}"` : "No digital products available right now"}
+        </p>
     </div>
 );
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 const Explore: React.FC = () => {
-    const { myProfile } = useGetMyUserProfile();
-    const userProfile = myProfile?.data;
-    const savedInterestNames = useMemo(
-        () => extractInterestNames(userProfile?.interests, HARD_CODED_INTERESTS),
-        [userProfile]
-    );
-    const [filterMode, setFilterMode] = useState<"recommended" | "my-interests">("recommended");
-    const [showFilterMenu, setShowFilterMenu] = useState(false);
-    const filterMenuRef = useRef<HTMLDivElement | null>(null);
-    const filterOptions = [
-        { id: "recommended", label: "Recommended" },
-        { id: "my-interests", label: "My interests" },
-    ] as const;
+    // ── Search (debounced so we don't hit the API on every keystroke) ───────
+    const [search, setSearch] = useState("");
+    const debouncedSearch = useDebouncedValue(search.trim(), 400);
+    const searchParam = debouncedSearch || undefined;
 
+    // ── Topics: mobile shows 4 until expanded ────────────────────────────────
+    const [showAllTopics, setShowAllTopics] = useState(false);
+
+    // ── Page state (one per section) ─────────────────────────────────────────
+    const [mentorsPage, setMentorsPage] = useState(1);
+    const [eventsPage, setEventsPage] = useState(1);
+    const [productsPage, setProductsPage] = useState(1);
+
+    // Back to page 1 whenever the search changes
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) {
-                setShowFilterMenu(false);
-            }
-        };
+        setMentorsPage(1);
+        setEventsPage(1);
+        setProductsPage(1);
+    }, [debouncedSearch]);
 
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    // ── Mentors (paginated) ──────────────────────────────────────────────────
+    const {
+        mentors,
+        isLoading: mentorsLoading,
+        isFetching: mentorsFetching,
+    } = useGetMentors(mentorsPage, PAGE_SIZE, { search: searchParam });
+    const mentorsData: Paginated<any> | undefined = mentors?.data;
+    const mentorsList: any[] = mentorsData?.results ?? [];
+    const mentorsTotalPages = Math.max(1, Math.ceil((mentorsData?.count ?? 0) / PAGE_SIZE));
 
-    const { mentors, isLoading: mentorsLoading } = useGetMentors();
-    const allMentors: any[] = useMemo(() => mentors?.data?.results ?? [], [mentors]);
-    const topics = useMemo(() => buildTopicsFromMentors(allMentors), [allMentors]);
+    // Topics need ALL mentors' categories, not just the 4 on screen, so they
+    // come from a separate, larger, unfiltered request.
+    const { mentors: topicMentors, isLoading: topicsLoading } = useGetMentors(1, 100);
+    const topics = useMemo(
+        () => buildTopicsFromMentors(topicMentors?.data?.results ?? []),
+        [topicMentors]
+    );
 
-    const { allEvents, isLoading: eventsLoading } = useGetAllEvents();
+    // ── Events (paginated) ───────────────────────────────────────────────────
+    const {
+        allEvents,
+        isLoading: eventsLoading,
+        isFetching: eventsFetching,
+    } = useGetAllEvents(eventsPage, PAGE_SIZE, {
+        status: "upcoming",
+        ordering: "date",
+        search: searchParam,
+    });
+    const eventsData: Paginated<ApiEvent> | undefined = allEvents?.data;
+    const eventsList: RegisteredEvent[] = useMemo(
+        () => (eventsData?.results ?? []).map(mapApiEventToRegistered),
+        [eventsData]
+    );
+    const eventsTotalPages = Math.max(1, Math.ceil((eventsData?.count ?? 0) / PAGE_SIZE));
 
-    const { digitalProduct, isLoading: productLoading } = useGetDigitalProduct();
-    const allProduct: DigitalProduct[] = useMemo(() => {
-        const raw: ApiDigitalProduct[] = Array.isArray(digitalProduct?.data)
-            ? digitalProduct.data
-            : digitalProduct?.data?.results ?? [];
-        return raw.filter((p) => p.is_published).map(mapApiProductToCard);
-    }, [digitalProduct]);
+    // ── Digital products (paginated) ─────────────────────────────────────────
+    const {
+        digitalProduct,
+        isLoading: productLoading,
+        isFetching: productFetching,
+    } = useGetDigitalProduct(productsPage, PAGE_SIZE, {
+        is_published: true,
+        search: searchParam,
+    });
+    const productsData: Paginated<ApiDigitalProduct> | undefined = digitalProduct?.data;
+    const productsList: DigitalProduct[] = useMemo(
+        () => (productsData?.results ?? []).map(mapApiProductToCard),
+        [productsData]
+    );
+    const productsTotalPages = Math.max(1, Math.ceil((productsData?.count ?? 0) / PAGE_SIZE));
 
-    const upcomingEvents = useMemo(() => {
-        const raw: ApiEvent[] = Array.isArray(allEvents?.data)
-            ? allEvents.data
-            : allEvents?.data?.results ?? [];
-        return raw
-            .map(mapApiEventToRegistered)
-            .filter((e) => e.status === "upcoming")
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }, [allEvents]);
-
-    const matchesSavedInterests = useMemo(() => {
-        const normalized = savedInterestNames.map((name) => name.toLowerCase());
-        if (!normalized.length) return () => true;
-        return (value: string | null | undefined) => {
-            const combined = (value ?? "").toLowerCase();
-            return normalized.some((interest) => combined.includes(interest));
-        };
-    }, [savedInterestNames]);
-
-    const filteredMentors = useMemo(() => {
-        if (filterMode !== "my-interests") return allMentors;
-        return allMentors.filter((mentor) => {
-            const haystack = [
-                mentor?.name,
-                mentor?.nick_name,
-                mentor?.occupation,
-                mentor?.bio,
-                mentor?.tag,
-                ...(mentor?.categories ?? []),
-                ...(mentor?.interests ?? []),
-            ]
-                .filter(Boolean)
-                .join(" ");
-            return matchesSavedInterests(haystack);
-        });
-    }, [allMentors, filterMode, matchesSavedInterests]);
-
-    const filteredEvents = useMemo(() => {
-        if (filterMode !== "my-interests") return upcomingEvents;
-        return upcomingEvents.filter((event) => {
-            const haystack = [event.title, event.description, event.location, event.host].filter(Boolean).join(" ");
-            return matchesSavedInterests(haystack);
-        });
-    }, [upcomingEvents, filterMode, matchesSavedInterests]);
-
-    const filteredProducts = useMemo(() => {
-        if (filterMode !== "my-interests") return allProduct;
-        return allProduct.filter((product) => {
-            const haystack = [product.title, product.author, product.category, product.type].filter(Boolean).join(" ");
-            return matchesSavedInterests(haystack);
-        });
-    }, [allProduct, filterMode, matchesSavedInterests]);
-
-    // Pagination (one per section)
-    const mentorsPager = usePagination(filteredMentors, MENTORS_PER_PAGE);
-    const eventsPager = usePagination(filteredEvents, EVENTS_PER_PAGE);
-    const productsPager = usePagination(filteredProducts, PRODUCTS_PER_PAGE);
-
+    // ── Scroll refs ──────────────────────────────────────────────────────────
     const mentorsSectionRef = useRef<HTMLElement>(null);
     const eventsSectionRef = useRef<HTMLElement>(null);
     const productsSectionRef = useRef<HTMLElement>(null);
@@ -736,6 +742,10 @@ const Explore: React.FC = () => {
             setPage(p);
             ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         };
+
+    // Dim the grid while the next page is being fetched
+    const fetchingClass = (fetching: boolean) =>
+        `transition-opacity duration-200 ${fetching ? "opacity-50 pointer-events-none" : "opacity-100"}`;
 
     return (
         <div className="relative isolate flex w-full min-h-screen flex-col bg-black anim-fade-up">
@@ -748,7 +758,7 @@ const Explore: React.FC = () => {
             <LoadingOverlay visible={mentorsLoading} />
 
             <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-                <div className="mb-14">
+                <div className="mb-5">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                         <div>
                             <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Explore</h1>
@@ -756,65 +766,40 @@ const Explore: React.FC = () => {
                                 Find topics you care about, connect with mentors, or pick up a course or book to level up.
                             </p>
                         </div>
+                    </div>
 
-                        <div ref={filterMenuRef} className="relative">
+                    {/* Search */}
+                    <div className="flex items-center gap-3 rounded-full px-4 py-3.5 mt-6 bg-neutral-900/40">
+                        <FiSearch size={16} className="text-white/40 shrink-0" />
+                        <input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search mentors, events, products..."
+                            aria-label="Search Explore"
+                            className="w-full bg-transparent outline-none text-sm text-white placeholder-white/30"
+                        />
+                        {search && (
                             <button
                                 type="button"
-                                onClick={() => setShowFilterMenu((prev) => !prev)}
-                                className="flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold text-white/80 transition-colors hover:text-white"
-                                style={{
-                                    background: "rgba(255,255,255,0.04)",
-                                    borderColor: "rgba(255,255,255,0.08)",
-                                }}
-                                aria-label="Open filter menu"
+                                onClick={() => setSearch("")}
+                                aria-label="Clear search"
+                                className="text-white/40 hover:text-white shrink-0 cursor-pointer"
                             >
-                                <FiFilter size={14} />
-                                <span>{filterOptions.find((option) => option.id === filterMode)?.label}</span>
-                                <FiChevronDown size={14} className={showFilterMenu ? "rotate-180 transition-transform" : "transition-transform"} />
+                                <FiX size={16} />
                             </button>
-
-                            {showFilterMenu && (
-                                <div
-                                    className="absolute right-0 top-full z-20 mt-2 min-w-45 overflow-hidden rounded-xl border"
-                                    style={{
-                                        background: "rgba(12,15,12,0.96)",
-                                        borderColor: "rgba(255,255,255,0.08)",
-                                        boxShadow: "0 18px 50px rgba(0,0,0,0.4)",
-                                    }}
-                                >
-                                    {filterOptions.map((option) => (
-                                        <button
-                                            key={option.id}
-                                            type="button"
-                                            onClick={() => {
-                                                setFilterMode(option.id);
-                                                setShowFilterMenu(false);
-                                            }}
-                                            className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-white/5"
-                                            style={{
-                                                color: filterMode === option.id ? "#a6ff00" : "rgba(255,255,255,0.8)",
-                                                background: filterMode === option.id ? "rgba(166,255,0,0.06)" : "transparent",
-                                            }}
-                                        >
-                                            <span>{option.label}</span>
-                                            {filterMode === option.id && <span className="text-[10px] uppercase tracking-[0.12em]">On</span>}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                        )}
                     </div>
                 </div>
 
                 {/* Topics */}
                 <section className="mb-16">
                     <SectionHeader title="Browse by Topics" />
-                    {mentorsLoading ? (
+                    {topicsLoading ? (
                         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <div
                                     key={i}
-                                    className="h-16 rounded-xl"
+                                    className={`h-16 rounded-xl ${i >= TOPICS_VISIBLE_ON_MOBILE ? "hidden sm:block" : ""}`}
                                     style={{
                                         background: "rgba(255,255,255,0.02)",
                                         border: "1px solid rgba(255,255,255,0.08)",
@@ -823,13 +808,27 @@ const Explore: React.FC = () => {
                             ))}
                         </div>
                     ) : topics.length > 0 ? (
-                        <div className="flex sm:grid gap-2 overflow-x-auto sm:overflow-visible sm:grid-cols-2 lg:grid-cols-3 -mx-4 px-4 sm:mx-0 sm:px-0 pb-2 topics-scroll overscroll-x-contain">
-                            {topics.map((topic) => (
-                                <div key={topic.id} className="shrink-0 w-fit sm:w-auto sm:contents">
-                                    <TopicCard topic={topic} />
-                                </div>
-                            ))}
-                        </div>
+                        <>
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                                {topics.map((topic, i) => (
+                                    <TopicCard
+                                        key={topic.id}
+                                        topic={topic}
+                                        hiddenOnMobile={!showAllTopics && i >= TOPICS_VISIBLE_ON_MOBILE}
+                                    />
+                                ))}
+                            </div>
+                            {topics.length > TOPICS_VISIBLE_ON_MOBILE && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAllTopics((prev) => !prev)}
+                                    className="sm:hidden mt-3 w-full rounded-xl py-2.5 text-xs font-semibold text-white/70 transition-colors hover:text-white cursor-pointer"
+                                    style={{ background: "rgba(255,255,255,0.06)" }}
+                                >
+                                    {showAllTopics ? "Show less" : `See all ${topics.length} topics`}
+                                </button>
+                            )}
+                        </>
                     ) : (
                         <div
                             className="flex flex-col items-center justify-center text-center py-8 px-4 rounded-xl"
@@ -845,76 +844,72 @@ const Explore: React.FC = () => {
 
                 {/* Mentors */}
                 <section ref={mentorsSectionRef} className="mb-16 scroll-mt-24">
-                    <SectionHeader title="Featured Mentors" subtitle={filterMode === "my-interests" ? "Results matched to your saved interests" : "Learn 1:1 from people who've done it"} />
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    <SectionHeader title="Featured Mentors" subtitle="Learn 1:1 from people who've done it" />
+                    <div className={`grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 ${fetchingClass(mentorsFetching && !mentorsLoading)}`}>
                         {mentorsLoading ? (
-                            Array.from({ length: MENTORS_PER_PAGE }).map((_, i) => <MentorCardSkeleton key={i} />)
-                        ) : filteredMentors.length > 0 ? (
-                            mentorsPager.pageItems.map((mentor) => <MentorCard key={mentor.id} mentor={mentor} />)
+                            Array.from({ length: PAGE_SIZE }).map((_, i) => <MentorCardSkeleton key={i} />)
+                        ) : mentorsList.length > 0 ? (
+                            mentorsList.map((mentor) => <MentorCard key={mentor.id} mentor={mentor} />)
                         ) : (
-                            <NoMentorsState />
+                            <NoMentorsState query={debouncedSearch} />
                         )}
                     </div>
                     {!mentorsLoading && (
                         <Pagination
-                            page={mentorsPager.page}
-                            totalPages={mentorsPager.totalPages}
-                            onPageChange={changePage(mentorsPager.setPage, mentorsSectionRef)}
+                            page={mentorsPage}
+                            totalPages={mentorsTotalPages}
+                            disabled={mentorsFetching}
+                            onPageChange={changePage(setMentorsPage, mentorsSectionRef)}
                         />
                     )}
                 </section>
 
                 {/* Events */}
                 <section ref={eventsSectionRef} className="mb-16 scroll-mt-24">
-                    <SectionHeader title="Events You Can Explore" subtitle={filterMode === "my-interests" ? "Events matched to your saved interests" : "Join a session hosted by the community"} />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-2">
+                    <SectionHeader title="Events You Can Explore" subtitle="Join a session hosted by the community" />
+                    <div className={`grid grid-cols-2 lg:grid-cols-4 gap-2 ${fetchingClass(eventsFetching && !eventsLoading)}`}>
                         {eventsLoading ? (
-                            Array.from({ length: EVENTS_PER_PAGE }).map((_, i) => <EventCardSkeleton key={i} />)
-                        ) : filteredEvents.length > 0 ? (
-                            eventsPager.pageItems.map((event) => <EventCard key={event.id} event={event} />)
+                            Array.from({ length: PAGE_SIZE }).map((_, i) => <EventCardSkeleton key={i} />)
+                        ) : eventsList.length > 0 ? (
+                            eventsList.map((event) => <EventCard key={event.id} event={event} />)
                         ) : (
-                            <NoEventsState />
+                            <NoEventsState query={debouncedSearch} />
                         )}
                     </div>
                     {!eventsLoading && (
                         <Pagination
-                            page={eventsPager.page}
-                            totalPages={eventsPager.totalPages}
-                            onPageChange={changePage(eventsPager.setPage, eventsSectionRef)}
+                            page={eventsPage}
+                            totalPages={eventsTotalPages}
+                            disabled={eventsFetching}
+                            onPageChange={changePage(setEventsPage, eventsSectionRef)}
                         />
                     )}
                 </section>
 
                 {/* Digital Products */}
                 <section ref={productsSectionRef} className="scroll-mt-24">
-                    <SectionHeader title="Digital Products" subtitle={filterMode === "my-interests" ? "Products matched to your saved interests" : "Self-paced learning from top mentors"} />
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    <SectionHeader title="Digital Products" subtitle="Self-paced learning from top mentors" />
+                    <div className={`grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 ${fetchingClass(productFetching && !productLoading)}`}>
                         {productLoading ? (
-                            Array.from({ length: PRODUCTS_PER_PAGE }).map((_, i) => <ProductCardSkeleton key={i} />)
-                        ) : filteredProducts.length > 0 ? (
-                            productsPager.pageItems.map((product) => <ProductCard key={product.id} product={product} />)
+                            Array.from({ length: PAGE_SIZE }).map((_, i) => <ProductCardSkeleton key={i} />)
+                        ) : productsList.length > 0 ? (
+                            productsList.map((product) => <ProductCard key={product.id} product={product} />)
                         ) : (
-                            <NoProductsState />
+                            <NoProductsState query={debouncedSearch} />
                         )}
                     </div>
                     {!productLoading && (
                         <Pagination
-                            page={productsPager.page}
-                            totalPages={productsPager.totalPages}
-                            onPageChange={changePage(productsPager.setPage, productsSectionRef)}
+                            page={productsPage}
+                            totalPages={productsTotalPages}
+                            disabled={productFetching}
+                            onPageChange={changePage(setProductsPage, productsSectionRef)}
                         />
                     )}
                 </section>
             </div>
 
             <DashFooter />
-
-            <style>{`
-        .topics-scroll::-webkit-scrollbar { height: 6px; }
-        .topics-scroll::-webkit-scrollbar-track { background: transparent; }
-        .topics-scroll::-webkit-scrollbar-thumb { background: rgba(205, 220, 57, 0.2); border-radius: 999px; }
-        .topics-scroll { scrollbar-width: thin; scrollbar-color: rgba(205, 220, 57, 0.2) transparent; }
-      `}</style>
         </div>
     );
 };

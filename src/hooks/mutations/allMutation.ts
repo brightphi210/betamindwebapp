@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { delete_requests, patch_requests, post_request_with_image, post_requests, put_request_with_image, put_requests } from "../helper/AxioHelper";
+import { delete_requests, patch_requests, post_request_with_image, post_requests, put_request_with_image, put_request_with_image_compressed, put_requests } from "../helper/AxioHelper";
 
 
 export const useCreateMentor = () => {
@@ -59,20 +59,46 @@ export const useUpdateUserProfile = () => {
 
 
 // =============== CREATE EVENTS ====================
+// export const useCreateEvents = () => {
+//   const queryClient = useQueryClient()
+
+//   const createEvent = useMutation({
+//     mutationFn: async (data: any) => {
+//       const token = (await localStorage.getItem("betamindToken")) || ""
+//       return post_request_with_image('events/', data, token)
+//     },
+//     onSuccess: () => {
+//       queryClient.invalidateQueries({ queryKey: ["events"] })
+//     },
+//   })
+
+//   return createEvent
+// }
+
+
+type CreateEventVars =
+  | FormData
+  | object
+  | { data: FormData | object; onUploadProgress: (e: { loaded: number; total?: number }) => void }
+
 export const useCreateEvents = () => {
   const queryClient = useQueryClient()
 
-  const createEvent = useMutation({
-    mutationFn: async (data: any) => {
+  return useMutation({
+    mutationFn: async (vars: CreateEventVars) => {
       const token = (await localStorage.getItem("betamindToken")) || ""
-      return post_request_with_image('events/', data, token)
+
+      const wrapped =
+        vars && typeof vars === "object" && !(vars instanceof FormData) && "onUploadProgress" in vars
+      const data = wrapped ? (vars as any).data : vars
+      const onUploadProgress = wrapped ? (vars as any).onUploadProgress : undefined
+
+      return put_request_with_image_compressed("events/", data, token, onUploadProgress)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] })
     },
   })
-
-  return createEvent
 }
 
 

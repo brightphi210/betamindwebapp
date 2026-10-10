@@ -21,7 +21,7 @@ import {
     useGetMyUserProfile,
 } from '../../hooks/queries/allQueriess';
 import { useGlobalContext } from '../../providers/GlobalContext';
-import { type Mentor } from './Explore';
+import { MentorCard, PAGE_SIZE, Pagination } from './Explore';
 
 import { BsSendCheckFill } from 'react-icons/bs';
 import upload from '../../assets/upload.jpg';
@@ -54,6 +54,9 @@ export {
     mapApiEventToRegistered
 } from './EventShared';
 export type { ApiAttendee, ApiEvent, Attendee, RegisteredEvent } from './EventShared';
+
+// Events shown per page on the overview
+const EVENTS_PER_PAGE = 3;
 
 // ─── Hero skeleton ──────────────────────────────────────────────────────────
 const EventHeroSkeleton: React.FC = () => (
@@ -438,47 +441,6 @@ const EventRow: React.FC<{
     </>
 );
 
-// ─── Mentor card ────────────────────────────────────────────────────────────
-const MentorCardCompact: React.FC<{ mentor: Mentor }> = ({ mentor }: any) => (
-    <Link
-        to={`/dashboard/mentors/${mentor.id}`}
-        className="rounded-2xl lg:p-5 p-3 flex flex-col bg-white/5"
-    >
-        <div className="flex items-start justify-between lg:mb-4 mb-2">
-            <img
-                src={mentor?.avatar} loading="lazy" decoding="async"
-                alt={mentor?.first_name + ' ' + mentor?.last_name}
-                className="w-12 h-12 rounded-xl object-cover"
-                style={{ border: '1px solid rgba(205,220,57,.15)' }}
-            />
-            <button
-                className="px-3 py-1 rounded-full text-xs font-semibold transition-colors cursor-pointer shrink-0"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.8)' }}
-            >
-                Follow
-            </button>
-        </div>
-        <h3 className="text-white font-bold text-base">
-            {mentor.first_name} {mentor.last_name}
-        </h3>
-        <p className="text-white/30 text-xs leading-relaxed lg:mb-3 mb-2">@{mentor.nick_name}</p>
-        <p className="text-white/60 text-xs leading-relaxed lg:mb-3 mb-2 line-clamp-2">
-            {mentor.bio}
-        </p>
-        <div className="flex flex-wrap gap-1">
-            {mentor.categories?.slice(0, 1)?.map((category: any) => (
-                <span
-                    key={category}
-                    className="w-fit px-2.5 py-1 rounded-md text-xs font-semibold text-white capitalize"
-                    style={{ background: 'rgba(166,255,0,0.08)' }}
-                >
-                    {category}
-                </span>
-            ))}
-        </div>
-    </Link>
-);
-
 /* ─── Complete Profile Modal ─────────────────────────────────────────────── */
 const PROFILE_FIELDS = [
     { key: 'first_name', label: 'First Name' },
@@ -596,9 +558,18 @@ const Overview: React.FC = () => {
     const [dismissedProfileModal, setDismissedProfileModal] = useState(false);
     const [showCreateConfirm, setShowCreateConfirm] = useState(false);
     const drawerCheckboxRef = useRef<HTMLInputElement>(null);
+    const eventsSectionRef = useRef<HTMLDivElement>(null);
+    const mentorsSectionRef = useRef<HTMLDivElement>(null);
 
-    const { mentors, isLoading } = useGetMentors();
-    const allMentors = mentors?.data?.results;
+    // Mentors: fetched from the server one page (4) at a time
+    const [mentorsPage, setMentorsPage] = useState(1);
+    const {
+        mentors,
+        isLoading,
+        isFetching: mentorsFetching,
+    } = useGetMentors(mentorsPage, PAGE_SIZE);
+    const mentorsList: any[] = mentors?.data?.results ?? [];
+    const mentorsTotalPages = Math.max(1, Math.ceil((mentors?.data?.count ?? 0) / PAGE_SIZE));
 
     const { myProfile, isLoading: isLoadingProfile } = useGetMyUserProfile();
     const userProfile = myProfile?.data;
@@ -616,15 +587,44 @@ const Overview: React.FC = () => {
     const hasEvents = myEvents.length > 0;
     const filtered = useMemo(() => myEvents.filter((e) => e.status === tab), [myEvents, tab]);
 
+    // Events: 3 per page. The "Next Up" hero below still uses ALL upcoming events.
+    const [eventsPage, setEventsPage] = useState(1);
+    const eventsTotalPages = Math.max(1, Math.ceil(filtered.length / EVENTS_PER_PAGE));
+    // Clamp so deleting the last event on a page doesn't leave an empty page
+    const currentEventsPage = Math.min(eventsPage, eventsTotalPages);
+    const pagedEvents = useMemo(
+        () =>
+            filtered.slice(
+                (currentEventsPage - 1) * EVENTS_PER_PAGE,
+                currentEventsPage * EVENTS_PER_PAGE
+            ),
+        [filtered, currentEventsPage]
+    );
+
+    // Back to page 1 when switching Upcoming / Past
+    useEffect(() => {
+        setEventsPage(1);
+    }, [tab]);
+
     const grouped = useMemo(
         () =>
-            filtered.reduce<Record<string, RegisteredEvent[]>>((acc, event) => {
+            pagedEvents.reduce<Record<string, RegisteredEvent[]>>((acc, event) => {
                 acc[event.dateLabel] = acc[event.dateLabel] || [];
                 acc[event.dateLabel].push(event);
                 return acc;
             }, {}),
-        [filtered]
+        [pagedEvents]
     );
+
+    const changeEventsPage = (p: number) => {
+        setEventsPage(p);
+        eventsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const changeMentorsPage = (p: number) => {
+        setMentorsPage(p);
+        mentorsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
     const latestEvent = useMemo(
         () =>
@@ -728,7 +728,10 @@ const Overview: React.FC = () => {
                         )}
 
                         {/* Header */}
-                        <div className="flex items-center justify-between mb-10 gap-3">
+                        <div
+                            ref={eventsSectionRef}
+                            className="flex items-center justify-between mb-10 gap-3 scroll-mt-24"
+                        >
                             <h1 className="text-2xl sm:text-3xl font-black text-white">Events</h1>
 
                             <div className="flex items-center gap-3">
@@ -807,6 +810,14 @@ const Overview: React.FC = () => {
                             </div>
                         )}
 
+                        {!isLoadingEvents && filtered.length > 0 && (
+                            <Pagination
+                                page={currentEventsPage}
+                                totalPages={eventsTotalPages}
+                                onPageChange={changeEventsPage}
+                            />
+                        )}
+
                         <div className="flex sm:hidden justify-center mt-6">
                             <Link
                                 to="/dashboard/events"
@@ -818,7 +829,7 @@ const Overview: React.FC = () => {
                         </div>
 
                         {/* Featured Mentors */}
-                        <div className="mt-16">
+                        <div ref={mentorsSectionRef} className="mt-16 scroll-mt-24">
                             <div className="flex items-center justify-between mb-6 gap-3">
                                 <h2 className="text-white text-xl sm:text-2xl font-bold">
                                     Top Mentors
@@ -831,11 +842,24 @@ const Overview: React.FC = () => {
                                     <FiArrowRight size={13} />
                                 </Link>
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                {allMentors?.slice(0, 6).map((mentor: any) => (
-                                    <MentorCardCompact key={mentor.id} mentor={mentor} />
+                            <div
+                                className={`grid grid-cols-2 lg:grid-cols-4 gap-2 transition-opacity duration-200 ${mentorsFetching && !isLoading
+                                    ? 'opacity-50 pointer-events-none'
+                                    : 'opacity-100'
+                                    }`}
+                            >
+                                {mentorsList.map((mentor) => (
+                                    <MentorCard key={mentor.id} mentor={mentor} />
                                 ))}
                             </div>
+                            {!isLoading && (
+                                <Pagination
+                                    page={mentorsPage}
+                                    totalPages={mentorsTotalPages}
+                                    disabled={mentorsFetching}
+                                    onPageChange={changeMentorsPage}
+                                />
+                            )}
                         </div>
                     </div>
 

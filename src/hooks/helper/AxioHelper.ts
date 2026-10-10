@@ -246,7 +246,29 @@ export const post_request_blob = async (url: string, data: any, token = "") => {
   return response;
 };
 
+export const put_request_with_image_compressed = async (
+  url: string,
+  data: FormData | Record<string, any>,
+  token = "",
+  onUploadProgress?: (e: any) => void
+) => {
+  const isFormData = data instanceof FormData;
+  const headers: any = {};
 
+  if (isFormData) {
+    headers["Content-Type"] = "multipart/form-data";
+  }
+
+  if (token !== "") {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await axiosInstance.put(url, data, {
+    headers,
+    onUploadProgress,
+  });
+  return response;
+};
 
 
 

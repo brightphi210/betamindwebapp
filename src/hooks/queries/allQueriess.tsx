@@ -2,6 +2,18 @@ import { useQuery } from "@tanstack/react-query";
 import { HARD_CODED_INTERESTS } from "../../utils/interest";
 import { get_requests } from "../helper/AxioHelper";
 
+import { keepPreviousData } from "@tanstack/react-query";
+
+// Builds "?page=2&page_size=4&..." and skips empty values
+const buildQuery = (params: Record<string, any>) => {
+    const sp = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") sp.set(key, String(value));
+    });
+    const qs = sp.toString();
+    return qs ? `?${qs}` : "";
+};
+
 export const useGetInterests = () => {
     return {
         interests: { data: HARD_CODED_INTERESTS },
@@ -53,22 +65,36 @@ export const useGetMyUserProfile = () => {
 
 
 // ================ MENTORS ======================
-export const useGetMentors = () => {
-    const { data, isLoading, isError, isFetched, refetch } = useQuery({
-        queryKey: ["mentors"],
+// export const useGetMentors = () => {
+//     const { data, isLoading, isError, isFetched, refetch } = useQuery({
+//         queryKey: ["mentors"],
+//         queryFn: async () => {
+//             const token = (await localStorage.getItem("betamindToken")) || "";
+//             return get_requests("mentors/", token);
+//         },
+//     });
+
+//     return {
+//         mentors: data,
+//         isLoading,
+//         isError,
+//         isFetched,
+//         refetch,
+//     };
+// };
+
+// ================ MENTORS (paginated) ======================
+export const useGetMentors = (page = 1, pageSize = 4, extra: Record<string, any> = {}) => {
+    const { data, isLoading, isFetching, isError, isFetched, refetch } = useQuery({
+        queryKey: ["mentors", page, pageSize, extra],
         queryFn: async () => {
             const token = (await localStorage.getItem("betamindToken")) || "";
-            return get_requests("mentors/", token);
+            return get_requests(`mentors/${buildQuery({ page, page_size: pageSize, ...extra })}`, token);
         },
+        placeholderData: keepPreviousData,
     });
 
-    return {
-        mentors: data,
-        isLoading,
-        isError,
-        isFetched,
-        refetch,
-    };
+    return { mentors: data, isLoading, isFetching, isError, isFetched, refetch };
 };
 
 
@@ -152,22 +178,36 @@ export const useGetMineEvents = () => {
 
 // ================== ALL EVENTS =================
 
-export const useGetAllEvents = () => {
-    const { data, isLoading, isError, isFetched, refetch } = useQuery({
-        queryKey: ["allEvents"],
+// export const useGetAllEvents = () => {
+//     const { data, isLoading, isError, isFetched, refetch } = useQuery({
+//         queryKey: ["allEvents"],
+//         queryFn: async () => {
+//             const token = (await localStorage.getItem("betamindToken")) || "";
+//             return get_requests("events/", token);
+//         },
+//     });
+
+//     return {
+//         allEvents: data,
+//         isLoading,
+//         isError,
+//         isFetched,
+//         refetch,
+//     };
+// };
+
+// ================== ALL EVENTS (paginated) =================
+export const useGetAllEvents = (page = 1, pageSize = 4, extra: Record<string, any> = {}) => {
+    const { data, isLoading, isFetching, isError, isFetched, refetch } = useQuery({
+        queryKey: ["allEvents", page, pageSize, extra],
         queryFn: async () => {
             const token = (await localStorage.getItem("betamindToken")) || "";
-            return get_requests("events/", token);
+            return get_requests(`events/${buildQuery({ page, page_size: pageSize, ...extra })}`, token);
         },
+        placeholderData: keepPreviousData,
     });
 
-    return {
-        allEvents: data,
-        isLoading,
-        isError,
-        isFetched,
-        refetch,
-    };
+    return { allEvents: data, isLoading, isFetching, isError, isFetched, refetch };
 };
 
 
@@ -193,22 +233,35 @@ export const useGetEvent = (id: any) => {
 
 
 // ============= DIGITAL PRODUCT ============
-export const useGetDigitalProduct = () => {
-    const { data, isLoading, isError, isFetched, refetch } = useQuery({
-        queryKey: ["products"],
+// export const useGetDigitalProduct = () => {
+//     const { data, isLoading, isError, isFetched, refetch } = useQuery({
+//         queryKey: ["products"],
+//         queryFn: async () => {
+//             const token = (await localStorage.getItem("betamindToken")) || "";
+//             return get_requests(`digital-products/`, token);
+//         },
+//     });
+
+//     return {
+//         digitalProduct: data,
+//         isLoading,
+//         isError,
+//         isFetched,
+//         refetch,
+//     };
+// };
+
+export const useGetDigitalProduct = (page = 1, pageSize = 4, extra: Record<string, any> = {}) => {
+    const { data, isLoading, isFetching, isError, isFetched, refetch } = useQuery({
+        queryKey: ["products", "list", page, pageSize, extra],
         queryFn: async () => {
             const token = (await localStorage.getItem("betamindToken")) || "";
-            return get_requests(`digital-products/`, token);
+            return get_requests(`digital-products/${buildQuery({ page, page_size: pageSize, ...extra })}`, token);
         },
+        placeholderData: keepPreviousData,
     });
 
-    return {
-        digitalProduct: data,
-        isLoading,
-        isError,
-        isFetched,
-        refetch,
-    };
+    return { digitalProduct: data, isLoading, isFetching, isError, isFetched, refetch };
 };
 
 

@@ -16,11 +16,18 @@ import { SiGooglemeet, SiZoom } from 'react-icons/si';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { useNavigate } from 'react-router-dom';
-import LoadingOverlay from '../../component/LoadingOverlay';
 import MyButton from '../../component/ui/Button';
 import { useCreateEvents } from '../../hooks/mutations/allMutation';
 import { useGlobalContext } from '../../providers/GlobalContext';
+import { compressImage, formatBytes } from '../../utils/compressimage';
 import { formatNaira } from '../../utils/currency';
+
+/**
+ * Set to true once useCreateEvents is updated to accept
+ * `{ data, onUploadProgress }` (see the hook snippet). Until then the
+ * submit modal shows a simulated counter that completes when the API responds.
+ */
+const USE_REAL_UPLOAD_PROGRESS = false;
 
 const cardBg = 'rgba(255,255,255,0.02)';
 const cardBorder = '1px solid rgba(255,255,255,0.08)';
@@ -139,6 +146,67 @@ const Toggle: React.FC<{ checked: boolean; onChange: () => void }> = ({
     </button>
 );
 
+// ─── Progress UI ──────────────────────────────────────────────────────────
+const ProgressBar: React.FC<{ value: number; className?: string }> = ({
+    value,
+    className = '',
+}) => (
+    <div
+        className={`h-1.5 w-full overflow-hidden rounded-full ${className}`}
+        style={{ background: 'rgba(255,255,255,0.12)' }}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(value)}
+    >
+        <div
+            className="h-full rounded-full transition-[width] duration-200 ease-out"
+            style={{ width: `${value}%`, background: '#a6ff00' }}
+        />
+    </div>
+);
+
+const SubmitProgressModal: React.FC<{
+    open: boolean;
+    progress: number;
+    stage: string;
+}> = ({ open, progress, stage }) => {
+    if (!open) return null;
+    const pct = Math.round(progress);
+    return (
+        <div
+            className="fixed inset-0 z-[100] flex items-center justify-center px-4 backdrop-blur-sm bg-black/60"
+            role="alertdialog"
+            aria-live="polite"
+            aria-label="Creating event"
+        >
+            <div
+                className="w-full max-w-sm rounded-xl p-6 sm:p-7 shadow-2xl"
+                style={{
+                    background: 'rgba(10,12,9,0.98)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                }}
+            >
+                <div className="flex items-end justify-between mb-4">
+                    <div>
+                        <h3 className="text-white text-lg font-black">
+                            {pct >= 100 ? 'Event created' : 'Creating your event'}
+                        </h3>
+                        <p className="text-white/45 text-xs mt-1">{stage}</p>
+                    </div>
+                    <span className="text-[#a6ff00] text-3xl font-black tabular-nums">
+                        {pct}%
+                    </span>
+                </div>
+                <ProgressBar value={progress} />
+                <p className="text-white/30 text-xs mt-3">
+                    Please keep this page open until it finishes.
+                </p>
+            </div>
+        </div>
+    );
+};
+
 // ─── Rich text helpers ────────────────────────────────────────────────────
 const getPlainText = (html: string) =>
     (html || '')
@@ -166,6 +234,8 @@ type TicketDraft = {
     description: string;
     imageFile: File | null;
     imagePreview: string | null;
+    compressProgress: number | null; // null = not compressing
+    imageInfo: string | null;
 };
 
 const makeTicketId = () => Math.random().toString(36).slice(2, 10);
@@ -177,6 +247,8 @@ const emptyTicket = (): TicketDraft => ({
     description: '',
     imageFile: null,
     imagePreview: null,
+    compressProgress: null,
+    imageInfo: null,
 });
 
 const fieldStyle: React.CSSProperties = {
@@ -186,21 +258,48 @@ const fieldStyle: React.CSSProperties = {
 
 const TicketsEditor: React.FC<{
     tickets: TicketDraft[];
-    onChange: (tickets: TicketDraft[]) => void;
+    onChange: React.Dispatch<React.SetStateAction<TicketDraft[]>>;
 }> = ({ tickets, onChange }) => {
+    // Functional updates: compression is async, so never rely on a stale `tickets`.
     const updateTicket = (id: string, patch: Partial<TicketDraft>) =>
-        onChange(tickets.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+        onChange((prev) =>
+            prev.map((t) => (t.id === id ? { ...t, ...patch } : t))
+        );
 
     const removeTicket = (id: string) =>
-        onChange(tickets.filter((t) => t.id !== id));
+        onChange((prev) => prev.filter((t) => t.id !== id));
 
-    const handleImage = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
+    const handleImage = async (
+        id: string,
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        const input = e.target;
+        const file = input.files?.[0];
         if (!file) return;
-        updateTicket(id, {
-            imageFile: file,
-            imagePreview: URL.createObjectURL(file),
-        });
+
+        updateTicket(id, { compressProgress: 0, imageInfo: null });
+        try {
+            const compressed = await compressImage(file, {
+                maxDimension: 1200,
+                maxSizeMB: 0.5,
+                onProgress: (p) => updateTicket(id, { compressProgress: p }),
+            });
+            updateTicket(id, {
+                imageFile: compressed,
+                imagePreview: URL.createObjectURL(compressed),
+                compressProgress: null,
+                imageInfo: `${formatBytes(file.size)} → ${formatBytes(compressed.size)}`,
+            });
+        } catch (err) {
+            console.error('Ticket image compression failed, using original', err);
+            updateTicket(id, {
+                imageFile: file,
+                imagePreview: URL.createObjectURL(file),
+                compressProgress: null,
+            });
+        } finally {
+            input.value = '';
+        }
     };
 
     return (
@@ -259,7 +358,14 @@ const TicketsEditor: React.FC<{
                                 }}
                                 title="Add ticket image"
                             >
-                                {t.imagePreview ? (
+                                {t.compressProgress !== null ? (
+                                    <div className="flex w-full flex-col items-center gap-1.5 px-2">
+                                        <span className="text-[10px] font-semibold tabular-nums text-[#a6ff00]">
+                                            {t.compressProgress}%
+                                        </span>
+                                        <ProgressBar value={t.compressProgress} />
+                                    </div>
+                                ) : t.imagePreview ? (
                                     <>
                                         <img
                                             src={t.imagePreview}
@@ -280,6 +386,7 @@ const TicketsEditor: React.FC<{
                                     type="file"
                                     accept="image/*"
                                     className="hidden"
+                                    disabled={t.compressProgress !== null}
                                     onChange={(e) => handleImage(t.id, e)}
                                 />
                             </label>
@@ -321,6 +428,11 @@ const TicketsEditor: React.FC<{
                                             : ''}
                                     </span>
                                 </div>
+                                {t.imageInfo && (
+                                    <p className="text-[10px] text-white/30">
+                                        Image compressed: {t.imageInfo}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -513,11 +625,89 @@ const EventCreate: React.FC = () => {
     );
     const [capacity, setCapacity] = useState('');
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
+    // Cover image compression
+    const [coverProgress, setCoverProgress] = useState<number | null>(null);
+    const [coverInfo, setCoverInfo] = useState<string | null>(null);
+
+    // Submit progress modal
+    const [showSubmitModal, setShowSubmitModal] = useState(false);
+    const [submitProgress, setSubmitProgress] = useState(0);
+    const [submitStage, setSubmitStage] = useState('Preparing upload…');
+    const trickleRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const finishRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const stopTrickle = () => {
+        if (trickleRef.current) {
+            clearInterval(trickleRef.current);
+            trickleRef.current = null;
+        }
+    };
+
+    useEffect(
+        () => () => {
+            stopTrickle();
+            if (finishRef.current) clearTimeout(finishRef.current);
+        },
+        []
+    );
+
+    const stageFor = (p: number) =>
+        p < 15
+            ? 'Preparing upload…'
+            : p < 90
+                ? 'Uploading event details and images…'
+                : p < 100
+                    ? 'Finishing up…'
+                    : 'Done!';
+
+    const startSubmitProgress = () => {
+        setSubmitProgress(0);
+        setSubmitStage('Preparing upload…');
+        setShowSubmitModal(true);
+        if (USE_REAL_UPLOAD_PROGRESS) return;
+        // Simulated: ease toward 90%, jump to 100% when the API responds.
+        stopTrickle();
+        trickleRef.current = setInterval(() => {
+            setSubmitProgress((p) => {
+                const next = p + Math.max(0.4, (90 - p) * 0.06);
+                const capped = Math.min(next, 90);
+                setSubmitStage(stageFor(capped));
+                return capped;
+            });
+        }, 200);
+    };
+
+    const handleUploadProgress = (event: { loaded: number; total?: number }) => {
+        if (!event.total) return;
+        // Cap at 95 so 100 only shows once the server has actually replied.
+        const p = Math.min(95, (event.loaded / event.total) * 95);
+        setSubmitProgress(p);
+        setSubmitStage(stageFor(p));
+    };
+
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const input = e.target;
+        const file = input.files?.[0];
+        if (!file) return;
+
+        setCoverProgress(0);
+        setCoverInfo(null);
+        try {
+            const compressed = await compressImage(file, {
+                maxDimension: 1600,
+                maxSizeMB: 1,
+                onProgress: setCoverProgress,
+            });
+            setCoverImage(URL.createObjectURL(compressed));
+            setCoverImageFile(compressed);
+            setCoverInfo(`${formatBytes(file.size)} → ${formatBytes(compressed.size)}`);
+        } catch (err) {
+            console.error('Cover compression failed, using original', err);
             setCoverImage(URL.createObjectURL(file));
             setCoverImageFile(file);
+        } finally {
+            setCoverProgress(null);
+            input.value = '';
         }
     };
 
@@ -636,11 +826,22 @@ const EventCreate: React.FC = () => {
             }))
         );
 
+    const isCompressing =
+        coverProgress !== null ||
+        (hasTickets && tickets.some((t) => t.compressProgress !== null));
+
     const isValid = Object.keys(localErrors).length === 0 && ticketsValid;
 
     const handleSuccess = (response: unknown) => {
         console.log('Event created successfully:', response);
-        setStep('success');
+        stopTrickle();
+        setSubmitProgress(100);
+        setSubmitStage('Done!');
+        // Let the user see 100% before switching screens.
+        finishRef.current = setTimeout(() => {
+            setShowSubmitModal(false);
+            setStep('success');
+        }, 600);
     };
 
     const normalizeApiErrors = (payload: any): Record<string, string[]> => {
@@ -673,6 +874,9 @@ const EventCreate: React.FC = () => {
     };
 
     const handleError = (error: any) => {
+        stopTrickle();
+        setShowSubmitModal(false);
+        setSubmitProgress(0);
         console.error('Error creating event:', error?.response?.data ?? error);
         const data = error?.response?.data;
         const normalized = normalizeApiErrors(data);
@@ -730,7 +934,13 @@ const EventCreate: React.FC = () => {
                     ? { capacity: Number(capacity) }
                     : {}),
             };
-            mutate(body as any, { onSuccess: handleSuccess, onError: handleError });
+            startSubmitProgress();
+            mutate(
+                (USE_REAL_UPLOAD_PROGRESS
+                    ? { data: body, onUploadProgress: handleUploadProgress }
+                    : body) as any,
+                { onSuccess: handleSuccess, onError: handleError }
+            );
             return;
         }
 
@@ -792,7 +1002,13 @@ const EventCreate: React.FC = () => {
             console.log('formData >', key, value instanceof File ? `File(${value.name})` : value);
         }
 
-        mutate(formData, { onSuccess: handleSuccess, onError: handleError });
+        startSubmitProgress();
+        mutate(
+            (USE_REAL_UPLOAD_PROGRESS
+                ? { data: formData, onUploadProgress: handleUploadProgress }
+                : formData) as any,
+            { onSuccess: handleSuccess, onError: handleError }
+        );
     };
 
     const handleCreate = () => {
@@ -851,7 +1067,11 @@ const EventCreate: React.FC = () => {
                     'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)',
             }}
         >
-            <LoadingOverlay visible={isPending} />
+            <SubmitProgressModal
+                open={showSubmitModal}
+                progress={submitProgress}
+                stage={submitStage}
+            />
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                 <div className="flex flex-col lg:flex-row gap-10">
                     {/* Left: cover image upload */}
@@ -859,7 +1079,9 @@ const EventCreate: React.FC = () => {
                         <div
                             className="relative w-full aspect-square rounded-2xl overflow-hidden cursor-pointer group"
                             style={{ border: cardBorder }}
-                            onClick={() => fileInputRef.current?.click()}
+                            onClick={() => {
+                                if (coverProgress === null) fileInputRef.current?.click();
+                            }}
                         >
                             {coverImage ? (
                                 <img
@@ -878,8 +1100,20 @@ const EventCreate: React.FC = () => {
                                     </p>
                                 </div>
                             )}
+                            {coverProgress !== null && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 px-8 backdrop-blur-sm">
+                                    <span className="text-2xl font-black tabular-nums text-[#a6ff00]">
+                                        {coverProgress}%
+                                    </span>
+                                    <ProgressBar value={coverProgress} />
+                                    <p className="text-xs text-white/60">
+                                        Compressing image…
+                                    </p>
+                                </div>
+                            )}
                             <button
                                 type="button"
+                                disabled={coverProgress !== null}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     fileInputRef.current?.click();
@@ -896,11 +1130,17 @@ const EventCreate: React.FC = () => {
                                 onChange={handleImageChange}
                             />
                         </div>
+                        {coverInfo && coverProgress === null && (
+                            <p className="mt-2 text-center text-[11px] text-white/35">
+                                Compressed: {coverInfo}
+                            </p>
+                        )}
                         {coverImage && (
                             <button
                                 onClick={() => {
                                     setCoverImage(null);
                                     setCoverImageFile(null);
+                                    setCoverInfo(null);
                                     if (fileInputRef.current)
                                         fileInputRef.current.value = '';
                                 }}
@@ -1386,10 +1626,14 @@ const EventCreate: React.FC = () => {
                         <button
                             type="button"
                             onClick={handleCreate}
-                            disabled={!isValid || isPending}
+                            disabled={!isValid || isPending || isCompressing}
                             className="w-full px-6 py-3 bg-white rounded-md text-xs font-bold text-black transition-transform hover:scale-[1.005] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                         >
-                            {isPending ? 'Creating...' : 'Create Event'}
+                            {isCompressing
+                                ? 'Compressing images…'
+                                : isPending
+                                    ? 'Creating...'
+                                    : 'Create Event'}
                         </button>
                     </div>
                 </div>

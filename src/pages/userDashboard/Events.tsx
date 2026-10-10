@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     FiAlertTriangle,
     FiArrowRight,
@@ -30,6 +30,10 @@ import {
     LocationIcon,
     mapApiEventToRegistered,
 } from './EventShared';
+import { Pagination } from './Explore';
+
+// Events shown per page
+const EVENTS_PER_PAGE = 3;
 
 const EmptyState: React.FC<{ tab: 'upcoming' | 'past' }> = ({ tab }) => (
     <div className="flex flex-col items-center justify-center py-24 sm:py-32">
@@ -284,6 +288,7 @@ const Events: React.FC = () => {
     const [eventToDelete, setEventToDelete] = useState<RegisteredEvent | null>(null);
     const [showCreateConfirm, setShowCreateConfirm] = useState(false);
     const drawerCheckboxRef = useRef<HTMLInputElement>(null);
+    const listTopRef = useRef<HTMLDivElement>(null);
 
     const { mineEvents, isLoading, refetch } = useGetMineEvents();
     const { mutate: deleteEvent, isPending: isDeleting, variables: deletingId } = useDeleteEvent();
@@ -298,14 +303,34 @@ const Events: React.FC = () => {
     const filtered = useMemo(() => allEvents.filter((e) => e.status === tab), [allEvents, tab]);
     const hasEvents = allEvents.length > 0;
 
+    // Pagination: 3 events per page
+    const [page, setPage] = useState(1);
+    const totalPages = Math.max(1, Math.ceil(filtered.length / EVENTS_PER_PAGE));
+    // Clamp so deleting the last event on a page doesn't leave an empty page
+    const currentPage = Math.min(page, totalPages);
+    const pagedEvents = useMemo(
+        () => filtered.slice((currentPage - 1) * EVENTS_PER_PAGE, currentPage * EVENTS_PER_PAGE),
+        [filtered, currentPage]
+    );
+
+    // Back to page 1 when switching Upcoming / Past
+    useEffect(() => {
+        setPage(1);
+    }, [tab]);
+
+    const changePage = (p: number) => {
+        setPage(p);
+        listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
     const grouped = useMemo(
         () =>
-            filtered.reduce<Record<string, RegisteredEvent[]>>((acc, event) => {
+            pagedEvents.reduce<Record<string, RegisteredEvent[]>>((acc, event) => {
                 acc[event.dateLabel] = acc[event.dateLabel] || [];
                 acc[event.dateLabel].push(event);
                 return acc;
             }, {}),
-        [filtered]
+        [pagedEvents]
     );
 
     const openDrawer = (event: RegisteredEvent) => {
@@ -370,7 +395,10 @@ const Events: React.FC = () => {
                         style={{ background: "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)" }}
                     />
                     <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-                        <div className="flex flex-wrap items-center justify-between gap-4 mb-10">
+                        <div
+                            ref={listTopRef}
+                            className="flex flex-wrap items-center justify-between gap-4 mb-10 scroll-mt-24"
+                        >
                             <h1 className="text-2xl sm:text-3xl font-black text-white">Events</h1>
 
                             <div className="flex items-center gap-3">
@@ -461,6 +489,14 @@ const Events: React.FC = () => {
                                     </div>
                                 ))}
                             </div>
+                        )}
+
+                        {!isLoading && filtered.length > 0 && (
+                            <Pagination
+                                page={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={changePage}
+                            />
                         )}
                     </div>
 
