@@ -38,71 +38,112 @@ const cardBorder = '1px solid rgba(255,255,255,0.08)';
 type TicketMode = 'bracket' | 'json-string' | 'json-body';
 const TICKET_MODE = { mode: 'bracket' as TicketMode };
 
-// ─── Bubble splash background ─────────────────────────────────────────────
-const BUBBLE_COLORS = ['#a6ff00', '#7ee6c0', '#ff8fb0', '#8f8fff'];
+// ─── Success animation ────────────────────────────────────────────────────
+const BURST_COLORS = ['#a6ff00', '#7ee6c0', '#ff8fb0', '#8f8fff'];
 
-type Bubble = {
-    id: number;
-    left: number;
-    size: number;
-    color: string;
-    duration: number;
-    delay: number;
-    drift: number;
-    opacity: number;
+const SuccessBurst: React.FC = () => {
+    const particles = useMemo(
+        () =>
+            Array.from({ length: 20 }, (_, i) => {
+                const angle = (i / 20) * Math.PI * 2 + Math.random() * 0.3;
+                const dist = 95 + Math.random() * 55;
+                return {
+                    x: Math.cos(angle) * dist,
+                    y: Math.sin(angle) * dist,
+                    size: 6 + Math.random() * 6,
+                    color: BURST_COLORS[i % BURST_COLORS.length],
+                    delay: 0.55 + Math.random() * 0.12,
+                    round: i % 2 === 0,
+                };
+            }),
+        []
+    );
+
+    return (
+        <div className="relative flex h-30 w-44 items-center justify-center">
+            {particles.map((p, i) => (
+                <span
+                    key={i}
+                    className="sb-particle absolute"
+                    style={{
+                        width: p.size,
+                        height: p.size,
+                        background: p.color,
+                        borderRadius: p.round ? '9999px' : '2px',
+                        animationDelay: `${p.delay}s`,
+                        ['--x' as string]: `${p.x}px`,
+                        ['--y' as string]: `${p.y}px`,
+                    }}
+                />
+            ))}
+
+            <svg viewBox="0 0 100 100" className="sb-pop h-24 w-32">
+                <circle className="sb-fill" cx="50" cy="50" r="44" fill="rgba(166,255,0,0.12)" />
+                <circle
+                    className="sb-ring"
+                    cx="50"
+                    cy="50"
+                    r="44"
+                    fill="none"
+                    stroke="#a6ff00"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                />
+                <path
+                    className="sb-check"
+                    d="M30 52 L44 66 L71 36"
+                    pathLength={60}
+                    fill="none"
+                    stroke="#a6ff00"
+                    strokeWidth="7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+            </svg>
+
+            <style>{`
+                .sb-ring {
+                    stroke-dasharray: 277;
+                    stroke-dashoffset: 277;
+                    transform: rotate(-90deg);
+                    transform-origin: 50% 50%;
+                    animation: sbDraw 0.6s ease-out forwards;
+                }
+                .sb-check {
+                    stroke-dasharray: 60;
+                    stroke-dashoffset: 60;
+                    animation: sbDraw 0.4s ease-out 0.5s forwards;
+                }
+                .sb-fill {
+                    opacity: 0;
+                    animation: sbFade 0.4s ease-out 0.5s forwards;
+                }
+                .sb-pop {
+                    animation: sbPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s both;
+                }
+                .sb-particle {
+                    opacity: 0;
+                    animation: sbParticle 0.9s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+                }
+                @keyframes sbDraw { to { stroke-dashoffset: 0; } }
+                @keyframes sbFade { to { opacity: 1; } }
+                @keyframes sbPop {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.1); }
+                    100% { transform: scale(1); }
+                }
+                @keyframes sbParticle {
+                    0% { opacity: 1; transform: translate(0, 0) scale(0.3) rotate(0deg); }
+                    100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(1) rotate(220deg); }
+                }
+                @media (prefers-reduced-motion: reduce) {
+                    .sb-ring, .sb-check, .sb-fill, .sb-pop { animation: none; stroke-dashoffset: 0; opacity: 1; }
+                    .sb-particle { display: none; }
+                }
+            `}</style>
+        </div>
+    );
 };
-
-const BUBBLE_COUNT = 26;
-
-const makeBubbles = (): Bubble[] =>
-    Array.from({ length: BUBBLE_COUNT }, (_, id) => ({
-        id,
-        left: Math.random() * 100,
-        size: 6 + Math.random() * 16,
-        color: BUBBLE_COLORS[id % BUBBLE_COLORS.length],
-        duration: 9 + Math.random() * 10,
-        delay: Math.random() * -14,
-        drift: Math.random() * 60 - 30,
-        opacity: 0.25 + Math.random() * 0.5,
-    }));
-
-const BubbleSplash: React.FC<{ bubbles: Bubble[] }> = ({ bubbles }) => (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {bubbles.map((b) => (
-            <span
-                key={b.id}
-                className="absolute rounded-full bubble-float"
-                style={{
-                    left: `${b.left}vw`,
-                    bottom: '-10%',
-                    width: b.size,
-                    height: b.size,
-                    background: b.color,
-                    opacity: b.opacity,
-                    boxShadow: `0 0 ${b.size}px ${b.color}55`,
-                    ['--drift' as string]: `${b.drift}px`,
-                    animationDuration: `${b.duration}s`,
-                    animationDelay: `${b.delay}s`,
-                }}
-            />
-        ))}
-        <style>{`
-            @keyframes bubbleFloat {
-                0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
-                10% { opacity: 1; }
-                100% { transform: translate(var(--drift), -120vh) scale(1); opacity: 0; }
-            }
-            .bubble-float {
-                animation-name: bubbleFloat;
-                animation-timing-function: ease-in;
-                animation-iteration-count: infinite;
-            }
-            @media (prefers-reduced-motion: reduce) {
-                .bubble-float { animation: none; opacity: 0.15 !important; }
-            }
-        `}</style>
-    </div>
-);
 
 // ─── Proper Toggle Switch ─────────────────────────────────────────────────
 const Toggle: React.FC<{ checked: boolean; onChange: () => void }> = ({
@@ -600,7 +641,6 @@ const EventCreate: React.FC = () => {
     const { mutate, isPending } = useCreateEvents();
 
     const [step, setStep] = useState<Step>('form');
-    const bubbles = useMemo(makeBubbles, []);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [coverImage, setCoverImage] = useState<string | null>(null);
@@ -1048,33 +1088,26 @@ const EventCreate: React.FC = () => {
     if (step === 'success') {
         return (
             <div
-                className="relative min-h-screen w-full overflow-hidden text-white"
+                className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden px-4 text-white"
                 style={{
                     background:
                         'radial-gradient(ellipse 500px 500px at 50% -100px, rgba(166, 255, 0, 0.10), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.9) 0%, #000000 60%)',
                 }}
             >
-                <BubbleSplash bubbles={bubbles} />
+                <div className="flex w-full max-w-xs flex-col items-center text-center">
+                    <SuccessBurst />
 
-                <div className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-14 pt-40 lg:pt-52 flex flex-col items-center text-center">
-                    <h1 className="text-xl sm:text-xl font-black text-white mb-3">
-                        You're live! 🎉
-                    </h1>
-                    <p className="text-white/80 font-extrabold text-3xl pt-5">
-                        {eventName}
-                    </p>
-                    <p className="text-white/80 font-normal text-sm pt-2">
-                        has been created and is ready to share with the world.
+                    <h1 className="mt-2 text-xl font-black text-white">Your Event is live! 🎉</h1>
+                    <p className="pt-2 text-sm text-white/80">
+                        your event has been created and is ready to share with the world.
                     </p>
 
-                    <div className="flex flex-row items-center gap-3 w-full max-w-xs pt-3">
-                        <button
-                            onClick={() => navigate('/dashboard/overview')}
-                            className="flex-1 bg-white text-black px-4 py-3 rounded-md text-sm font-semibold w-[50%] transition-colors cursor-pointer"
-                        >
-                            Back to Dashboard
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => navigate('/dashboard/overview')}
+                        className="mt-6 w-2/3 cursor-pointer rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition-transform hover:scale-[1.01]"
+                    >
+                        Back to Dashboard
+                    </button>
                 </div>
             </div>
         );
