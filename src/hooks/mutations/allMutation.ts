@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { delete_requests, patch_requests, post_request_with_image, post_requests, put_request_with_image, put_request_with_image_compressed, put_requests } from "../helper/AxioHelper";
+import { delete_requests, patch_requests, post_request_with_image, post_request_with_image_compressed, post_requests, put_request_with_image, put_requests } from "../helper/AxioHelper";
 
 
 export const useCreateMentor = () => {
@@ -93,7 +93,7 @@ export const useCreateEvents = () => {
       const data = wrapped ? (vars as any).data : vars
       const onUploadProgress = wrapped ? (vars as any).onUploadProgress : undefined
 
-      return put_request_with_image_compressed("events/", data, token, onUploadProgress)
+      return post_request_with_image_compressed("events/", data, token, onUploadProgress)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] })
