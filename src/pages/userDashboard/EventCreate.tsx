@@ -21,6 +21,14 @@ import { useCreateEvents } from '../../hooks/mutations/allMutation';
 import { useGlobalContext } from '../../providers/GlobalContext';
 import { compressImage, formatBytes } from '../../utils/compressimage';
 import { formatNaira } from '../../utils/currency';
+import {
+    canUploadOriginal,
+    getErrorMessage,
+    getErrorMessages,
+    isFileReadable,
+    toStableFile,
+    validateImageFile,
+} from '../../utils/uploadhelpers';
 
 /**
  * Set to true once useCreateEvents is updated to accept
@@ -259,7 +267,8 @@ const fieldStyle: React.CSSProperties = {
 const TicketsEditor: React.FC<{
     tickets: TicketDraft[];
     onChange: React.Dispatch<React.SetStateAction<TicketDraft[]>>;
-}> = ({ tickets, onChange }) => {
+    onError: (message: string) => void;
+}> = ({ tickets, onChange, onError }) => {
     // Functional updates: compression is async, so never rely on a stale `tickets`.
     const updateTicket = (id: string, patch: Partial<TicketDraft>) =>
         onChange((prev) =>
@@ -277,26 +286,43 @@ const TicketsEditor: React.FC<{
         const file = input.files?.[0];
         if (!file) return;
 
+        const problem = validateImageFile(file);
+        if (problem) {
+            onError(problem);
+            input.value = '';
+            return;
+        }
+
         updateTicket(id, { compressProgress: 0, imageInfo: null });
         try {
-            const compressed = await compressImage(file, {
-                maxDimension: 1200,
-                maxSizeMB: 0.5,
-                onProgress: (p) => updateTicket(id, { compressProgress: p }),
-            });
+            // Copy into memory first so mobile browsers can't invalidate the file later
+            const stable = await toStableFile(file);
+            let finalFile: File = stable;
+            try {
+                const compressed = await compressImage(stable, {
+                    maxDimension: 1200,
+                    maxSizeMB: 0.5,
+                    onProgress: (p) => updateTicket(id, { compressProgress: p }),
+                });
+                finalFile = await toStableFile(compressed);
+            } catch (err) {
+                console.error('Ticket image compression failed', err);
+                if (!canUploadOriginal(stable)) {
+                    onError('Could not process this image format. Please choose a JPG, PNG or WebP photo.');
+                    updateTicket(id, { compressProgress: null });
+                    return;
+                }
+                // else: fall back to the in-memory copy of the original
+            }
             updateTicket(id, {
-                imageFile: compressed,
-                imagePreview: URL.createObjectURL(compressed),
+                imageFile: finalFile,
+                imagePreview: URL.createObjectURL(finalFile),
                 compressProgress: null,
-                imageInfo: `${formatBytes(file.size)} → ${formatBytes(compressed.size)}`,
+                imageInfo: `${formatBytes(file.size)} → ${formatBytes(finalFile.size)}`,
             });
         } catch (err) {
-            console.error('Ticket image compression failed, using original', err);
-            updateTicket(id, {
-                imageFile: file,
-                imagePreview: URL.createObjectURL(file),
-                compressProgress: null,
-            });
+            updateTicket(id, { compressProgress: null });
+            onError(getErrorMessage(err));
         } finally {
             input.value = '';
         }
@@ -690,21 +716,42 @@ const EventCreate: React.FC = () => {
         const file = input.files?.[0];
         if (!file) return;
 
+        const problem = validateImageFile(file);
+        if (problem) {
+            addToast(problem, 'error');
+            input.value = '';
+            return;
+        }
+
         setCoverProgress(0);
         setCoverInfo(null);
         try {
-            const compressed = await compressImage(file, {
-                maxDimension: 1600,
-                maxSizeMB: 1,
-                onProgress: setCoverProgress,
-            });
-            setCoverImage(URL.createObjectURL(compressed));
-            setCoverImageFile(compressed);
-            setCoverInfo(`${formatBytes(file.size)} → ${formatBytes(compressed.size)}`);
+            // Copy into memory first so mobile browsers can't invalidate the file later
+            const stable = await toStableFile(file);
+            let finalFile: File = stable;
+            try {
+                const compressed = await compressImage(stable, {
+                    maxDimension: 1600,
+                    maxSizeMB: 1,
+                    onProgress: setCoverProgress,
+                });
+                finalFile = await toStableFile(compressed);
+            } catch (err) {
+                console.error('Cover compression failed', err);
+                if (!canUploadOriginal(stable)) {
+                    addToast(
+                        'Could not process this image format. Please choose a JPG, PNG or WebP photo.',
+                        'error'
+                    );
+                    return;
+                }
+                // else: fall back to the in-memory copy of the original
+            }
+            setCoverImage(URL.createObjectURL(finalFile));
+            setCoverImageFile(finalFile);
+            setCoverInfo(`${formatBytes(file.size)} → ${formatBytes(finalFile.size)}`);
         } catch (err) {
-            console.error('Cover compression failed, using original', err);
-            setCoverImage(URL.createObjectURL(file));
-            setCoverImageFile(file);
+            addToast(getErrorMessage(err), 'error');
         } finally {
             setCoverProgress(null);
             input.value = '';
@@ -821,7 +868,9 @@ const EventCreate: React.FC = () => {
                                             ? 'Description'
                                             : field === 'tickets'
                                                 ? 'Tickets'
-                                                : field,
+                                                : field === 'submit'
+                                                    ? 'Server'
+                                                    : field,
                 message,
             }))
         );
@@ -844,57 +893,21 @@ const EventCreate: React.FC = () => {
         }, 600);
     };
 
-    const normalizeApiErrors = (payload: any): Record<string, string[]> => {
-        if (!payload || typeof payload !== 'object') {
-            return {};
-        }
-
-        const normalized: Record<string, string[]> = {};
-
-        Object.entries(payload).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                normalized[key] = value.filter((item) => typeof item === 'string');
-                return;
-            }
-
-            if (typeof value === 'string') {
-                normalized[key] = [value];
-                return;
-            }
-
-            if (value && typeof value === 'object') {
-                const nested = normalizeApiErrors(value);
-                if (Object.keys(nested).length > 0) {
-                    normalized[key] = Object.values(nested).flat();
-                }
-            }
-        });
-
-        return normalized;
-    };
-
+    // Shows the backend's own error text, exactly as the server sent it
+    // (plus the HTTP status). Network failures (no server reply) get a
+    // clear explanation because there is no backend message to show.
     const handleError = (error: any) => {
         stopTrickle();
         setShowSubmitModal(false);
         setSubmitProgress(0);
-        console.error('Error creating event:', error?.response?.data ?? error);
-        const data = error?.response?.data;
-        const normalized = normalizeApiErrors(data);
-        setServerErrors(normalized);
+        console.error('Error creating event:', error?.response?.status, error?.response?.data ?? error);
 
-        const raw =
-            data?.tickets?.[0] ||
-            data?.tickets ||
-            data?.message ||
-            data?.detail ||
-            'Something went wrong. Please try again.';
-        addToast(
-            typeof raw === 'string' ? raw : JSON.stringify(raw),
-            'error'
-        );
+        const messages = getErrorMessages(error);
+        setServerErrors({ submit: messages });
+        addToast(messages.join(' • '), 'error');
     };
 
-    const submitEvent = () => {
+    const sendEvent = () => {
         // Clean ticket list (only tickets with a name)
         const cleanTickets = hasTickets
             ? tickets
@@ -962,6 +975,8 @@ const EventCreate: React.FC = () => {
                 // We also send the `.name` and `[name]` spellings; backends
                 // ignore keys they don't recognise, so this is harmless and
                 // covers the common variants.
+                // NOTE: ticket images are uploaded once per spelling (3x). Once you
+                // know which spelling your backend uses, keep only that one.
                 const keyStyles: Array<(i: number, f: string) => string> = [
                     (i, f) => `tickets[${i}]${f}`,
                     (i, f) => `tickets[${i}].${f}`,
@@ -999,7 +1014,7 @@ const EventCreate: React.FC = () => {
 
         // Debug: see exactly what is being sent
         for (const [key, value] of formData.entries()) {
-            console.log('formData >', key, value instanceof File ? `File(${value.name})` : value);
+            console.log('formData >', key, value instanceof File ? `File(${value.name}, ${value.size} bytes, ${value.type})` : value);
         }
 
         startSubmitProgress();
@@ -1009,6 +1024,32 @@ const EventCreate: React.FC = () => {
                 : formData) as any,
             { onSuccess: handleSuccess, onError: handleError }
         );
+    };
+
+    // Wrapper: makes sure every picked image is still readable (mobile browsers
+    // can invalidate files), and catches local errors such as an invalid date.
+    const submitEvent = async () => {
+        try {
+            const files = [
+                coverImageFile,
+                ...(hasTickets ? tickets.map((t) => t.imageFile) : []),
+            ].filter(Boolean) as File[];
+
+            for (const f of files) {
+                if (!(await isFileReadable(f))) {
+                    addToast(
+                        'One of your images can no longer be read by the browser. Remove it, pick it again and retry.',
+                        'error'
+                    );
+                    return;
+                }
+            }
+            sendEvent();
+        } catch (err) {
+            stopTrickle();
+            setShowSubmitModal(false);
+            addToast(getErrorMessage(err), 'error');
+        }
     };
 
     const handleCreate = () => {
@@ -1458,6 +1499,7 @@ const EventCreate: React.FC = () => {
                                     <TicketsEditor
                                         tickets={tickets}
                                         onChange={setTickets}
+                                        onError={(m) => addToast(m, 'error')}
                                     />
                                 )}
                             </div>
@@ -1607,7 +1649,7 @@ const EventCreate: React.FC = () => {
                                     {visibleErrors.map(({ field, message }, index) => (
                                         <li key={`${field}-${index}`} className="flex gap-2">
                                             <span className="mt-0.5 text-red-300">•</span>
-                                            <span>
+                                            <span className="break-words min-w-0">
                                                 <span className="font-semibold text-red-100">{field}:</span> {message}
                                             </span>
                                         </li>

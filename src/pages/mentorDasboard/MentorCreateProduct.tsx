@@ -24,6 +24,7 @@ import { cardBg, cardBorder } from "../../component/MentorDashboardStyles";
 import Button from "../../component/ui/Button";
 import { useCreateDigitalProduct } from "../../hooks/mutations/allMutation";
 import { useGlobalContext } from "../../providers/GlobalContext";
+import { compressImage, formatBytes } from "../../utils/compressimage";
 import { formatNaira } from "../../utils/currency";
 import type { ProductType } from "../userDashboard/MentorProductSuccess";
 import MentorProductSuccess from "../userDashboard/MentorProductSuccess";
@@ -129,6 +130,22 @@ function parseProductError(error: any): string {
 }
 
 // ---------- Small building blocks ----------
+
+const ProgressBar: React.FC<{ value: number; className?: string }> = ({ value, className = "" }) => (
+    <div
+        className={`h-1.5 w-full overflow-hidden rounded-full ${className}`}
+        style={{ background: "rgba(255,255,255,0.12)" }}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(value)}
+    >
+        <div
+            className="h-full rounded-full transition-[width] duration-200 ease-out"
+            style={{ width: `${value}%`, background: "#a6ff00" }}
+        />
+    </div>
+);
 
 const SectionLabel: React.FC<{ children: React.ReactNode; hint?: string }> = ({ children, hint }) => (
     <div className="mb-2">
@@ -468,15 +485,38 @@ const MentorProductCreate: React.FC = () => {
     const [thumbnail, setThumbnail] = useState<string | null>(null);
     const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
 
+    // Thumbnail compression
+    const [thumbnailProgress, setThumbnailProgress] = useState<number | null>(null); // null = not compressing
+    const [thumbnailInfo, setThumbnailInfo] = useState<string | null>(null);
+
     const [showPreview, setShowPreview] = useState(false);
 
     const isCourse = type === "Course";
+    const isCompressing = thumbnailProgress !== null;
 
-    const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
+    const handleThumbnailChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const input = e.target;
+        const file = input.files?.[0];
+        if (!file) return;
+
+        setThumbnailProgress(0);
+        setThumbnailInfo(null);
+        try {
+            const compressed = await compressImage(file, {
+                maxDimension: 1600,
+                maxSizeMB: 1,
+                onProgress: setThumbnailProgress,
+            });
+            setThumbnail(URL.createObjectURL(compressed));
+            setThumbnailFile(compressed);
+            setThumbnailInfo(`${formatBytes(file.size)} → ${formatBytes(compressed.size)}`);
+        } catch (err) {
+            console.error("Thumbnail compression failed, using original", err);
             setThumbnail(URL.createObjectURL(file));
             setThumbnailFile(file);
+        } finally {
+            setThumbnailProgress(null);
+            input.value = "";
         }
     };
 
@@ -498,7 +538,7 @@ const MentorProductCreate: React.FC = () => {
     );
 
     const handleCreate = () => {
-        if (!isValid || !type) return;
+        if (!isValid || !type || isCompressing) return;
 
         const formData = new FormData();
         formData.append("product_type", type.toLowerCase());
@@ -514,6 +554,7 @@ const MentorProductCreate: React.FC = () => {
             formData.append("course_content", JSON.stringify(payload));
         }
 
+        // thumbnailFile is the compressed image when compression succeeded
         if (thumbnailFile) formData.append("cover_image", thumbnailFile);
 
         mutate(formData, {
@@ -553,7 +594,9 @@ const MentorProductCreate: React.FC = () => {
                         <div
                             className="relative aspect-square w-full cursor-pointer overflow-hidden rounded-2xl group"
                             style={{ border: cardBorder }}
-                            onClick={() => thumbnailInputRef.current?.click()}
+                            onClick={() => {
+                                if (!isCompressing) thumbnailInputRef.current?.click();
+                            }}
                         >
                             {thumbnail ? (
                                 <img src={thumbnail} alt="Product thumbnail" className="h-full w-full object-cover" />
@@ -566,8 +609,20 @@ const MentorProductCreate: React.FC = () => {
                                     <p className="text-xs text-white/30">Add thumbnail</p>
                                 </div>
                             )}
+
+                            {thumbnailProgress !== null && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 px-8 backdrop-blur-sm">
+                                    <span className="text-2xl font-black tabular-nums text-[#a6ff00]">
+                                        {thumbnailProgress}%
+                                    </span>
+                                    <ProgressBar value={thumbnailProgress} />
+                                    <p className="text-xs text-white/60">Compressing image…</p>
+                                </div>
+                            )}
+
                             <button
                                 type="button"
+                                disabled={isCompressing}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     thumbnailInputRef.current?.click();
@@ -584,11 +639,15 @@ const MentorProductCreate: React.FC = () => {
                                 onChange={handleThumbnailChange}
                             />
                         </div>
+                        {thumbnailInfo && !isCompressing && (
+                            <p className="mt-2 text-center text-[11px] text-white/35">Compressed: {thumbnailInfo}</p>
+                        )}
                         {thumbnail && (
                             <button
                                 onClick={() => {
                                     setThumbnail(null);
                                     setThumbnailFile(null);
+                                    setThumbnailInfo(null);
                                     if (thumbnailInputRef.current) thumbnailInputRef.current.value = "";
                                 }}
                                 className="mt-2 w-full text-xs text-white/40 transition-colors hover:text-white/70"
@@ -676,12 +735,12 @@ const MentorProductCreate: React.FC = () => {
                         <Button
                             variant="green"
                             className="w-full"
-                            disabled={!isValid || isPending}
+                            disabled={!isValid || isPending || isCompressing}
                             onClick={() => setShowPreview(true)}
                         >
                             <span className="flex items-center justify-center gap-2">
                                 <FiEye size={15} />
-                                Preview Product
+                                {isCompressing ? "Compressing image…" : "Preview Product"}
                             </span>
                         </Button>
                         {isCourse && !courseModulesValid && (
