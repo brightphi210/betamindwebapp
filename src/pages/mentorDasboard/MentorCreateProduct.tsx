@@ -994,7 +994,7 @@ const MentorProductCreate: React.FC = () => {
                     </p>
 
                     <button
-                        onClick={() => navigate(DASHBOARD_PATH)}
+                        onClick={() => navigate("/" + DASHBOARD_PATH)}
                         className="mt-6 w-2/3 cursor-pointer rounded-md bg-white px-4 py-3 text-sm font-semibold text-black transition-transform hover:scale-[1.01]"
                     >
                         {isEditMode ? "Back to Products" : "Back to Dashboard"}

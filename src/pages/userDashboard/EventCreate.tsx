@@ -522,15 +522,15 @@ type MeetingPlatform = 'google_meet' | 'zoom' | 'teams';
 const MIN_DESCRIPTION_LENGTH = 30;
 const COMMISSION_RATE = 0.03;
 
-const parse12HourTime = (value: string) => {
+const parse12HourTime = (value: string): { hour: number; minute: number; meridiem: 'AM' | 'PM' } => {
     if (!value) {
-        return { hour: 9, minute: 0, meridiem: 'AM' as const };
+        return { hour: 9, minute: 0, meridiem: 'AM' };
     }
 
     const [rawHour, rawMinute = '00'] = value.split(':');
     const hour24 = Number(rawHour) || 0;
     const minute = Number(rawMinute) || 0;
-    const meridiem = hour24 >= 12 ? 'PM' : 'AM';
+    const meridiem: 'AM' | 'PM' = hour24 >= 12 ? 'PM' : 'AM';
     const hour = hour24 % 12 || 12;
 
     return { hour, minute, meridiem };
