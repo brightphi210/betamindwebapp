@@ -368,152 +368,186 @@ const NoMentorsState: React.FC<{ query?: string }> = ({ query }) => (
     </div>
 );
 
+const getEventFlag = (event: RegisteredEvent): { label: string; tone: "neutral" | "warning" | "danger" } | null => {
+    const now = new Date();
+    const eventDate = new Date(event.date);
+    const diffInDays = Math.ceil((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (event.status === "past") {
+        return { label: "Event passed", tone: "danger" };
+    }
+
+    if (diffInDays <= 2 && diffInDays >= 0) {
+        return { label: "Closing soon", tone: "warning" };
+    }
+
+    return null;
+};
+
 // ─── Event card ─────────────────────────────────────────────────────────────
-export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => (
-    <>
-        {/* Mobile compact card (2 columns) */}
-        <Link
-            to={event.publicUrl}
-            className="flex sm:hidden flex-col rounded-xl overflow-hidden cursor-pointer bg-white/5"
-        >
-            <div className="relative">
-                <img
-                    src={event.thumbnail} loading="lazy" decoding="async"
-                    alt={event.title}
-                    className="w-full h-28 object-cover"
-                />
-                <span
-                    className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
-                    style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
-                >
-                    <FiCalendar size={10} />
-                    {event.dateLabel}
-                </span>
-                <span
-                    className="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-semibold"
-                    style={{
-                        background:
-                            formatTicketPrice(event.ticketPrice) === "Free"
-                                ? "rgba(0,0,0,0.55)"
-                                : "rgba(166,255,0,0.9)",
-                        color: formatTicketPrice(event.ticketPrice) === "Free" ? "#fff" : "#000",
-                        backdropFilter: "blur(4px)",
-                    }}
-                >
-                    {formatTicketPrice(event.ticketPrice)}
-                </span>
-            </div>
+export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => {
+    const badge = getEventFlag(event);
 
-            <div className="p-3 flex flex-col flex-1">
-                <h3 className="text-white font-bold text-sm mb-1.5 line-clamp-2 wrap-break-word">{event.title}</h3>
-
-                <div className="flex items-center gap-1 text-white/40 text-[11px] mb-1">
-                    <FiClock size={11} className="shrink-0" />
-                    <span className="truncate">{event.time}</span>
-                </div>
-
-                {event.location ? (
-                    <div className="flex items-center gap-1 text-white/40 text-[11px] min-w-0">
-                        <span className="shrink-0 flex items-center">
-                            <LocationIcon location={event.location} size={11} />
+    return (
+        <>
+            {/* Mobile compact card (2 columns) */}
+            <Link
+                to={event.publicUrl}
+                className="flex sm:hidden flex-col rounded-xl overflow-hidden cursor-pointer bg-white/5"
+            >
+                <div className="relative">
+                    <img
+                        src={event.thumbnail} loading="lazy" decoding="async"
+                        alt={event.title}
+                        className="w-full h-28 object-cover"
+                    />
+                    <span
+                        className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                        style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
+                    >
+                        <FiCalendar size={10} />
+                        {event.dateLabel}
+                    </span>
+                    {badge && (
+                        <span
+                            className="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                            style={{
+                                background: badge.tone === "danger" ? "rgba(239,68,68,0.9)" : badge.tone === "warning" ? "rgba(250,204,21,0.9)" : "rgba(0,0,0,0.55)",
+                                color: badge.tone === "warning" ? "#000" : "#fff",
+                                backdropFilter: "blur(4px)",
+                            }}
+                        >
+                            {badge.label}
                         </span>
-                        <span className="truncate">{event.location}</span>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-1 text-amber-400 text-[11px]">
-                        <FiAlertTriangle size={11} className="shrink-0" />
-                        <span>Location Missing</span>
-                    </div>
-                )}
-
-                <div className="mt-auto pt-2.5">
-                    {event.attendees.length > 0 ? (
-                        <AvatarStack attendees={event.attendees} total={event.registered} size={18} />
-                    ) : event.registered > 0 ? (
-                        <span className="flex items-center gap-1 text-white/40 text-[11px]">
-                            <FiUsers size={11} />
-                            {event.registered} registered
+                    )}
+                    {!badge && (
+                        <span
+                            className="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                            style={{
+                                background:
+                                    formatTicketPrice(event.ticketPrice) === "Free"
+                                        ? "rgba(0,0,0,0.55)"
+                                        : "rgba(166,255,0,0.9)",
+                                color: formatTicketPrice(event.ticketPrice) === "Free" ? "#fff" : "#000",
+                                backdropFilter: "blur(4px)",
+                            }}
+                        >
+                            {formatTicketPrice(event.ticketPrice)}
                         </span>
-                    ) : (
-                        <span className="text-white/30 text-[11px]">Be the first to join</span>
                     )}
                 </div>
-            </div>
-        </Link>
 
-        {/* Desktop/tablet */}
-        <Link
-            to={event.publicUrl}
-            className="hidden sm:flex rounded-md overflow-hidden flex-col transition-colors bg-white/5 cursor-pointer"
-        >
-            <div className="relative">
-                <img src={event.thumbnail} loading="lazy" decoding="async" alt={event.title} className="w-full h-40 sm:h-48 object-cover" />
-                <span
-                    className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
-                    style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
-                >
-                    <FiCalendar size={13} />
-                    {event.dateLabel}
-                </span>
-                <span
-                    className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-semibold"
-                    style={{
-                        background:
-                            formatTicketPrice(event.ticketPrice) === "Free"
-                                ? "rgba(0,0,0,0.55)"
-                                : "rgba(166,255,0,0.9)",
-                        color: formatTicketPrice(event.ticketPrice) === "Free" ? "#fff" : "#000",
-                        backdropFilter: "blur(4px)",
-                    }}
-                >
-                    {formatTicketPrice(event.ticketPrice)}
-                </span>
-            </div>
-            <div className="p-4 sm:p-5 flex flex-col flex-1">
-                <div className="flex items-center gap-1.5 text-white/40 text-xs mb-2 min-w-0">
-                    <span className="flex items-center gap-1 shrink-0">
-                        <FiClock size={12} />
-                        {event.time}
-                    </span>
+                <div className="p-3 flex flex-col flex-1">
+                    <h3 className="text-white font-bold text-sm mb-1.5 line-clamp-2 wrap-break-word">{event.title}</h3>
+
+                    <div className="flex items-center gap-1 text-white/40 text-[11px] mb-1">
+                        <FiClock size={11} className="shrink-0" />
+                        <span className="truncate">{event.time}</span>
+                    </div>
+
                     {event.location ? (
-                        <span className="flex items-center gap-1 min-w-0">
-                            <span className="text-white/20 shrink-0">·</span>
+                        <div className="flex items-center gap-1 text-white/40 text-[11px] min-w-0">
                             <span className="shrink-0 flex items-center">
-                                <LocationIcon location={event.location} size={12} />
+                                <LocationIcon location={event.location} size={11} />
                             </span>
                             <span className="truncate">{event.location}</span>
-                        </span>
+                        </div>
                     ) : (
-                        <span className="flex items-center gap-1 text-amber-400 shrink-0">
-                            <span className="text-white/20">·</span>
-                            <FiAlertTriangle size={12} />
+                        <div className="flex items-center gap-1 text-amber-400 text-[11px]">
+                            <FiAlertTriangle size={11} className="shrink-0" />
                             <span>Location Missing</span>
-                        </span>
+                        </div>
                     )}
+
+                    <div className="mt-auto pt-2.5">
+                        {event.attendees.length > 0 ? (
+                            <AvatarStack attendees={event.attendees} total={event.registered} size={18} />
+                        ) : event.registered > 0 ? (
+                            <span className="flex items-center gap-1 text-white/40 text-[11px]">
+                                <FiUsers size={11} />
+                                {event.registered} registered
+                            </span>
+                        ) : (
+                            <span className="text-white/30 text-[11px]">Be the first to join</span>
+                        )}
+                    </div>
                 </div>
+            </Link>
 
-                <h3 className="text-white font-bold text-base mb-2 wrap-break-word line-clamp-2">{event.title}</h3>
-
-                <div className="mb-3">
-                    <EventMetaBadges event={event} size="sm" />
+            {/* Desktop/tablet */}
+            <Link
+                to={event.publicUrl}
+                className="hidden sm:flex rounded-md overflow-hidden flex-col transition-colors bg-white/5 cursor-pointer"
+            >
+                <div className="relative">
+                    <img src={event.thumbnail} loading="lazy" decoding="async" alt={event.title} className="w-full h-40 sm:h-48 object-cover" />
+                    <span
+                        className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
+                        style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
+                    >
+                        <FiCalendar size={13} />
+                        {event.dateLabel}
+                    </span>
+                    <span
+                        className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-semibold"
+                        style={{
+                            background:
+                                formatTicketPrice(event.ticketPrice) === "Free"
+                                    ? "rgba(0,0,0,0.55)"
+                                    : "rgba(166,255,0,0.9)",
+                            color: formatTicketPrice(event.ticketPrice) === "Free" ? "#fff" : "#000",
+                            backdropFilter: "blur(4px)",
+                        }}
+                    >
+                        {formatTicketPrice(event.ticketPrice)}
+                    </span>
                 </div>
-
-                <div className="flex items-center mt-auto">
-                    {event.attendees.length > 0 ? (
-                        <AvatarStack attendees={event.attendees} total={event.registered} size={20} />
-                    ) : event.registered > 0 ? (
-                        <span className="flex items-center gap-1.5 text-white/40 text-xs">
-                            <FiUsers size={12} />
-                            {event.registered} registered
+                <div className="p-4 sm:p-5 flex flex-col flex-1">
+                    <div className="flex items-center gap-1.5 text-white/40 text-xs mb-2 min-w-0">
+                        <span className="flex items-center gap-1 shrink-0">
+                            <FiClock size={12} />
+                            {event.time}
                         </span>
-                    ) : (
-                        <span className="text-white/30 text-xs">Be the first to join</span>
-                    )}
+                        {event.location ? (
+                            <span className="flex items-center gap-1 min-w-0">
+                                <span className="text-white/20 shrink-0">·</span>
+                                <span className="shrink-0 flex items-center">
+                                    <LocationIcon location={event.location} size={12} />
+                                </span>
+                                <span className="truncate">{event.location}</span>
+                            </span>
+                        ) : (
+                            <span className="flex items-center gap-1 text-amber-400 shrink-0">
+                                <span className="text-white/20">·</span>
+                                <FiAlertTriangle size={12} />
+                                <span>Location Missing</span>
+                            </span>
+                        )}
+                    </div>
+
+                    <h3 className="text-white font-bold text-base mb-2 wrap-break-word line-clamp-2">{event.title}</h3>
+
+                    <div className="mb-3">
+                        <EventMetaBadges event={event} size="sm" />
+                    </div>
+
+                    <div className="flex items-center mt-auto">
+                        {event.attendees.length > 0 ? (
+                            <AvatarStack attendees={event.attendees} total={event.registered} size={20} />
+                        ) : event.registered > 0 ? (
+                            <span className="flex items-center gap-1.5 text-white/40 text-xs">
+                                <FiUsers size={12} />
+                                {event.registered} registered
+                            </span>
+                        ) : (
+                            <span className="text-white/30 text-xs">Be the first to join</span>
+                        )}
+                    </div>
                 </div>
-            </div>
-        </Link>
-    </>
-);
+            </Link>
+        </>
+    );
+}
 
 const EventCardSkeleton: React.FC = () => (
     <>
@@ -710,7 +744,19 @@ const Explore: React.FC = () => {
     });
     const eventsData: Paginated<ApiEvent> | undefined = allEvents?.data;
     const eventsList: RegisteredEvent[] = useMemo(
-        () => (eventsData?.results ?? []).map(mapApiEventToRegistered),
+        () =>
+            [...(eventsData?.results ?? [])]
+                .map(mapApiEventToRegistered)
+                .sort((a, b) => {
+                    const aTime = new Date(a.date).getTime();
+                    const bTime = new Date(b.date).getTime();
+
+                    if (a.status !== b.status) {
+                        return a.status === "past" ? 1 : -1;
+                    }
+
+                    return aTime - bTime;
+                }),
         [eventsData]
     );
     const eventsTotalPages = Math.max(1, Math.ceil((eventsData?.count ?? 0) / PAGE_SIZE));

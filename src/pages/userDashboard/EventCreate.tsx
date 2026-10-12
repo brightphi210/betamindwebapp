@@ -522,6 +522,74 @@ type MeetingPlatform = 'google_meet' | 'zoom' | 'teams';
 const MIN_DESCRIPTION_LENGTH = 30;
 const COMMISSION_RATE = 0.03;
 
+const parse12HourTime = (value: string) => {
+    if (!value) {
+        return { hour: 9, minute: 0, meridiem: 'AM' as const };
+    }
+
+    const [rawHour, rawMinute = '00'] = value.split(':');
+    const hour24 = Number(rawHour) || 0;
+    const minute = Number(rawMinute) || 0;
+    const meridiem = hour24 >= 12 ? 'PM' : 'AM';
+    const hour = hour24 % 12 || 12;
+
+    return { hour, minute, meridiem };
+};
+
+const to24HourTime = (hour: number, minute: number, meridiem: 'AM' | 'PM') => {
+    const normalizedHour = meridiem === 'PM' ? (hour === 12 ? 12 : hour + 12) : (hour === 12 ? 0 : hour);
+    return `${String(normalizedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+};
+
+const Time12HourField: React.FC<{ value: string; onChange: (next: string) => void; }> = ({ value, onChange }) => {
+    const { hour, minute, meridiem } = parse12HourTime(value);
+    const minuteOptions = ['00', '15', '30', '45'];
+    const hourOptions = Array.from({ length: 12 }, (_, index) => String(index + 1));
+
+    const updateTime = (nextHour: number, nextMinute: number, nextMeridiem: 'AM' | 'PM') => {
+        onChange(to24HourTime(nextHour, nextMinute, nextMeridiem));
+    };
+
+    return (
+        <div className="flex items-center gap-2 text-white text-sm shrink-0">
+            <select
+                value={String(hour)}
+                onChange={(e) => updateTime(Number(e.target.value), minute, meridiem)}
+                className="rounded-md border border-white/10 bg-white/5 px-1.5 py-1.5 text-white outline-none"
+                aria-label="Hour"
+            >
+                {hourOptions.map((option) => (
+                    <option key={option} value={option} className="bg-[#0f1115] text-white">
+                        {option}
+                    </option>
+                ))}
+            </select>
+            <span className="text-white/50">:</span>
+            <select
+                value={String(minute).padStart(2, '0')}
+                onChange={(e) => updateTime(hour, Number(e.target.value), meridiem)}
+                className="rounded-md border border-white/10 bg-white/5 px-1.5 py-1.5 text-white outline-none"
+                aria-label="Minutes"
+            >
+                {minuteOptions.map((option) => (
+                    <option key={option} value={option} className="bg-[#0f1115] text-white">
+                        {option}
+                    </option>
+                ))}
+            </select>
+            <select
+                value={meridiem}
+                onChange={(e) => updateTime(hour, minute, e.target.value as 'AM' | 'PM')}
+                className="rounded-md border border-white/10 bg-white/5 px-1.5 py-1.5 text-white outline-none"
+                aria-label="AM or PM"
+            >
+                <option value="AM" className="bg-[#0f1115] text-white">AM</option>
+                <option value="PM" className="bg-[#0f1115] text-white">PM</option>
+            </select>
+        </div>
+    );
+};
+
 const TicketCommissionModal: React.FC<{
     open: boolean;
     ticketTotal: number;
@@ -1241,14 +1309,9 @@ const EventCreate: React.FC = () => {
                                         className="bg-transparent outline-none text-white text-sm flex-1 min-w-0"
                                         style={{ colorScheme: 'dark' }}
                                     />
-                                    <input
-                                        type="time"
+                                    <Time12HourField
                                         value={startTime}
-                                        onChange={(e) =>
-                                            setStartTime(e.target.value)
-                                        }
-                                        className="bg-transparent outline-none text-white text-sm shrink-0"
-                                        style={{ colorScheme: 'dark' }}
+                                        onChange={setStartTime}
                                     />
                                 </div>
                                 <div className="flex items-center gap-3 px-4 py-3">
@@ -1270,14 +1333,9 @@ const EventCreate: React.FC = () => {
                                         className="bg-transparent outline-none text-white text-sm flex-1 min-w-0"
                                         style={{ colorScheme: 'dark' }}
                                     />
-                                    <input
-                                        type="time"
+                                    <Time12HourField
                                         value={endTime}
-                                        onChange={(e) =>
-                                            setEndTime(e.target.value)
-                                        }
-                                        className="bg-transparent outline-none text-white text-sm shrink-0"
-                                        style={{ colorScheme: 'dark' }}
+                                        onChange={setEndTime}
                                     />
                                 </div>
                             </div>

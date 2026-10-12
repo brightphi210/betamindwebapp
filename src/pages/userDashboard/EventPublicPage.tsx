@@ -527,6 +527,7 @@ const EventPublicPage: React.FC = () => {
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showGuestsModal, setShowGuestsModal] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(
         null
     );
@@ -618,17 +619,46 @@ const EventPublicPage: React.FC = () => {
         <div className="w-full min-h-screen" style={{ background: pageBg }}>
             <PublicNavbar />
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 lg:pt-28 pt-24">
+                {selectedImage && (
+                    <div
+                        className="fixed inset-0 z-120 flex items-center justify-center bg-black/85 p-4 sm:p-8"
+                        onClick={() => setSelectedImage(null)}
+                    >
+                        <button
+                            type="button"
+                            aria-label="Close image preview"
+                            onClick={() => setSelectedImage(null)}
+                            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/15 transition-colors cursor-pointer"
+                        >
+                            <FiX size={18} />
+                        </button>
+                        <img
+                            src={selectedImage}
+                            alt={event.title}
+                            className="max-h-[90vh] max-w-full rounded-xl object-contain shadow-2xl border border-white/10"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-16">
                     {/* Left column */}
                     <div>
-                        <img
-                            src={event.image}
-                            alt={event.title}
-                            className="w-full aspect-square object-cover rounded-lg"
-                            style={{
-                                border: '1px solid rgba(205,220,57,.1)',
-                            }}
-                        />
+                        <button
+                            type="button"
+                            onClick={() => setSelectedImage(event.image || null)}
+                            className="block w-full cursor-pointer rounded-lg overflow-hidden"
+                            aria-label={`Open full image for ${event.title}`}
+                        >
+                            <img
+                                src={event.image}
+                                alt={event.title}
+                                className="w-full aspect-square object-cover rounded-lg transition-transform duration-200 hover:scale-[1.01]"
+                                style={{
+                                    border: '1px solid rgba(205,220,57,.1)',
+                                }}
+                            />
+                        </button>
 
                         <div className="mt-6">
                             <h3 className="text-white font-bold text-sm mb-3">
