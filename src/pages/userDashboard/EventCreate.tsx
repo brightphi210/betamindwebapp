@@ -256,6 +256,92 @@ const eventQuillModules = {
     ],
 };
 
+// ─── 12-hour time picker (value stays "HH:mm" 24h internally) ─────────────
+const HOUR_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1); // 1–12
+const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, i) => i * 5); // 00,05…55
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+const TimePicker: React.FC<{
+    value: string;
+    onChange: (value: string) => void;
+    label: string;
+}> = ({ value, onChange, label }) => {
+    const [hStr, mStr] = (value || '00:00').split(':');
+    const h24 = Number(hStr) || 0;
+    const minute = Number(mStr) || 0;
+    const period: 'AM' | 'PM' = h24 >= 12 ? 'PM' : 'AM';
+    const hour12 = h24 % 12 || 12;
+
+    const minuteOptions = MINUTE_OPTIONS.includes(minute)
+        ? MINUTE_OPTIONS
+        : [...MINUTE_OPTIONS, minute].sort((a, b) => a - b);
+
+    const emit = (h12: number, m: number, p: 'AM' | 'PM') =>
+        onChange(`${pad2((h12 % 12) + (p === 'PM' ? 12 : 0))}:${pad2(m)}`);
+
+    const selectClass =
+        'bg-transparent outline-none text-white text-sm cursor-pointer appearance-none text-center px-1.5 py-1 rounded-md hover:bg-white/5';
+
+    return (
+        <div
+            className="flex items-center gap-1 shrink-0"
+            role="group"
+            aria-label={label}
+        >
+            <select
+                aria-label={`${label} hour`}
+                value={hour12}
+                onChange={(e) => emit(Number(e.target.value), minute, period)}
+                className={selectClass}
+                style={{ colorScheme: 'dark' }}
+            >
+                {HOUR_OPTIONS.map((h) => (
+                    <option key={h} value={h}>
+                        {h}
+                    </option>
+                ))}
+            </select>
+
+            <span className="text-white/40 text-sm">:</span>
+
+            <select
+                aria-label={`${label} minute`}
+                value={minute}
+                onChange={(e) => emit(hour12, Number(e.target.value), period)}
+                className={selectClass}
+                style={{ colorScheme: 'dark' }}
+            >
+                {minuteOptions.map((m) => (
+                    <option key={m} value={m}>
+                        {pad2(m)}
+                    </option>
+                ))}
+            </select>
+
+            <div
+                className="flex rounded-md overflow-hidden ml-1"
+                style={{ border: '1px solid rgba(255,255,255,0.12)' }}
+            >
+                {(['AM', 'PM'] as const).map((p) => (
+                    <button
+                        key={p}
+                        type="button"
+                        onClick={() => emit(hour12, minute, p)}
+                        aria-pressed={period === p}
+                        className="px-2 py-1 text-[11px] font-bold cursor-pointer transition-colors"
+                        style={{
+                            background: period === p ? '#a6ff00' : 'transparent',
+                            color: period === p ? '#000' : 'rgba(255,255,255,0.5)',
+                        }}
+                    >
+                        {p}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 // ─── Tickets ──────────────────────────────────────────────────────────────
 type TicketDraft = {
     id: string;
@@ -521,74 +607,6 @@ type MeetingPlatform = 'google_meet' | 'zoom' | 'teams';
 
 const MIN_DESCRIPTION_LENGTH = 30;
 const COMMISSION_RATE = 0.03;
-
-const parse12HourTime = (value: string): { hour: number; minute: number; meridiem: 'AM' | 'PM' } => {
-    if (!value) {
-        return { hour: 9, minute: 0, meridiem: 'AM' };
-    }
-
-    const [rawHour, rawMinute = '00'] = value.split(':');
-    const hour24 = Number(rawHour) || 0;
-    const minute = Number(rawMinute) || 0;
-    const meridiem: 'AM' | 'PM' = hour24 >= 12 ? 'PM' : 'AM';
-    const hour = hour24 % 12 || 12;
-
-    return { hour, minute, meridiem };
-};
-
-const to24HourTime = (hour: number, minute: number, meridiem: 'AM' | 'PM') => {
-    const normalizedHour = meridiem === 'PM' ? (hour === 12 ? 12 : hour + 12) : (hour === 12 ? 0 : hour);
-    return `${String(normalizedHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-};
-
-const Time12HourField: React.FC<{ value: string; onChange: (next: string) => void; }> = ({ value, onChange }) => {
-    const { hour, minute, meridiem } = parse12HourTime(value);
-    const minuteOptions = ['00', '15', '30', '45'];
-    const hourOptions = Array.from({ length: 12 }, (_, index) => String(index + 1));
-
-    const updateTime = (nextHour: number, nextMinute: number, nextMeridiem: 'AM' | 'PM') => {
-        onChange(to24HourTime(nextHour, nextMinute, nextMeridiem));
-    };
-
-    return (
-        <div className="flex items-center gap-2 text-white text-sm shrink-0">
-            <select
-                value={String(hour)}
-                onChange={(e) => updateTime(Number(e.target.value), minute, meridiem)}
-                className="rounded-md border border-white/10 bg-white/5 px-1.5 py-1.5 text-white outline-none"
-                aria-label="Hour"
-            >
-                {hourOptions.map((option) => (
-                    <option key={option} value={option} className="bg-[#0f1115] text-white">
-                        {option}
-                    </option>
-                ))}
-            </select>
-            <span className="text-white/50">:</span>
-            <select
-                value={String(minute).padStart(2, '0')}
-                onChange={(e) => updateTime(hour, Number(e.target.value), meridiem)}
-                className="rounded-md border border-white/10 bg-white/5 px-1.5 py-1.5 text-white outline-none"
-                aria-label="Minutes"
-            >
-                {minuteOptions.map((option) => (
-                    <option key={option} value={option} className="bg-[#0f1115] text-white">
-                        {option}
-                    </option>
-                ))}
-            </select>
-            <select
-                value={meridiem}
-                onChange={(e) => updateTime(hour, minute, e.target.value as 'AM' | 'PM')}
-                className="rounded-md border border-white/10 bg-white/5 px-1.5 py-1.5 text-white outline-none"
-                aria-label="AM or PM"
-            >
-                <option value="AM" className="bg-[#0f1115] text-white">AM</option>
-                <option value="PM" className="bg-[#0f1115] text-white">PM</option>
-            </select>
-        </div>
-    );
-};
 
 const TicketCommissionModal: React.FC<{
     open: boolean;
@@ -1284,71 +1302,58 @@ const EventCreate: React.FC = () => {
                         />
 
                         {/* Start / End */}
-                        <div className="flex gap-3 mb-4">
+                        <div className="mb-4">
                             <div
-                                className="flex-1 rounded-xl overflow-hidden"
+                                className="rounded-xl overflow-hidden"
                                 style={{ background: cardBg, border: cardBorder }}
                             >
+                                {/* Start */}
                                 <div
-                                    className="flex items-center gap-3 px-4 py-3"
-                                    style={{
-                                        borderBottom:
-                                            '1px solid rgba(255,255,255,0.06)',
-                                    }}
+                                    className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3"
+                                    style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
                                 >
                                     <span className="w-2 h-2 rounded-full bg-white/40 shrink-0" />
-                                    <span className="text-white/50 text-sm w-12 shrink-0">
-                                        Start
-                                    </span>
+                                    <span className="text-white/50 text-sm w-12 shrink-0">Start</span>
                                     <input
                                         type="date"
                                         value={startDate}
-                                        onChange={(e) =>
-                                            setStartDate(e.target.value)
-                                        }
-                                        className="bg-transparent outline-none text-white text-sm flex-1 min-w-0"
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="bg-transparent outline-none text-white text-sm flex-1 min-w-[9.5rem]"
                                         style={{ colorScheme: 'dark' }}
                                     />
-                                    <Time12HourField
+                                    <TimePicker
+                                        label="Start time"
                                         value={startTime}
                                         onChange={setStartTime}
                                     />
                                 </div>
-                                <div className="flex items-center gap-3 px-4 py-3">
+
+                                {/* End */}
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
                                     <span
                                         className="w-2 h-2 rounded-full shrink-0"
-                                        style={{
-                                            border: '1px solid rgba(255,255,255,0.4)',
-                                        }}
+                                        style={{ border: '1px solid rgba(255,255,255,0.4)' }}
                                     />
-                                    <span className="text-white/50 text-sm w-12 shrink-0">
-                                        End
-                                    </span>
+                                    <span className="text-white/50 text-sm w-12 shrink-0">End</span>
                                     <input
                                         type="date"
                                         value={endDate}
-                                        onChange={(e) =>
-                                            setEndDate(e.target.value)
-                                        }
-                                        className="bg-transparent outline-none text-white text-sm flex-1 min-w-0"
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="bg-transparent outline-none text-white text-sm flex-1 min-w-[9.5rem]"
                                         style={{ colorScheme: 'dark' }}
                                     />
-                                    <Time12HourField
+                                    <TimePicker
+                                        label="End time"
                                         value={endTime}
                                         onChange={setEndTime}
                                     />
                                 </div>
                             </div>
 
-                            <div
-                                className="hidden sm:flex flex-col justify-center gap-1 rounded-xl px-4 py-3 w-40 shrink-0"
-                                style={{ background: cardBg, border: cardBorder }}
-                            >
-                                <FiClock className="text-white/40" size={16} />
-                                <p className="text-white text-sm font-semibold mt-1">
-                                    GMT+01:00
-                                </p>
-                                <p className="text-white/40 text-xs">Lagos</p>
+                            {/* Timezone (moved out of the side column so the dates get full width) */}
+                            <div className="mt-2 flex items-center gap-1.5 px-1 text-xs text-white/40">
+                                <FiClock size={13} />
+                                <span>GMT+01:00 · Lagos</span>
                             </div>
                         </div>
 

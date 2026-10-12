@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     FiCheck,
     FiLoader,
@@ -181,6 +181,98 @@ const NotFoundState: React.FC = () => (
         </div>
     </div>
 );
+
+// ─── Animated image lightbox ───────────────────────────────────────────────
+const LIGHTBOX_ANIMATION_MS = 260;
+
+const ImageLightbox: React.FC<{
+    src: string;
+    alt: string;
+    onClose: () => void;
+}> = ({ src, alt, onClose }) => {
+    // `visible` drives the CSS transition: false -> true on open, true -> false on close
+    const [visible, setVisible] = useState(false);
+    const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Animate in on mount (next frame so the starting styles are painted first)
+    useEffect(() => {
+        const frame = requestAnimationFrame(() => setVisible(true));
+        return () => cancelAnimationFrame(frame);
+    }, []);
+
+    // Play the exit animation, then tell the parent to unmount us
+    const handleClose = () => {
+        if (closeTimer.current) return;
+        setVisible(false);
+        closeTimer.current = setTimeout(onClose, LIGHTBOX_ANIMATION_MS);
+    };
+
+    // Close with Escape + lock page scroll while open
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') handleClose();
+        };
+        window.addEventListener('keydown', onKeyDown);
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+            window.removeEventListener('keydown', onKeyDown);
+            document.body.style.overflow = previousOverflow;
+            if (closeTimer.current) clearTimeout(closeTimer.current);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    return (
+        <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${alt} full image`}
+            className="fixed inset-0 z-120 flex items-center justify-center p-4 sm:p-8"
+            onClick={handleClose}
+            style={{
+                background: 'rgba(0,0,0,0.85)',
+                backdropFilter: visible ? 'blur(6px)' : 'blur(0px)',
+                opacity: visible ? 1 : 0,
+                transition: `opacity ${LIGHTBOX_ANIMATION_MS}ms ease, backdrop-filter ${LIGHTBOX_ANIMATION_MS}ms ease`,
+            }}
+        >
+            <button
+                type="button"
+                aria-label="Close image preview"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    handleClose();
+                }}
+                className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/15 cursor-pointer"
+                style={{
+                    transform: visible ? 'scale(1)' : 'scale(0.6)',
+                    opacity: visible ? 1 : 0,
+                    transition: `transform ${LIGHTBOX_ANIMATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1), opacity ${LIGHTBOX_ANIMATION_MS}ms ease`,
+                }}
+            >
+                <FiX size={18} />
+            </button>
+
+            <img
+                src={src}
+                alt={alt}
+                className="max-h-[90vh] max-w-full rounded-xl object-contain shadow-2xl border border-white/10"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                    transform: visible
+                        ? 'scale(1) translateY(0)'
+                        : 'scale(0.85) translateY(16px)',
+                    opacity: visible ? 1 : 0,
+                    transition: `transform ${LIGHTBOX_ANIMATION_MS + 60}ms cubic-bezier(0.22, 1, 0.36, 1), opacity ${LIGHTBOX_ANIMATION_MS}ms ease`,
+                    willChange: 'transform, opacity',
+                }}
+            />
+        </div>
+    );
+};
 
 // ─── Registration modal ────────────────────────────────────────────────────
 type RegisterStep = 'form' | 'success';
@@ -533,7 +625,6 @@ const EventPublicPage: React.FC = () => {
     );
 
     const event: ApiEvent | undefined = eventDetail?.data;
-    console.log('Event detail:', eventDetail?.data);
 
     if (isLoading) {
         return (
@@ -619,26 +710,13 @@ const EventPublicPage: React.FC = () => {
         <div className="w-full min-h-screen" style={{ background: pageBg }}>
             <PublicNavbar />
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 lg:pt-28 pt-24">
+                {/* Animated full-image preview */}
                 {selectedImage && (
-                    <div
-                        className="fixed inset-0 z-120 flex items-center justify-center bg-black/85 p-4 sm:p-8"
-                        onClick={() => setSelectedImage(null)}
-                    >
-                        <button
-                            type="button"
-                            aria-label="Close image preview"
-                            onClick={() => setSelectedImage(null)}
-                            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/15 transition-colors cursor-pointer"
-                        >
-                            <FiX size={18} />
-                        </button>
-                        <img
-                            src={selectedImage}
-                            alt={event.title}
-                            className="max-h-[90vh] max-w-full rounded-xl object-contain shadow-2xl border border-white/10"
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                    </div>
+                    <ImageLightbox
+                        src={selectedImage}
+                        alt={event.title}
+                        onClose={() => setSelectedImage(null)}
+                    />
                 )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-16">

@@ -28,7 +28,7 @@ import DashFooter from "../../component/DashFooter";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import { useGetAllEvents, useGetDigitalProduct, useGetMentors } from "../../hooks/queries/allQueriess";
 import { formatNaira } from "../../utils/currency";
-import { LocationIcon } from "./EventShared";
+import { LocationIcon, ModalShell } from "./EventShared";
 import {
     AvatarStack,
     EventMetaBadges,
@@ -114,6 +114,10 @@ export interface Paginated<T> {
 
 // ─── Pagination config ──────────────────────────────────────────────────────
 export const PAGE_SIZE = 4;
+
+// Events are fetched in one larger batch so we can sort them globally
+// (upcoming by nearest date first, passed events last) and paginate locally.
+const EVENTS_FETCH_SIZE = 100;
 
 // How many topic cards are visible on mobile before "See all"
 const TOPICS_VISIBLE_ON_MOBILE = 4;
@@ -368,14 +372,17 @@ const NoMentorsState: React.FC<{ query?: string }> = ({ query }) => (
     </div>
 );
 
+// ─── Event helpers ──────────────────────────────────────────────────────────
+const isEventPassed = (event: RegisteredEvent): boolean => event.status === "past";
+
 const getEventFlag = (event: RegisteredEvent): { label: string; tone: "neutral" | "warning" | "danger" } | null => {
+    if (isEventPassed(event)) {
+        return { label: "Passed", tone: "danger" };
+    }
+
     const now = new Date();
     const eventDate = new Date(event.date);
     const diffInDays = Math.ceil((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (event.status === "past") {
-        return { label: "Event passed", tone: "danger" };
-    }
 
     if (diffInDays <= 2 && diffInDays >= 0) {
         return { label: "Closing soon", tone: "warning" };
@@ -384,170 +391,276 @@ const getEventFlag = (event: RegisteredEvent): { label: string; tone: "neutral" 
     return null;
 };
 
+// Upcoming events: nearest date first. Passed events: always last (most recent first).
+const sortEventsByNearestDate = (events: RegisteredEvent[]): RegisteredEvent[] =>
+    [...events].sort((a, b) => {
+        const aPassed = isEventPassed(a);
+        const bPassed = isEventPassed(b);
+
+        if (aPassed !== bPassed) return aPassed ? 1 : -1;
+
+        const aTime = new Date(a.date).getTime();
+        const bTime = new Date(b.date).getTime();
+
+        return aPassed ? bTime - aTime : aTime - bTime;
+    });
+
+// ─── Passed event modal ─────────────────────────────────────────────────────
+const PassedEventModal: React.FC<{ eventTitle: string; dateLabel?: string; onClose: () => void }> = ({
+    eventTitle,
+    dateLabel,
+    onClose,
+}) => (
+    <ModalShell onClose={onClose} maxWidth="max-w-md" className="overflow-y-auto">
+        {(close) => (
+            <>
+                <div className="mb-5 flex items-center justify-between">
+                    <div className="min-w-0">
+                        <h3 className="text-lg font-bold text-white">Event Passed</h3>
+                        <p className="text-xs text-white/40 mt-0.5 truncate">{eventTitle}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={close}
+                        aria-label="Close"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-white/50 hover:text-white shrink-0 cursor-pointer"
+                        style={{ background: "rgba(255,255,255,0.06)" }}
+                    >
+                        <FiX size={16} />
+                    </button>
+                </div>
+
+                <div className="flex flex-col items-center text-center py-4">
+                    <div
+                        className="mb-4 flex h-16 w-16 items-center justify-center rounded-full"
+                        style={{ background: "rgba(239,68,68,0.12)" }}
+                    >
+                        <FiAlertTriangle size={28} style={{ color: "#f87171" }} />
+                    </div>
+                    <h3 className="text-xl font-black text-white mb-2">This event has passed</h3>
+                    <p className="text-white/50 text-sm max-w-xs">
+                        <span className="font-semibold text-white/80">{eventTitle}</span>
+                        {dateLabel ? ` took place on ${dateLabel}` : " has already taken place"}, so registration is
+                        closed. Check out other upcoming events instead.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={close}
+                    className="mt-4 w-full bg-white px-6 py-3 font-normal rounded-md text-xs text-black transition-transform hover:scale-[1.005] cursor-pointer"
+                >
+                    Got it
+                </button>
+            </>
+        )}
+    </ModalShell>
+);
+
 // ─── Event card ─────────────────────────────────────────────────────────────
 export const EventCard: React.FC<{ event: RegisteredEvent }> = ({ event }) => {
+    const [showPassedModal, setShowPassedModal] = useState(false);
+
     const badge = getEventFlag(event);
+    const passed = isEventPassed(event);
+    const priceLabel = formatTicketPrice(event.ticketPrice);
+
+    const badgeStyle = (size: "sm" | "md") => {
+        const b = badge;
+        if (b) {
+            return {
+                background:
+                    b.tone === "danger"
+                        ? "rgba(239,68,68,0.9)"
+                        : b.tone === "warning"
+                            ? "rgba(250,204,21,0.9)"
+                            : "rgba(0,0,0,0.55)",
+                color: b.tone === "warning" ? "#000" : "#fff",
+                backdropFilter: "blur(4px)",
+            } as React.CSSProperties;
+        }
+        void size;
+        return {
+            background: priceLabel === "Free" ? "rgba(0,0,0,0.55)" : "rgba(166,255,0,0.9)",
+            color: priceLabel === "Free" ? "#fff" : "#000",
+            backdropFilter: "blur(4px)",
+        } as React.CSSProperties;
+    };
+
+    const badgeText = badge ? badge.label : priceLabel;
+
+    // Passed events are not links: clicking them opens the "event passed" modal
+    const renderShell = (className: string, children: React.ReactNode) =>
+        passed ? (
+            <div
+                role="button"
+                tabIndex={0}
+                aria-label={`${event.title} has passed`}
+                onClick={() => setShowPassedModal(true)}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setShowPassedModal(true);
+                    }
+                }}
+                className={className}
+            >
+                {children}
+            </div>
+        ) : (
+            <Link to={event.publicUrl} className={className}>
+                {children}
+            </Link>
+        );
 
     return (
         <>
             {/* Mobile compact card (2 columns) */}
-            <Link
-                to={event.publicUrl}
-                className="flex sm:hidden flex-col rounded-xl overflow-hidden cursor-pointer bg-white/5"
-            >
-                <div className="relative">
-                    <img
-                        src={event.thumbnail} loading="lazy" decoding="async"
-                        alt={event.title}
-                        className="w-full h-28 object-cover"
-                    />
-                    <span
-                        className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
-                        style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
-                    >
-                        <FiCalendar size={10} />
-                        {event.dateLabel}
-                    </span>
-                    {badge && (
+            {renderShell(
+                "flex sm:hidden flex-col rounded-xl overflow-hidden cursor-pointer bg-white/5",
+                <>
+                    <div className="relative">
+                        <img
+                            src={event.thumbnail} loading="lazy" decoding="async"
+                            alt={event.title}
+                            className={`w-full h-28 object-cover ${passed ? "opacity-60" : ""}`}
+                        />
+                        <span
+                            className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                            style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
+                        >
+                            <FiCalendar size={10} />
+                            {event.dateLabel}
+                        </span>
                         <span
                             className="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-semibold"
-                            style={{
-                                background: badge.tone === "danger" ? "rgba(239,68,68,0.9)" : badge.tone === "warning" ? "rgba(250,204,21,0.9)" : "rgba(0,0,0,0.55)",
-                                color: badge.tone === "warning" ? "#000" : "#fff",
-                                backdropFilter: "blur(4px)",
-                            }}
+                            style={badgeStyle("sm")}
                         >
-                            {badge.label}
+                            {badgeText}
                         </span>
-                    )}
-                    {!badge && (
-                        <span
-                            className="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[10px] font-semibold"
-                            style={{
-                                background:
-                                    formatTicketPrice(event.ticketPrice) === "Free"
-                                        ? "rgba(0,0,0,0.55)"
-                                        : "rgba(166,255,0,0.9)",
-                                color: formatTicketPrice(event.ticketPrice) === "Free" ? "#fff" : "#000",
-                                backdropFilter: "blur(4px)",
-                            }}
-                        >
-                            {formatTicketPrice(event.ticketPrice)}
-                        </span>
-                    )}
-                </div>
-
-                <div className="p-3 flex flex-col flex-1">
-                    <h3 className="text-white font-bold text-sm mb-1.5 line-clamp-2 wrap-break-word">{event.title}</h3>
-
-                    <div className="flex items-center gap-1 text-white/40 text-[11px] mb-1">
-                        <FiClock size={11} className="shrink-0" />
-                        <span className="truncate">{event.time}</span>
                     </div>
 
-                    {event.location ? (
-                        <div className="flex items-center gap-1 text-white/40 text-[11px] min-w-0">
-                            <span className="shrink-0 flex items-center">
-                                <LocationIcon location={event.location} size={11} />
-                            </span>
-                            <span className="truncate">{event.location}</span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-1 text-amber-400 text-[11px]">
-                            <FiAlertTriangle size={11} className="shrink-0" />
-                            <span>Location Missing</span>
-                        </div>
-                    )}
+                    <div className="p-3 flex flex-col flex-1">
+                        <h3 className="text-white font-bold text-sm mb-1.5 line-clamp-2 wrap-break-word">{event.title}</h3>
 
-                    <div className="mt-auto pt-2.5">
-                        {event.attendees.length > 0 ? (
-                            <AvatarStack attendees={event.attendees} total={event.registered} size={18} />
-                        ) : event.registered > 0 ? (
-                            <span className="flex items-center gap-1 text-white/40 text-[11px]">
-                                <FiUsers size={11} />
-                                {event.registered} registered
-                            </span>
-                        ) : (
-                            <span className="text-white/30 text-[11px]">Be the first to join</span>
-                        )}
-                    </div>
-                </div>
-            </Link>
+                        <div className="flex items-center gap-1 text-white/40 text-[11px] mb-1">
+                            <FiClock size={11} className="shrink-0" />
+                            <span className="truncate">{event.time}</span>
+                        </div>
 
-            {/* Desktop/tablet */}
-            <Link
-                to={event.publicUrl}
-                className="hidden sm:flex rounded-md overflow-hidden flex-col transition-colors bg-white/5 cursor-pointer"
-            >
-                <div className="relative">
-                    <img src={event.thumbnail} loading="lazy" decoding="async" alt={event.title} className="w-full h-40 sm:h-48 object-cover" />
-                    <span
-                        className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
-                        style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
-                    >
-                        <FiCalendar size={13} />
-                        {event.dateLabel}
-                    </span>
-                    <span
-                        className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-semibold"
-                        style={{
-                            background:
-                                formatTicketPrice(event.ticketPrice) === "Free"
-                                    ? "rgba(0,0,0,0.55)"
-                                    : "rgba(166,255,0,0.9)",
-                            color: formatTicketPrice(event.ticketPrice) === "Free" ? "#fff" : "#000",
-                            backdropFilter: "blur(4px)",
-                        }}
-                    >
-                        {formatTicketPrice(event.ticketPrice)}
-                    </span>
-                </div>
-                <div className="p-4 sm:p-5 flex flex-col flex-1">
-                    <div className="flex items-center gap-1.5 text-white/40 text-xs mb-2 min-w-0">
-                        <span className="flex items-center gap-1 shrink-0">
-                            <FiClock size={12} />
-                            {event.time}
-                        </span>
                         {event.location ? (
-                            <span className="flex items-center gap-1 min-w-0">
-                                <span className="text-white/20 shrink-0">·</span>
+                            <div className="flex items-center gap-1 text-white/40 text-[11px] min-w-0">
                                 <span className="shrink-0 flex items-center">
-                                    <LocationIcon location={event.location} size={12} />
+                                    <LocationIcon location={event.location} size={11} />
                                 </span>
                                 <span className="truncate">{event.location}</span>
-                            </span>
+                            </div>
                         ) : (
-                            <span className="flex items-center gap-1 text-amber-400 shrink-0">
-                                <span className="text-white/20">·</span>
-                                <FiAlertTriangle size={12} />
+                            <div className="flex items-center gap-1 text-amber-400 text-[11px]">
+                                <FiAlertTriangle size={11} className="shrink-0" />
                                 <span>Location Missing</span>
-                            </span>
+                            </div>
                         )}
+
+                        <div className="mt-auto pt-2.5">
+                            {event.attendees.length > 0 ? (
+                                <AvatarStack attendees={event.attendees} total={event.registered} size={18} />
+                            ) : event.registered > 0 ? (
+                                <span className="flex items-center gap-1 text-white/40 text-[11px]">
+                                    <FiUsers size={11} />
+                                    {event.registered} registered
+                                </span>
+                            ) : passed ? (
+                                <span className="text-white/30 text-[11px]">Registration closed</span>
+                            ) : (
+                                <span className="text-white/30 text-[11px]">Be the first to join</span>
+                            )}
+                        </div>
                     </div>
+                </>
+            )}
 
-                    <h3 className="text-white font-bold text-base mb-2 wrap-break-word line-clamp-2">{event.title}</h3>
-
-                    <div className="mb-3">
-                        <EventMetaBadges event={event} size="sm" />
+            {/* Desktop/tablet */}
+            {renderShell(
+                "hidden sm:flex rounded-md overflow-hidden flex-col transition-colors bg-white/5 cursor-pointer",
+                <>
+                    <div className="relative">
+                        <img
+                            src={event.thumbnail} loading="lazy" decoding="async"
+                            alt={event.title}
+                            className={`w-full h-40 sm:h-48 object-cover ${passed ? "opacity-60" : ""}`}
+                        />
+                        <span
+                            className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
+                            style={{ background: "rgba(0,0,0,0.55)", color: "#fff", backdropFilter: "blur(4px)" }}
+                        >
+                            <FiCalendar size={13} />
+                            {event.dateLabel}
+                        </span>
+                        <span
+                            className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-semibold"
+                            style={badgeStyle("md")}
+                        >
+                            {badgeText}
+                        </span>
                     </div>
-
-                    <div className="flex items-center mt-auto">
-                        {event.attendees.length > 0 ? (
-                            <AvatarStack attendees={event.attendees} total={event.registered} size={20} />
-                        ) : event.registered > 0 ? (
-                            <span className="flex items-center gap-1.5 text-white/40 text-xs">
-                                <FiUsers size={12} />
-                                {event.registered} registered
+                    <div className="p-4 sm:p-5 flex flex-col flex-1">
+                        <div className="flex items-center gap-1.5 text-white/40 text-xs mb-2 min-w-0">
+                            <span className="flex items-center gap-1 shrink-0">
+                                <FiClock size={12} />
+                                {event.time}
                             </span>
-                        ) : (
-                            <span className="text-white/30 text-xs">Be the first to join</span>
-                        )}
+                            {event.location ? (
+                                <span className="flex items-center gap-1 min-w-0">
+                                    <span className="text-white/20 shrink-0">·</span>
+                                    <span className="shrink-0 flex items-center">
+                                        <LocationIcon location={event.location} size={12} />
+                                    </span>
+                                    <span className="truncate">{event.location}</span>
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1 text-amber-400 shrink-0">
+                                    <span className="text-white/20">·</span>
+                                    <FiAlertTriangle size={12} />
+                                    <span>Location Missing</span>
+                                </span>
+                            )}
+                        </div>
+
+                        <h3 className="text-white font-bold text-base mb-2 wrap-break-word line-clamp-2">{event.title}</h3>
+
+                        <div className="mb-3">
+                            <EventMetaBadges event={event} size="sm" />
+                        </div>
+
+                        <div className="flex items-center mt-auto">
+                            {event.attendees.length > 0 ? (
+                                <AvatarStack attendees={event.attendees} total={event.registered} size={20} />
+                            ) : event.registered > 0 ? (
+                                <span className="flex items-center gap-1.5 text-white/40 text-xs">
+                                    <FiUsers size={12} />
+                                    {event.registered} registered
+                                </span>
+                            ) : passed ? (
+                                <span className="text-white/30 text-xs">Registration closed</span>
+                            ) : (
+                                <span className="text-white/30 text-xs">Be the first to join</span>
+                            )}
+                        </div>
                     </div>
-                </div>
-            </Link>
+                </>
+            )}
+
+            {showPassedModal && (
+                <PassedEventModal
+                    eventTitle={event.title}
+                    dateLabel={event.dateLabel}
+                    onClose={() => setShowPassedModal(false)}
+                />
+            )}
         </>
     );
-}
+};
 
 const EventCardSkeleton: React.FC = () => (
     <>
@@ -584,7 +697,7 @@ const NoEventsState: React.FC<{ query?: string }> = ({ query }) => (
     >
         <FiCalendar size={22} className="text-white/20 mb-3" />
         <p className="text-white/40 text-sm">
-            {query ? `No events match "${query}"` : "No upcoming events right now"}
+            {query ? `No events match "${query}"` : "No events right now"}
         </p>
     </div>
 );
@@ -732,34 +845,31 @@ const Explore: React.FC = () => {
         [topicMentors]
     );
 
-    // ── Events (paginated) ───────────────────────────────────────────────────
+    // ── Events ───────────────────────────────────────────────────────────────
+    // Fetch upcoming AND passed events in one batch, sort them locally
+    // (nearest upcoming first, passed last), then paginate the sorted list.
     const {
         allEvents,
         isLoading: eventsLoading,
         isFetching: eventsFetching,
-    } = useGetAllEvents(eventsPage, PAGE_SIZE, {
-        status: "upcoming",
+    } = useGetAllEvents(1, EVENTS_FETCH_SIZE, {
         ordering: "date",
         search: searchParam,
     });
     const eventsData: Paginated<ApiEvent> | undefined = allEvents?.data;
-    const eventsList: RegisteredEvent[] = useMemo(
-        () =>
-            [...(eventsData?.results ?? [])]
-                .map(mapApiEventToRegistered)
-                .sort((a, b) => {
-                    const aTime = new Date(a.date).getTime();
-                    const bTime = new Date(b.date).getTime();
 
-                    if (a.status !== b.status) {
-                        return a.status === "past" ? 1 : -1;
-                    }
-
-                    return aTime - bTime;
-                }),
+    const sortedEvents: RegisteredEvent[] = useMemo(
+        () => sortEventsByNearestDate((eventsData?.results ?? []).map(mapApiEventToRegistered)),
         [eventsData]
     );
-    const eventsTotalPages = Math.max(1, Math.ceil((eventsData?.count ?? 0) / PAGE_SIZE));
+
+    const eventsTotalPages = Math.max(1, Math.ceil(sortedEvents.length / PAGE_SIZE));
+    const safeEventsPage = Math.min(eventsPage, eventsTotalPages);
+
+    const eventsList: RegisteredEvent[] = useMemo(
+        () => sortedEvents.slice((safeEventsPage - 1) * PAGE_SIZE, safeEventsPage * PAGE_SIZE),
+        [sortedEvents, safeEventsPage]
+    );
 
     // ── Digital products (paginated) ─────────────────────────────────────────
     const {
@@ -924,7 +1034,7 @@ const Explore: React.FC = () => {
                     </div>
                     {!eventsLoading && (
                         <Pagination
-                            page={eventsPage}
+                            page={safeEventsPage}
                             totalPages={eventsTotalPages}
                             disabled={eventsFetching}
                             onPageChange={changePage(setEventsPage, eventsSectionRef)}
