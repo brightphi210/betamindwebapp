@@ -1,25 +1,47 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import type { User } from "../types/user";
 
-// Define the shape of our Toast
+export type ToastType = "success" | "error" | "warning" | "info";
+
 export interface ToastMessage {
   id: string;
   message: string;
-  type: "success" | "error" | "info";
+  type: ToastType;
+  title?: string;
+  /** ms before auto-dismiss. Use 0 for a toast that stays until closed. */
+  duration: number;
 }
 
-// Define the global state shape
+export interface ToastOptions {
+  title?: string;
+  duration?: number;
+}
+
 interface GlobalState {
   user: User | null;
   setUser: (user: User | null) => void;
   theme: "light" | "dark";
   setTheme: (theme: "light" | "dark") => void;
   toasts: ToastMessage[];
-  addToast: (message: string, type?: "success" | "error" | "info") => void;
+  addToast: (message: string, type?: ToastType, options?: ToastOptions) => void;
   removeToast: (id: string) => void;
 }
 
+const DEFAULT_DURATION = 3000;
+
 const GlobalContext = createContext<GlobalState | undefined>(undefined);
+
+const makeId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 export const GlobalProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -27,37 +49,32 @@ export const GlobalProvider = ({ children }: { children: ReactNode }) => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const addToast = useCallback((
-    message: string,
-    type: "success" | "error" | "info" = "info",
-  ) => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
-
-    // Auto remove after 3 seconds
-    setTimeout(() => {
-      removeToast(id);
-    }, 3000);
-  }, [removeToast]);
-
-  return (
-    <GlobalContext.Provider
-      value={{
-        user,
-        setUser,
-        theme,
-        setTheme,
-        toasts,
-        addToast,
-        removeToast,
-      }}
-    >
-      {children}
-    </GlobalContext.Provider>
+  // Auto-dismiss is handled by <ToastContainer /> so the exit animation plays.
+  const addToast = useCallback(
+    (message: string, type: ToastType = "info", options: ToastOptions = {}) => {
+      setToasts((prev) => [
+        ...prev,
+        {
+          id: makeId(),
+          message,
+          type,
+          title: options.title,
+          duration: options.duration ?? DEFAULT_DURATION,
+        },
+      ]);
+    },
+    []
   );
+
+  const value = useMemo<GlobalState>(
+    () => ({ user, setUser, theme, setTheme, toasts, addToast, removeToast }),
+    [user, theme, toasts, addToast, removeToast]
+  );
+
+  return <GlobalContext.Provider value={value}>{children}</GlobalContext.Provider>;
 };
 
 export const useGlobalContext = () => {
