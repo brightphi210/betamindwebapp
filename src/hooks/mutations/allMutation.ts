@@ -8,7 +8,7 @@ export const useCreateMentor = () => {
   const createMentor = useMutation({
     mutationFn: async (data: any) => {
       const token = (await localStorage.getItem("betamindToken")) || ""
-      return post_request_with_image('mentors/', data, token)
+      return post_request_with_image_compressed('mentors/', data, token)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mentors"] })

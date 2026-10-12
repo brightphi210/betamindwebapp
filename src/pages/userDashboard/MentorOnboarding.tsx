@@ -1,11 +1,20 @@
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FiArrowLeft, FiArrowRight, FiCamera, FiCheck, FiImage } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import Button from "../../component/ui/Button";
 import { useCreateMentor } from "../../hooks/mutations/allMutation";
 import { useGlobalContext } from "../../providers/GlobalContext";
+import { compressImage, formatBytes } from "../../utils/compressimage";
 import { CATEGORY_OPTIONS, EXPERTISE_OPTIONS } from "../../utils/interest";
+import {
+    canUploadOriginal,
+    getErrorMessage,
+    getErrorMessages,
+    isFileReadable,
+    toStableFile,
+    validateImageFile,
+} from "../../utils/uploadhelpers";
 
 // Major world languages for the language dropdown — matches MentorProfile.tsx.
 const LANGUAGE_OPTIONS = [
@@ -194,6 +203,10 @@ const MentorOnboarding = () => {
 
     // Actual File object to submit
     const [bannerFile, setBannerFile] = useState<File | null>(null);
+    const [bannerProgress, setBannerProgress] = useState<number | null>(null);
+    const [bannerInfo, setBannerInfo] = useState<string | null>(null);
+    const [serverErrors, setServerErrors] = useState<string[]>([]);
+    const [showValidation, setShowValidation] = useState(false);
 
     const [nickname, setNickname] = useState("");
     const [occupation, setOccupation] = useState("");
@@ -212,8 +225,70 @@ const MentorOnboarding = () => {
     const [xHandle, setXHandle] = useState("");
     const [website, setWebsite] = useState("");
 
-    const professionalComplete = !!(nickname && occupation && bio && experience);
-    const socialComplete = categories.length > 0;
+    const localErrors = useMemo<Record<string, string[]>>(() => {
+        const errors: Record<string, string[]> = {};
+
+        if (!nickname.trim()) {
+            errors.nickname = ["Mentor nickname is required."];
+        }
+
+        if (!occupation.trim()) {
+            errors.occupation = ["Occupation is required."];
+        }
+
+        if (!bio.trim()) {
+            errors.bio = ["Bio is required."];
+        } else if (bio.trim().length < 20) {
+            errors.bio = ["Bio must be at least 20 characters so people understand your expertise."];
+        }
+
+        if (!experience.trim()) {
+            errors.experience = ["Years of experience is required."];
+        } else {
+            const value = Number(experience);
+            if (Number.isNaN(value) || value < 0 || value > 80) {
+                errors.experience = ["Years of experience must be a valid number between 0 and 80."];
+            }
+        }
+
+        if (!language.trim()) {
+            errors.language = ["Please choose a language."];
+        }
+
+        if (!bannerFile) {
+            errors.cover_images = ["Cover photo is required."];
+        }
+
+        if (categories.length === 0) {
+            errors.categories = ["Select at least one category."];
+        }
+
+        if (step === "social" && expertise.length === 0) {
+            errors.expertise = ["Choose at least one area of expertise."];
+        }
+
+        return errors;
+    }, [bannerFile, bio, categories.length, experience, experience, expertise.length, language, nickname, occupation, step]);
+
+    useEffect(() => {
+        setServerErrors([]);
+        if (showValidation) {
+            setShowValidation(false);
+        }
+    }, [bannerFile, bio, categories, expertise, experience, language, nickname, occupation, showValidation, step, videoLink, website, xHandle, linkedin]);
+
+    const professionalComplete = !!(
+        nickname.trim() &&
+        occupation.trim() &&
+        bio.trim().length >= 20 &&
+        experience.trim() &&
+        language.trim()
+    );
+    const socialComplete = categories.length > 0 && expertise.length > 0;
+    const visibleErrors = [
+        ...(showValidation ? Object.values(localErrors).flat() : []),
+        ...serverErrors,
+    ];
 
     const toggleCategory = (cat: { id: string; name: string }) => {
         const categoryName = cat.name;
@@ -224,9 +299,16 @@ const MentorOnboarding = () => {
         );
     };
 
-    const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleBannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        const problem = validateImageFile(file);
+        if (problem) {
+            addToast(problem, "error");
+            e.target.value = "";
+            return;
+        }
 
         if (file.size > MAX_BANNER_SIZE_BYTES) {
             addToast("Cover image must be 7MB or smaller.", "error");
@@ -234,8 +316,40 @@ const MentorOnboarding = () => {
             return;
         }
 
-        setBanner(URL.createObjectURL(file));
-        setBannerFile(file);
+        setBannerProgress(0);
+        setBannerInfo(null);
+
+        try {
+            const stable = await toStableFile(file);
+            let finalFile: File = stable;
+
+            try {
+                const compressed = await compressImage(stable, {
+                    maxDimension: 1600,
+                    maxSizeMB: 1,
+                    onProgress: setBannerProgress,
+                });
+                finalFile = await toStableFile(compressed);
+            } catch (err) {
+                console.error("Mentor cover image compression failed", err);
+                if (!canUploadOriginal(stable)) {
+                    addToast(
+                        "Could not process this image. Please choose a JPG, PNG or WebP photo.",
+                        "error"
+                    );
+                    return;
+                }
+            }
+
+            setBanner(URL.createObjectURL(finalFile));
+            setBannerFile(finalFile);
+            setBannerInfo(`${formatBytes(file.size)} → ${formatBytes(finalFile.size)}`);
+        } catch (err) {
+            addToast(getErrorMessage(err, "Could not read the selected image. Please try another photo."), "error");
+        } finally {
+            setBannerProgress(null);
+            e.target.value = "";
+        }
     };
 
     const goNext = () => {
@@ -249,25 +363,36 @@ const MentorOnboarding = () => {
         else navigate("/dashboard/overview");
     };
 
-    const handleFinish = () => {
+    const handleFinish = async () => {
+        if (Object.keys(localErrors).length > 0) {
+            setShowValidation(true);
+            addToast(Object.values(localErrors).flat()[0], "error");
+            return;
+        }
+
+        if (bannerFile && !(await isFileReadable(bannerFile))) {
+            const msg = "Your cover image can no longer be read by the browser. Pick it again and try once more.";
+            addToast(msg, "error");
+            return;
+        }
+
         const formData = new FormData();
-        formData.append("occupation", occupation);
-        formData.append("bio", bio);
-        formData.append("nick_name", nickname);
+        formData.append("occupation", occupation.trim());
+        formData.append("bio", bio.trim());
+        formData.append("nick_name", nickname.trim());
         formData.append("years_of_experience", String(parseInt(experience, 10) || 0));
         formData.append("language", language);
-        formData.append("video_link", videoLink);
+        formData.append("video_link", videoLink.trim());
 
         if (bannerFile) formData.append("cover_images", bannerFile);
         formData.append("categories", JSON.stringify(categories));
         formData.append("expertise", JSON.stringify(expertise));
         const socialLink = {
-            linkedin: linkedin ? `https://linkedin.com/in/${linkedin}` : "",
-            twitter: xHandle ? `https://x.com/${xHandle}` : "",
-            website: website || "",
+            linkedin: linkedin ? `https://linkedin.com/in/${linkedin}`.replace(/\/+$/, "") : "",
+            twitter: xHandle ? `https://x.com/${xHandle}`.replace(/\/+$/, "") : "",
+            website: website.trim(),
         };
         formData.append("social_link", JSON.stringify(socialLink));
-
 
         mutate(formData, {
             onSuccess: () => {
@@ -277,12 +402,23 @@ const MentorOnboarding = () => {
             },
             onError: (error: any) => {
                 console.error("Error creating mentor profile:", error);
-                const message =
-                    error?.response?.data?.message ||
-                    error?.response?.data?.detail ||
-                    "Something went wrong. Please try again.";
-
-                addToast(message, "error");
+                const messages = getErrorMessages(
+                    error,
+                    "Something went wrong while creating your mentor profile. Please try again.",
+                    {
+                        nick_name: "Mentor nickname",
+                        occupation: "Occupation",
+                        bio: "Bio",
+                        years_of_experience: "Years of experience",
+                        language: "Language",
+                        cover_images: "Cover photo",
+                        categories: "Category",
+                        expertise: "Expertise",
+                        social_link: "Social links",
+                    }
+                );
+                setServerErrors(messages);
+                addToast(messages[0], "error");
             },
         });
     };
@@ -354,11 +490,12 @@ const MentorOnboarding = () => {
                                     <button
                                         type="button"
                                         onClick={() => bannerInputRef.current?.click()}
-                                        className="absolute right-3 top-3 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm transition-colors hover:bg-black/80"
+                                        disabled={bannerProgress !== null}
+                                        className="absolute right-3 top-3 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm transition-colors hover:bg-black/80 disabled:cursor-wait disabled:opacity-60"
                                         style={{ background: "rgba(0,0,0,0.6)" }}
                                     >
                                         <FiCamera size={13} />
-                                        {banner ? "Change Cover" : "Upload Cover"}
+                                        {bannerProgress !== null ? `Compressing ${bannerProgress}%` : banner ? "Change Cover" : "Upload Cover"}
                                     </button>
                                     <input
                                         ref={bannerInputRef}
@@ -368,6 +505,12 @@ const MentorOnboarding = () => {
                                         onChange={handleBannerChange}
                                     />
                                 </div>
+                                {bannerProgress !== null && (
+                                    <p className="mt-2 text-center text-xs text-[#a6ff00]">Compressing cover image… {bannerProgress}%</p>
+                                )}
+                                {bannerInfo && !bannerProgress && (
+                                    <p className="mt-2 text-center text-[11px] text-white/35">Compressed: {bannerInfo}</p>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -495,7 +638,7 @@ const MentorOnboarding = () => {
                         <Button
                             variant="green"
                             onClick={goNext}
-                            disabled={!professionalComplete}
+                            disabled={!professionalComplete || bannerProgress !== null}
                         >
                             <span className="flex items-center justify-center gap-2">
                                 Next
@@ -503,7 +646,7 @@ const MentorOnboarding = () => {
                             </span>
                         </Button>
                     ) : (
-                        <Button variant="green" onClick={handleFinish} disabled={!socialComplete || isPending}>
+                        <Button variant="green" onClick={handleFinish} disabled={!socialComplete || isPending || bannerProgress !== null}>
                             <span className="flex items-center justify-center gap-2">
                                 <FiCheck size={15} />
                                 Finish
@@ -511,6 +654,19 @@ const MentorOnboarding = () => {
                         </Button>
                     )}
                 </div>
+
+                {visibleErrors.length > 0 && (
+                    <div className="mt-6 rounded-2xl border border-red-500/40 bg-red-500/5 p-4 text-sm text-red-100">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-red-200">
+                            Please fix these errors
+                        </p>
+                        <ul className="list-disc space-y-1 pl-5">
+                            {visibleErrors.map((message, index) => (
+                                <li key={`${message}-${index}`}>{message}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
             </div>
         </div>
     );
