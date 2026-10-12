@@ -303,10 +303,10 @@ const draftFromMentorProfile = (mentorProfile: any): Draft => {
 const NotVerifiedScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => (
     <div className="min-h-screen w-full text-white" style={{ background: pageBackground }}>
         <div className="mx-auto flex max-w-2xl flex-col items-center px-4 py-24 pt-40 text-center sm:px-6">
-            <div className="mb-6 flex h-25 w-25 items-center justify-center rounded-2xl bg-neutral-900">
-                <FiClock size={50} className="text-emerald-400" />
+            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-neutral-900">
+                <FiClock size={50} className="text-yellow-400" />
             </div>
-            <h1 className="text-xl font-black sm:text-2xl px-4">Your mentor profile isn't verified yet</h1>
+            <h1 className="text-xl font-black sm:text-2xl px-4">Your mentor profile is under review</h1>
             <p className="mt-3 mb-8 max-w-md text-xs px-4 text-white/40">
                 Thanks for submitting your mentor application. Our team is reviewing your details and you'll be
                 notified as soon as your profile is approved. Once verified, you'll get full access to your mentor

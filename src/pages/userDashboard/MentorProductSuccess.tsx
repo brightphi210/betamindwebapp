@@ -126,7 +126,7 @@ const MentorProductSuccess: React.FC<{ type: ProductType; title: string }> = ({ 
                                 </span>
                             </Button>
 
-                            <Button variant="white" onClick={() => navigate("../products")}>
+                            <Button variant="white" onClick={() => navigate("dashboard/mentor/products")}>
                                 <span className="flex items-center justify-center gap-2">View Products</span>
                             </Button>
                         </div>

@@ -47,6 +47,66 @@ const prefixBg = "rgba(255,255,255,0.03)";
 const fieldClass =
     "w-full rounded-md px-4 py-3 text-sm text-white placeholder-white/30 outline-none transition-colors focus:border-[#a6ff00]";
 
+const ProgressBar: React.FC<{ value: number; className?: string }> = ({
+    value,
+    className = "",
+}) => (
+    <div
+        className={`h-1.5 w-full overflow-hidden rounded-full ${className}`}
+        style={{ background: "rgba(255,255,255,0.12)" }}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(value)}
+    >
+        <div
+            className="h-full rounded-full transition-[width] duration-200 ease-out"
+            style={{ width: `${value}%`, background: "#a6ff00" }}
+        />
+    </div>
+);
+
+const SubmitProgressModal: React.FC<{
+    open: boolean;
+    progress: number;
+    stage: string;
+}> = ({ open, progress, stage }) => {
+    if (!open) return null;
+
+    const pct = Math.round(progress);
+
+    return (
+        <div
+            className="fixed inset-0 z-100 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm"
+            role="alertdialog"
+            aria-live="polite"
+            aria-label="Creating mentor profile"
+        >
+            <div
+                className="w-full max-w-sm rounded-xl p-10 shadow-2xl"
+                style={{
+                    background: "rgba(10,12,9,0.98)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                }}
+            >
+                <div className="mb-4 flex items-end justify-between">
+                    <div>
+                        <h3 className="text-lg font-black text-white">
+                            {pct >= 100 ? "Profile ready" : "Creating your mentor profile"}
+                        </h3>
+                        <p className="mt-1 text-xs text-white/45">{stage}</p>
+                    </div>
+                    <span className="text-2xl font-black tabular-nums text-[#a6ff00]">
+                        {pct}%
+                    </span>
+                </div>
+                <ProgressBar value={progress} />
+                <p className="mt-3 text-xs text-white/30">Please keep this page open until it finishes.</p>
+            </div>
+        </div>
+    );
+};
+
 const Field: React.FC<{
     label: string;
     value: string;
@@ -207,6 +267,44 @@ const MentorOnboarding = () => {
     const [bannerInfo, setBannerInfo] = useState<string | null>(null);
     const [serverErrors, setServerErrors] = useState<string[]>([]);
     const [showValidation, setShowValidation] = useState(false);
+    const [showSubmitModal, setShowSubmitModal] = useState(false);
+    const [submitProgress, setSubmitProgress] = useState(0);
+    const [submitStage, setSubmitStage] = useState("Preparing profile…");
+    const trickleRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const finishRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const stopTrickle = () => {
+        if (trickleRef.current) {
+            clearInterval(trickleRef.current);
+            trickleRef.current = null;
+        }
+    };
+
+    useEffect(
+        () => () => {
+            stopTrickle();
+            if (finishRef.current) clearTimeout(finishRef.current);
+        },
+        []
+    );
+
+    const stageFor = (p: number) =>
+        p < 15 ? "Preparing profile…" : p < 90 ? "Uploading your mentor profile…" : p < 100 ? "Finishing up…" : "Done!";
+
+    const startSubmitProgress = () => {
+        setSubmitProgress(0);
+        setSubmitStage("Preparing profile…");
+        setShowSubmitModal(true);
+        stopTrickle();
+        trickleRef.current = setInterval(() => {
+            setSubmitProgress((p) => {
+                const next = p + Math.max(0.4, (90 - p) * 0.06);
+                const capped = Math.min(next, 90);
+                setSubmitStage(stageFor(capped));
+                return capped;
+            });
+        }, 200);
+    };
 
     const [nickname, setNickname] = useState("");
     const [occupation, setOccupation] = useState("");
@@ -394,13 +492,23 @@ const MentorOnboarding = () => {
         };
         formData.append("social_link", JSON.stringify(socialLink));
 
+        startSubmitProgress();
+
         mutate(formData, {
             onSuccess: () => {
-                navigate("/dashboard/mentor/success", {
-                    state: { productName: categories[0] ?? "Mentorship" },
-                });
+                stopTrickle();
+                setSubmitProgress(100);
+                setSubmitStage("Done!");
+                finishRef.current = setTimeout(() => {
+                    setShowSubmitModal(false);
+                    navigate("/dashboard/mentor/success", {
+                        state: { productName: categories[0] ?? "Mentorship" },
+                    });
+                }, 600);
             },
             onError: (error: any) => {
+                stopTrickle();
+                setShowSubmitModal(false);
                 console.error("Error creating mentor profile:", error);
                 const messages = getErrorMessages(
                     error,
@@ -436,6 +544,7 @@ const MentorOnboarding = () => {
                     "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
             }}
         >
+            <SubmitProgressModal open={showSubmitModal} progress={submitProgress} stage={submitStage} />
             <LoadingOverlay visible={isPending} />
             <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
                 {/* Back to dashboard */}

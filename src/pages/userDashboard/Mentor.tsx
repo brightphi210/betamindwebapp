@@ -168,18 +168,31 @@ const formatTimeDisplay = (value: string) => {
     return `${normalizedHour}:${String(minutes).padStart(2, '0')} ${suffix}`;
 };
 
+const isProductVisibleOnPublicProfile = (dp: any): boolean => {
+    const explicitVerification = dp?.is_verified ?? dp?.verified ?? dp?.is_approved ?? dp?.approved ?? dp?.is_active;
+    if (typeof explicitVerification === 'boolean') {
+        return explicitVerification;
+    }
+
+    const status = (dp?.status ?? '').toString().trim().toLowerCase();
+    if (status) {
+        return !['draft', 'pending', 'unverified', 'unapproved', 'rejected', 'inactive'].includes(status);
+    }
+
+    return true;
+};
+
 // ─── Map a raw digital_products entry from the API into the shape this page renders ──
 const mapDigitalProduct = (dp: any): MentorProduct => {
     const rawType = (dp?.product_type ?? '').toString().toLowerCase();
-    const priceNum = Number(dp?.price);
-    const hasPrice = !Number.isNaN(priceNum) && priceNum > 0;
+    const priceNum = Number(dp?.price ?? 0);
 
     return {
         id: dp?.id,
         type: rawType === 'book' ? 'Book' : 'Course',
         title: dp?.title ?? 'Untitled product',
         thumbnail: dp?.cover_image ?? null,
-        price: hasPrice ? `$${priceNum}` : 'Free',
+        price: formatNaira(priceNum, 'Free'),
     };
 };
 
@@ -812,7 +825,7 @@ const Mentor: React.FC = () => {
 
     const products: MentorProduct[] =
         Array.isArray(mentor?.digital_products) && mentor.digital_products.length > 0
-            ? mentor.digital_products.map(mapDigitalProduct)
+            ? mentor.digital_products.filter(isProductVisibleOnPublicProfile).map(mapDigitalProduct)
             : [];
 
     const groupSessions: MentorPublicSession[] = Array.isArray(mentor?.group_sessions)
