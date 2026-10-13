@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { FaArrowRight } from 'react-icons/fa6';
 import {
-    FiCheck,
     FiLoader,
     FiMail,
     FiPhone,
@@ -9,7 +9,7 @@ import {
     FiUser,
     FiUserCheck,
     FiUsers,
-    FiX,
+    FiX
 } from 'react-icons/fi';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -552,17 +552,17 @@ const RegisterModal: React.FC<{
                         </div>
 
                         <Button
-                            variant="green"
+                            variant="white"
                             className="mt-6 w-full"
                             disabled={!isValid}
                             onClick={handleGoToConfirm}
                         >
                             <span className="flex items-center justify-center gap-2">
-                                <FiCheck size={15} />
                                 {hasPaidTicket
-                                    ? `Review & Pay ${priceLabel}`
+                                    ? `Review & Pay`
                                     : 'Review Registration'}
                             </span>
+                            <FaArrowRight size={15} />
                         </Button>
                     </>
                 ) : step === 'confirm' ? (
@@ -591,38 +591,37 @@ const RegisterModal: React.FC<{
                             className="mb-5 rounded-xl p-4 space-y-3"
                             style={{
                                 background: 'rgba(255,255,255,0.04)',
-                                border: '1px solid rgba(255,255,255,0.08)',
                             }}
                         >
                             <div className="flex items-center justify-between gap-2">
                                 <span className="text-white/40 text-xs">Event</span>
-                                <span className="text-white text-sm font-semibold text-right truncate max-w-[70%]">
+                                <span className="text-white text-xs font-normal text-right truncate max-w-[70%]">
                                     {eventTitle}
                                 </span>
                             </div>
                             {selectedTicket && (
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="text-white/40 text-xs">Ticket</span>
-                                    <span className="text-white text-sm font-semibold">
+                                    <span className="text-white text-xs font-normal">
                                         {selectedTicket.name}
                                     </span>
                                 </div>
                             )}
                             <div className="flex items-center justify-between gap-2">
                                 <span className="text-white/40 text-xs">Name</span>
-                                <span className="text-white text-sm font-semibold truncate max-w-[70%]">
+                                <span className="text-white text-xs font-normal truncate max-w-[70%]">
                                     {draft.name.trim()}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between gap-2">
                                 <span className="text-white/40 text-xs">Email</span>
-                                <span className="text-white text-sm font-semibold truncate max-w-[70%]">
+                                <span className="text-white text-xs font-normal truncate max-w-[70%]">
                                     {draft.email.trim()}
                                 </span>
                             </div>
                             <div className="flex items-center justify-between gap-2">
                                 <span className="text-white/40 text-xs">WhatsApp</span>
-                                <span className="text-white text-sm font-semibold">
+                                <span className="text-white text-xs font-normal">
                                     {draft.whatsapp.trim()}
                                 </span>
                             </div>
@@ -666,7 +665,7 @@ const RegisterModal: React.FC<{
                                 Back
                             </button>
                             <Button
-                                variant="green"
+                                variant="white"
                                 className="flex-1"
                                 disabled={isRegistering || isPaying}
                                 onClick={() => {
@@ -674,11 +673,6 @@ const RegisterModal: React.FC<{
                                 }}
                             >
                                 <span className="flex items-center justify-center gap-2">
-                                    {isRegistering || isPaying ? (
-                                        <FiLoader size={15} className="animate-spin" />
-                                    ) : (
-                                        <FiCheck size={15} />
-                                    )}
                                     {isRegistering || isPaying
                                         ? hasPaidTicket
                                             ? 'Processing payment...'
@@ -686,6 +680,11 @@ const RegisterModal: React.FC<{
                                         : hasPaidTicket
                                             ? `Pay ${priceLabel}`
                                             : 'Confirm Registration'}
+                                    {isRegistering || isPaying ? (
+                                        <FiLoader size={14} className="animate-spin" />
+                                    ) : (
+                                        <FaArrowRight size={14} />
+                                    )}
                                 </span>
                             </Button>
                         </div>

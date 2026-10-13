@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import betamindLogo from '../assets/betamindlogo.png';
 const PublicNavbar: React.FC = () => {
     return (
@@ -13,9 +14,9 @@ const PublicNavbar: React.FC = () => {
         >
 
             <div className="w-full h-full px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto flex items-center">
-                <div className="w-30 shrink-0">
+                <Link to="/" className="w-30 shrink-0">
                     <img src={betamindLogo} alt="Betamind Logo" className="w-full" />
-                </div>
+                </Link>
             </div>
         </nav>
     );

@@ -26,8 +26,7 @@ const ProductSuccess: React.FC = () => {
                     </h1>
                     <p className="mt-3 text-sm leading-relaxed text-white/60">
                         Your payment went through. You now have access to this
-                        product — check your email for the receipt and any
-                        access details.
+                        product
                     </p>
 
                     <div
@@ -51,7 +50,8 @@ const ProductSuccess: React.FC = () => {
                                 Instant access
                             </p>
                             <p className="text-xs text-white/40">
-                                Open your product from Explore or your library
+                                check your email for the receipt and any
+                                access details.
                             </p>
                         </div>
                     </div>

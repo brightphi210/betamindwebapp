@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { FaGlobe, FaLinkedin, FaTwitter } from "react-icons/fa";
+import { FaArrowRight } from "react-icons/fa6";
 import {
     FiArrowLeft,
     FiBookOpen,
     FiBriefcase,
-    FiCheck,
     FiCheckCircle,
     FiDollarSign,
     FiExternalLink,
@@ -15,16 +15,16 @@ import {
     FiPackage,
     FiPlayCircle,
     FiUser,
-    FiX,
+    FiX
 } from "react-icons/fi";
 import { Link, useParams } from "react-router-dom";
-import { toast, ToastContainer } from "react-toastify";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import PoweredByBadge from "../../component/PowereByBadge";
 import PublicNavbar from "../../component/PublicNavbar";
 import Button from "../../component/ui/Button";
 import { usePurchaseProducts } from "../../hooks/mutations/allMutation";
 import { useGetSingleDigitalProduct } from "../../hooks/queries/allQueriess";
+import { useGlobalContext } from "../../providers/GlobalContext";
 import { formatNaira } from "../../utils/currency";
 
 const PRODUCT_SUCCESS_URL = "https://betamindwebapp.vercel.app/product/success";
@@ -286,13 +286,12 @@ const PurchaseConfirmModal: React.FC<{
                 You will be redirected to a secure payment page. After payment you will return to the success page.
             </p>
 
-            <div className="flex gap-3">
+            <div className="flex flex-row gap-3">
                 <button
                     type="button"
                     onClick={onClose}
                     disabled={isPurchasing}
-                    className="flex-1 rounded-lg py-3 text-sm font-semibold text-white/80 disabled:opacity-50"
-                    style={{ background: "rgba(255,255,255,0.06)" }}
+                    className="flex-1 rounded-md bg-neutral-800 cursor-pointer py-3.5 text-sm font-semibold text-white/80 disabled:opacity-50"
                 >
                     Back
                 </button>
@@ -300,8 +299,7 @@ const PurchaseConfirmModal: React.FC<{
                     type="button"
                     onClick={onConfirm}
                     disabled={isPurchasing}
-                    className="flex-1 rounded-lg py-3 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
-                    style={{ background: "#a6ff00" }}
+                    className="flex-1 rounded-md bg-white py-3.5 text-xs cursor-pointer font-bold text-black disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
                 >
                     {isPurchasing ? (
                         <>
@@ -310,8 +308,8 @@ const PurchaseConfirmModal: React.FC<{
                         </>
                     ) : (
                         <>
-                            <FiCheck size={15} />
-                            Continue to payment
+                            Continue
+                            <FaArrowRight size={15} />
                         </>
                     )}
                 </button>
@@ -329,18 +327,19 @@ const Product: React.FC = () => {
     const [email, setEmail] = useState("");
     const [showConfirmModal, setShowConfirmModal] = useState(false);
 
+    const { addToast } = useGlobalContext();
     const { mutate: purchaseProduct, isPending: isPurchasing } = usePurchaseProducts();
 
     const handleOpenConfirm = () => {
         if (!product) return;
 
         if (!name.trim() || !email.trim()) {
-            toast.error("Please enter your full name and email address.");
+            addToast("Please enter your full name and email address.", "error");
             return;
         }
 
         if (!/\S+@\S+\.\S+/.test(email.trim())) {
-            toast.error("Please enter a valid email address.");
+            addToast("Please enter a valid email address.", "error");
             return;
         }
 
@@ -373,7 +372,7 @@ const Product: React.FC = () => {
                     return;
                 }
 
-                toast.success("Purchase initiated successfully.");
+                addToast("Purchase initiated successfully.", "success");
                 setShowConfirmModal(false);
             },
             onError: (error: any) => {
@@ -395,7 +394,7 @@ const Product: React.FC = () => {
                     }
                 }
 
-                toast.error(message);
+                addToast(message, "error");
             },
         });
     };
@@ -435,7 +434,6 @@ const Product: React.FC = () => {
                     "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)",
             }}
         >
-            <ToastContainer theme="dark" />
             <PublicNavbar />
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 pt-28">
 
@@ -611,8 +609,7 @@ const Product: React.FC = () => {
 
                     {/* Right – purchase panel */}
                     <div
-                        className="rounded-2xl p-6 sm:p-8 lg:sticky lg:top-8 min-w-0"
-                        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        className="rounded-2xl p-3 lg:sticky lg:top-8 min-w-0"
                     >
                         <h2 className="text-white text-lg sm:text-xl font-bold mb-1">Purchase {product.title}</h2>
                         <p className="text-white/40 text-sm mb-6">Complete the quick form below to proceed</p>
@@ -656,7 +653,7 @@ const Product: React.FC = () => {
                         </div>
 
                         <Button
-                            variant="green"
+                            variant="white"
                             className="w-full py-3 text-sm"
                             onClick={handleOpenConfirm}
                             disabled={isPurchasing}
