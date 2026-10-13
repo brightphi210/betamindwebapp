@@ -34,6 +34,8 @@ import {
     getIsOnline
 } from './EventShared';
 
+const EVENT_SUCCESS_URL = 'https://betamindwebapp.vercel.app/event/success';
+
 const RichText: React.FC<{ html: string }> = ({ html }) => (
     <>
         <div
@@ -190,24 +192,20 @@ const ImageLightbox: React.FC<{
     alt: string;
     onClose: () => void;
 }> = ({ src, alt, onClose }) => {
-    // `visible` drives the CSS transition: false -> true on open, true -> false on close
     const [visible, setVisible] = useState(false);
     const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Animate in on mount (next frame so the starting styles are painted first)
     useEffect(() => {
         const frame = requestAnimationFrame(() => setVisible(true));
         return () => cancelAnimationFrame(frame);
     }, []);
 
-    // Play the exit animation, then tell the parent to unmount us
     const handleClose = () => {
         if (closeTimer.current) return;
         setVisible(false);
         closeTimer.current = setTimeout(onClose, LIGHTBOX_ANIMATION_MS);
     };
 
-    // Close with Escape + lock page scroll while open
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') handleClose();
@@ -275,7 +273,7 @@ const ImageLightbox: React.FC<{
 };
 
 // ─── Registration modal ────────────────────────────────────────────────────
-type RegisterStep = 'form' | 'success';
+type RegisterStep = 'form' | 'confirm' | 'success';
 
 type RegisterDraft = {
     name: string;
@@ -320,12 +318,28 @@ const RegisterModal: React.FC<{
     const validationError = validateRegistrationDraft(draft);
     const isValid = !validationError;
 
-    const handleSubmit = async () => {
+    const hasPaidTicket = !!selectedTicket && Number(selectedTicket.price) > 0;
+
+    const priceLabel =
+        selectedTicket == null
+            ? 'Free'
+            : selectedTicket.price === 0
+                ? 'Free'
+                : formatNaira(selectedTicket.price, 'Free');
+
+    /** Validate form → move to confirmation step */
+    const handleGoToConfirm = () => {
         const nextError = validateRegistrationDraft(draft);
         if (nextError) {
             setError(nextError);
             return;
         }
+        setError('');
+        setStep('confirm');
+    };
+
+    /** Actually submit after user confirms */
+    const handleSubmit = async () => {
         setError('');
 
         const ticketPayload = {
@@ -335,14 +349,14 @@ const RegisterModal: React.FC<{
         };
 
         try {
-            const hasPaidTicket = !!selectedTicket && Number(selectedTicket.price) > 0;
-
-            if (hasPaidTicket) {
+            if (hasPaidTicket && selectedTicket) {
                 const response = await payEventTicket({
                     eventId,
                     data: {
                         ...ticketPayload,
                         ticket: selectedTicket.id,
+                        // Same pattern as mentor booking – redirect after Paystack
+                        callback_url: EVENT_SUCCESS_URL,
                     },
                 });
 
@@ -380,15 +394,9 @@ const RegisterModal: React.FC<{
                 'Could not register. Please try again.';
 
             setError(Array.isArray(message) ? message[0] : message);
+            // Stay on confirm so user can retry or go back
         }
     };
-
-    const priceLabel =
-        selectedTicket == null
-            ? 'Free'
-            : selectedTicket.price === 0
-                ? 'Free'
-                : formatNaira(selectedTicket.price, 'Free');
 
     return (
         <ModalShell onClose={onClose} maxWidth="max-w-md" className="overflow-y-auto">
@@ -422,7 +430,6 @@ const RegisterModal: React.FC<{
                                     background: 'rgba(166,255,0,0.06)',
                                 }}
                             >
-                                {/* Ticket image */}
                                 <div
                                     className="w-10 h-10 shrink-0 rounded overflow-hidden"
                                     style={{ background: 'rgba(255,255,255,0.06)' }}
@@ -449,9 +456,7 @@ const RegisterModal: React.FC<{
                                     </p>
                                 </div>
 
-                                <span
-                                    className="text-sm text-white font-bold shrink-0"
-                                >
+                                <span className="text-sm text-white font-bold shrink-0">
                                     {priceLabel}
                                 </span>
                             </div>
@@ -549,27 +554,141 @@ const RegisterModal: React.FC<{
                         <Button
                             variant="green"
                             className="mt-6 w-full"
-                            disabled={!isValid || isRegistering || isPaying}
-                            onClick={() => {
-                                void handleSubmit();
-                            }}
+                            disabled={!isValid}
+                            onClick={handleGoToConfirm}
                         >
                             <span className="flex items-center justify-center gap-2">
-                                {isRegistering || isPaying ? (
-                                    <FiLoader
-                                        size={15}
-                                        className="animate-spin"
-                                    />
-                                ) : (
-                                    <FiCheck size={15} />
-                                )}
-                                {isRegistering || isPaying
-                                    ? (selectedTicket && Number(selectedTicket.price) > 0 ? 'Processing payment...' : 'Registering...')
-                                    : selectedTicket && Number(selectedTicket.price) > 0
-                                        ? `Pay ${priceLabel} & Register`
-                                        : 'Confirm Registration'}
+                                <FiCheck size={15} />
+                                {hasPaidTicket
+                                    ? `Review & Pay ${priceLabel}`
+                                    : 'Review Registration'}
                             </span>
                         </Button>
+                    </>
+                ) : step === 'confirm' ? (
+                    <>
+                        <div className="mb-5 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-white">
+                                    Confirm registration
+                                </h3>
+                                <p className="text-xs text-white/40 mt-0.5">
+                                    Please review your details before continuing
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={close}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg text-white/50 hover:text-white shrink-0"
+                                style={{ background: 'rgba(255,255,255,0.06)' }}
+                            >
+                                <FiX size={16} />
+                            </button>
+                        </div>
+
+                        {/* Summary card */}
+                        <div
+                            className="mb-5 rounded-xl p-4 space-y-3"
+                            style={{
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                            }}
+                        >
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-white/40 text-xs">Event</span>
+                                <span className="text-white text-sm font-semibold text-right truncate max-w-[70%]">
+                                    {eventTitle}
+                                </span>
+                            </div>
+                            {selectedTicket && (
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-white/40 text-xs">Ticket</span>
+                                    <span className="text-white text-sm font-semibold">
+                                        {selectedTicket.name}
+                                    </span>
+                                </div>
+                            )}
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-white/40 text-xs">Name</span>
+                                <span className="text-white text-sm font-semibold truncate max-w-[70%]">
+                                    {draft.name.trim()}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-white/40 text-xs">Email</span>
+                                <span className="text-white text-sm font-semibold truncate max-w-[70%]">
+                                    {draft.email.trim()}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-white/40 text-xs">WhatsApp</span>
+                                <span className="text-white text-sm font-semibold">
+                                    {draft.whatsapp.trim()}
+                                </span>
+                            </div>
+                            <div
+                                className="flex items-center justify-between gap-2 pt-2"
+                                style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
+                            >
+                                <span className="text-white/40 text-xs uppercase tracking-wide font-semibold">
+                                    Total
+                                </span>
+                                <span
+                                    className="text-base font-black"
+                                    style={{ color: hasPaidTicket ? '#a6ff00' : 'rgba(255,255,255,0.9)' }}
+                                >
+                                    {priceLabel}
+                                </span>
+                            </div>
+                        </div>
+
+                        {hasPaidTicket && (
+                            <p className="text-white/40 text-xs mb-4 leading-relaxed">
+                                You will be redirected to a secure payment page. After payment you will return to the success page.
+                            </p>
+                        )}
+
+                        {error && (
+                            <p className="text-xs text-red-400 mb-4">{error}</p>
+                        )}
+
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setError('');
+                                    setStep('form');
+                                }}
+                                disabled={isRegistering || isPaying}
+                                className="flex-1 rounded-lg py-3 text-sm font-semibold text-white/80 disabled:opacity-50"
+                                style={{ background: 'rgba(255,255,255,0.06)' }}
+                            >
+                                Back
+                            </button>
+                            <Button
+                                variant="green"
+                                className="flex-1"
+                                disabled={isRegistering || isPaying}
+                                onClick={() => {
+                                    void handleSubmit();
+                                }}
+                            >
+                                <span className="flex items-center justify-center gap-2">
+                                    {isRegistering || isPaying ? (
+                                        <FiLoader size={15} className="animate-spin" />
+                                    ) : (
+                                        <FiCheck size={15} />
+                                    )}
+                                    {isRegistering || isPaying
+                                        ? hasPaidTicket
+                                            ? 'Processing payment...'
+                                            : 'Registering...'
+                                        : hasPaidTicket
+                                            ? `Pay ${priceLabel}`
+                                            : 'Confirm Registration'}
+                                </span>
+                            </Button>
+                        </div>
                     </>
                 ) : (
                     <div className="flex flex-col items-center text-center py-4">
@@ -702,7 +821,6 @@ const EventPublicPage: React.FC = () => {
     const selectedTicket =
         tickets.find((t) => t.id === selectedTicketId) ?? null;
 
-    // Auto-select first ticket if only one or none selected yet
     const effectiveSelected =
         selectedTicket ?? (tickets.length === 1 ? tickets[0] : null);
 
@@ -710,7 +828,6 @@ const EventPublicPage: React.FC = () => {
         <div className="w-full min-h-screen" style={{ background: pageBg }}>
             <PublicNavbar />
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 lg:pt-28 pt-24">
-                {/* Animated full-image preview */}
                 {selectedImage && (
                     <ImageLightbox
                         src={selectedImage}
@@ -941,7 +1058,7 @@ const EventPublicPage: React.FC = () => {
                             </div>
                         )}
 
-                        {/* ─── Ticket Selection ─────────────────────────── */}
+                        {/* Ticket Selection */}
                         {hasMultipleTickets && (
                             <div className="mb-8">
                                 <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
@@ -972,7 +1089,6 @@ const EventPublicPage: React.FC = () => {
                                                 }}
                                             >
                                                 <div className="flex items-center gap-3 sm:gap-4">
-                                                    {/* Ticket image */}
                                                     <div
                                                         className="relative w-12 h-12 sm:w-12 sm:h-12 shrink-0 rounded overflow-hidden"
                                                         style={{
@@ -995,7 +1111,6 @@ const EventPublicPage: React.FC = () => {
                                                         )}
                                                     </div>
 
-                                                    {/* Info */}
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div className="min-w-0">
@@ -1023,7 +1138,6 @@ const EventPublicPage: React.FC = () => {
                                                         </div>
                                                     </div>
 
-                                                    {/* Radio indicator */}
                                                     <span
                                                         className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
                                                         style={{

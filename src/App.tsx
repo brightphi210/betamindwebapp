@@ -10,9 +10,11 @@ import LoginPage from "./pages/auth/LoginPage";
 import SignupPage from "./pages/auth/SignupPage";
 import Onboarding from "./pages/Onboarding";
 import EventPublicPage from "./pages/userDashboard/EventPublicPage";
+import EventSuccess from "./pages/userDashboard/EventSuccess";
 import MentorDashboard from "./pages/userDashboard/MentorDashboard";
 import MentorOnboarding from "./pages/userDashboard/MentorOnboarding";
 import Product from "./pages/userDashboard/Product";
+import ProductSuccess from "./pages/userDashboard/ProductSuccess";
 import ProfileCompletionGuard from "./pages/userDashboard/Profilecompletionguard";
 import PublicProfile from "./pages/userDashboard/PublicProfile";
 import AuthProvider from "./providers/AuthProvider";
@@ -36,10 +38,12 @@ const App = () => {
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/signup" element={<SignupPage />} />
                   <Route path="/onboarding" element={<Onboarding />} />
-                  <Route path='profile-public' element={<PublicProfile />} />
+                  <Route path="/profile-public" element={<PublicProfile />} />
                   <Route path="/mentor-onboarding" element={<MentorOnboarding />} />
                   <Route path="/events/:id" element={<EventPublicPage />} />
                   <Route path="/dashboard/products/:id" element={<Product />} />
+                  <Route path="/product/success" element={<ProductSuccess />} />
+                  <Route path="/event/success" element={<EventSuccess />} />
 
                   <Route
                     path="/mentor-dashboard"

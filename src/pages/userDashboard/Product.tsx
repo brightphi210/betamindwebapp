@@ -4,15 +4,18 @@ import {
     FiArrowLeft,
     FiBookOpen,
     FiBriefcase,
+    FiCheck,
     FiCheckCircle,
     FiDollarSign,
     FiExternalLink,
     FiGrid,
     FiLayers,
     FiLink,
+    FiLoader,
     FiPackage,
     FiPlayCircle,
     FiUser,
+    FiX,
 } from "react-icons/fi";
 import { Link, useParams } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
@@ -23,6 +26,8 @@ import Button from "../../component/ui/Button";
 import { usePurchaseProducts } from "../../hooks/mutations/allMutation";
 import { useGetSingleDigitalProduct } from "../../hooks/queries/allQueriess";
 import { formatNaira } from "../../utils/currency";
+
+const PRODUCT_SUCCESS_URL = "https://betamindwebapp.vercel.app/product/success";
 
 type ApiCourseModule = {
     title: string;
@@ -195,6 +200,126 @@ const CreatorCard: React.FC<{ creator: ApiCreator }> = ({ creator }) => {
     );
 };
 
+/** Confirmation modal before sending the user to Paystack */
+const PurchaseConfirmModal: React.FC<{
+    productTitle: string;
+    priceLabel: string;
+    name: string;
+    email: string;
+    isPurchasing: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+}> = ({ productTitle, priceLabel, name, email, isPurchasing, onClose, onConfirm }) => (
+    <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
+        onClick={onClose}
+        style={{ animation: "modalFadeIn 0.22s ease-out forwards" }}
+    >
+        <div
+            className="w-full max-w-sm rounded-2xl p-5 shadow-2xl"
+            style={{
+                background: "rgba(10,13,9,0.95)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                backdropFilter: "blur(24px)",
+                WebkitBackdropFilter: "blur(24px)",
+                animation: "modalPanelIn 0.22s ease-out forwards",
+            }}
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">Confirm purchase</h3>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Close"
+                    disabled={isPurchasing}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/80 hover:text-white disabled:opacity-50"
+                    style={{ background: "rgba(255,255,255,0.06)" }}
+                >
+                    <FiX size={16} />
+                </button>
+            </div>
+
+            <p className="text-white/50 text-xs mb-4">
+                Please review your details before continuing to payment.
+            </p>
+
+            <div
+                className="mb-5 rounded-xl p-4 space-y-3"
+                style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                }}
+            >
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-white/40 text-xs">Product</span>
+                    <span className="text-white text-sm font-semibold text-right truncate max-w-[70%]">
+                        {productTitle}
+                    </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-white/40 text-xs">Name</span>
+                    <span className="text-white text-sm font-semibold truncate max-w-[70%]">
+                        {name}
+                    </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-white/40 text-xs">Email</span>
+                    <span className="text-white text-sm font-semibold truncate max-w-[70%]">
+                        {email}
+                    </span>
+                </div>
+                <div
+                    className="flex items-center justify-between gap-2 pt-2"
+                    style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                    <span className="text-white/40 text-xs uppercase tracking-wide font-semibold">
+                        Total
+                    </span>
+                    <span className="text-base font-black" style={{ color: "#a6ff00" }}>
+                        {priceLabel}
+                    </span>
+                </div>
+            </div>
+
+            <p className="text-white/40 text-xs mb-5 leading-relaxed">
+                You will be redirected to a secure payment page. After payment you will return to the success page.
+            </p>
+
+            <div className="flex gap-3">
+                <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={isPurchasing}
+                    className="flex-1 rounded-lg py-3 text-sm font-semibold text-white/80 disabled:opacity-50"
+                    style={{ background: "rgba(255,255,255,0.06)" }}
+                >
+                    Back
+                </button>
+                <button
+                    type="button"
+                    onClick={onConfirm}
+                    disabled={isPurchasing}
+                    className="flex-1 rounded-lg py-3 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
+                    style={{ background: "#a6ff00" }}
+                >
+                    {isPurchasing ? (
+                        <>
+                            <FiLoader size={15} className="animate-spin" />
+                            Processing...
+                        </>
+                    ) : (
+                        <>
+                            <FiCheck size={15} />
+                            Continue to payment
+                        </>
+                    )}
+                </button>
+            </div>
+        </div>
+    </div>
+);
+
 const Product: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { product: response, isLoading, isError } = useGetSingleDigitalProduct(id);
@@ -202,16 +327,28 @@ const Product: React.FC = () => {
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
 
     const { mutate: purchaseProduct, isPending: isPurchasing } = usePurchaseProducts();
 
-    const handleSubmit = () => {
+    const handleOpenConfirm = () => {
         if (!product) return;
 
         if (!name.trim() || !email.trim()) {
             toast.error("Please enter your full name and email address.");
             return;
         }
+
+        if (!/\S+@\S+\.\S+/.test(email.trim())) {
+            toast.error("Please enter a valid email address.");
+            return;
+        }
+
+        setShowConfirmModal(true);
+    };
+
+    const handleConfirmPurchase = () => {
+        if (!product) return;
 
         const numericPrice = Number(product.price) || 0;
         const amount = String(Math.round(numericPrice * 100));
@@ -221,6 +358,8 @@ const Product: React.FC = () => {
             name: name.trim(),
             product: product.id,
             amount,
+            // Same pattern as mentor booking – redirect after Paystack
+            callback_url: PRODUCT_SUCCESS_URL,
         };
 
         purchaseProduct(payload, {
@@ -235,6 +374,7 @@ const Product: React.FC = () => {
                 }
 
                 toast.success("Purchase initiated successfully.");
+                setShowConfirmModal(false);
             },
             onError: (error: any) => {
                 const data = error?.response?.data;
@@ -518,10 +658,10 @@ const Product: React.FC = () => {
                         <Button
                             variant="green"
                             className="w-full py-3 text-sm"
-                            onClick={handleSubmit}
+                            onClick={handleOpenConfirm}
                             disabled={isPurchasing}
                         >
-                            {isPurchasing ? "Processing..." : "Continue to payment"}
+                            Review & continue
                         </Button>
 
                         <p className="flex items-center justify-center gap-1.5 text-white/30 text-xs mt-4">
@@ -532,9 +672,25 @@ const Product: React.FC = () => {
                 </div>
             </div>
 
+            {showConfirmModal && (
+                <PurchaseConfirmModal
+                    productTitle={product.title}
+                    priceLabel={price}
+                    name={name.trim()}
+                    email={email.trim()}
+                    isPurchasing={isPurchasing}
+                    onClose={() => {
+                        if (!isPurchasing) setShowConfirmModal(false);
+                    }}
+                    onConfirm={handleConfirmPurchase}
+                />
+            )}
+
             <PoweredByBadge />
 
             <style>{`
+        @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes modalPanelIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
         .rich-text-content {
           overflow: visible;
           overflow-wrap: anywhere;
