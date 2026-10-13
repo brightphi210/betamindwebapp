@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import toast from "react-hot-toast";
 import {
     FiArrowLeft,
     FiBell,
@@ -15,6 +14,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import LoadingOverlay from "../../component/LoadingOverlay";
 import { useMarkNotificationRead } from "../../hooks/mutations/allMutation";
 import { useGetNotifications } from "../../hooks/queries/allQueriess";
+import { useGlobalContext } from "../../providers/GlobalContext";
 
 // ---------- Design tokens ----------
 const cardBg = "rgba(255,255,255,0.02)";
@@ -265,6 +265,8 @@ const Notifications = () => {
             );
     }, [apiNotifications, readOverrides, hiddenIds]);
 
+    const { addToast } = useGlobalContext();
+
     const unreadCount = notifications.filter((n) => !n.read).length;
     const visible =
         filter === "unread"
@@ -279,7 +281,7 @@ const Notifications = () => {
 
         markReadMutation(id, {
             onSuccess: () => {
-                if (showToast) toast.success("Notification Read");
+                if (showToast) addToast("Notification read", "success");
             },
             onError: () => {
                 setReadOverrides((prev) => {
@@ -287,8 +289,9 @@ const Notifications = () => {
                     delete next[id];
                     return next;
                 });
-                toast.error("Could not mark notification as read");
+                addToast("Could not mark notification as read", "error");
             },
+
         });
     };
 
@@ -326,7 +329,8 @@ const Notifications = () => {
         notifications
             .filter((n) => !n.read)
             .forEach((n) => markAsRead(n.id, false));
-        toast.success("All notifications marked as read");
+        addToast("All notifications marked as read", "success");
+
     };
 
     return (

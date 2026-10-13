@@ -17,6 +17,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import avatar from '../assets/Avatar.png';
 import betamindLogo from '../assets/betamindlogo.png';
 import { useGetMyUserProfile } from '../hooks/queries/allQueriess';
+import { useNotificationAlert } from '../hooks/useNotificationAlerts';
 import ConfirmLogoutModal from './Confirmlogoutmodal';
 import LoadingOverlay from './LoadingOverlay';
 
@@ -43,6 +44,7 @@ const DashNavbar = () => {
     const moreSheetRef = useRef<HTMLDivElement>(null);
 
     const { myProfile, isLoading: userLoading } = useGetMyUserProfile();
+    const { hasUnread } = useNotificationAlert();
     const userProfile = myProfile?.data;
     console.log('userProfile:', userProfile);
 
@@ -192,10 +194,12 @@ const DashNavbar = () => {
                                     title="Notifications"
                                 >
                                     <FiBell className="w-7 h-7" />
-                                    <span
-                                        className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
-                                        style={{ background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.7)' }}
-                                    />
+                                    {hasUnread && (
+                                        <span
+                                            className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full"
+                                            style={{ background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.7)' }}
+                                        />
+                                    )}
                                 </button>
                             </Link>
 
