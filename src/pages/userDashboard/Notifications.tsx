@@ -5,10 +5,13 @@ import {
     FiCalendar,
     FiCheck,
     FiCheckCircle,
+    FiChevronLeft,
+    FiChevronRight,
     FiDollarSign,
     FiMessageSquare,
     FiShield,
     FiTrash2,
+    FiUser,
 } from "react-icons/fi";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import LoadingOverlay from "../../component/LoadingOverlay";
@@ -23,12 +26,59 @@ const cardBorder = "1px solid rgba(205,220,57,.08)";
 const pageBackground =
     "radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)";
 
+// ---------- Pagination config ----------
+const PER_PAGE_DESKTOP = 4;
+const PER_PAGE_MOBILE = 3;
+/** Matches Tailwind's `lg` breakpoint */
+const DESKTOP_QUERY = "(min-width: 1024px)";
+
+const MENTOR_ROUTE = "/dashboard/mentor/overview";
+
+/** 4 per page on laptop/desktop, 3 on smaller screens (updates on resize) */
+const useItemsPerPage = () => {
+    const getValue = () =>
+        typeof window !== "undefined" &&
+            window.matchMedia(DESKTOP_QUERY).matches
+            ? PER_PAGE_DESKTOP
+            : PER_PAGE_MOBILE;
+
+    const [perPage, setPerPage] = useState(getValue);
+
+    useEffect(() => {
+        const mql = window.matchMedia(DESKTOP_QUERY);
+        const onChange = () => setPerPage(getValue());
+        onChange();
+        mql.addEventListener("change", onChange);
+        return () => mql.removeEventListener("change", onChange);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    return perPage;
+};
+
+/** e.g. [1, "...", 4, 5, 6, "...", 12] */
+const getPageItems = (current: number, total: number): (number | "...")[] => {
+    if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+
+    const items: (number | "...")[] = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+
+    if (start > 2) items.push("...");
+    for (let p = start; p <= end; p++) items.push(p);
+    if (end < total - 1) items.push("...");
+    items.push(total);
+
+    return items;
+};
+
 // ---------- Types ----------
 type NotificationType =
     | "message"
     | "booking"
     | "payment"
     | "verification"
+    | "mentor"
     | "system";
 
 type Notification = {
@@ -73,9 +123,13 @@ const mapNotification = (n: any): Notification => {
         booking: "booking",
         payment: "payment",
         verification: "verification",
+        mentor: "mentor",
         system: "system",
     };
-    const type = typeMap[typeRaw] ?? "system";
+    // Any type containing "mentor" (e.g. "mentor_request") is treated as mentor
+    const type: NotificationType = typeRaw.includes("mentor")
+        ? "mentor"
+        : typeMap[typeRaw] ?? "system";
 
     return {
         id: String(n.id),
@@ -112,6 +166,11 @@ const typeMeta: Record<
         icon: <FiShield size={16} />,
         color: "#a6ff00",
         bg: "rgba(166,255,0,0.1)",
+    },
+    mentor: {
+        icon: <FiUser size={16} />,
+        color: "#c084fc",
+        bg: "rgba(192,132,252,0.1)",
     },
     system: {
         icon: <FiBell size={16} />,
@@ -228,6 +287,83 @@ const EmptyState: React.FC<{ filter: FilterTab }> = ({ filter }) => (
     </div>
 );
 
+// ---------- Pagination ----------
+const Pagination: React.FC<{
+    page: number;
+    totalPages: number;
+    totalItems: number;
+    perPage: number;
+    onChange: (page: number) => void;
+}> = ({ page, totalPages, totalItems, perPage, onChange }) => {
+    const from = (page - 1) * perPage + 1;
+    const to = Math.min(page * perPage, totalItems);
+
+    const navBtn =
+        "flex h-9 w-9 items-center justify-center rounded-lg text-white/60 transition-colors hover:text-[#a6ff00] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-white/60";
+
+    return (
+        <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+            <p className="text-xs text-white/40">
+                Showing {from}–{to} of {totalItems}
+            </p>
+
+            <nav className="flex items-center gap-1.5" aria-label="Pagination">
+                <button
+                    type="button"
+                    aria-label="Previous page"
+                    disabled={page <= 1}
+                    onClick={() => onChange(page - 1)}
+                    className={navBtn}
+                    style={{ background: cardBg, border: cardBorder }}
+                >
+                    <FiChevronLeft size={15} />
+                </button>
+
+                {getPageItems(page, totalPages).map((item, idx) =>
+                    item === "..." ? (
+                        <span
+                            key={`ellipsis-${idx}`}
+                            className="flex h-9 w-6 items-center justify-center text-xs text-white/30"
+                        >
+                            …
+                        </span>
+                    ) : (
+                        <button
+                            key={item}
+                            type="button"
+                            aria-label={`Page ${item}`}
+                            aria-current={item === page ? "page" : undefined}
+                            onClick={() => onChange(item)}
+                            className={`flex h-9 min-w-9 items-center justify-center rounded-lg px-2 text-xs font-semibold transition-colors ${item === page
+                                ? "text-black"
+                                : "text-white/60 hover:text-[#a6ff00]"
+                                }`}
+                            style={
+                                item === page
+                                    ? { background: "#a6ff00" }
+                                    : { background: cardBg, border: cardBorder }
+                            }
+                        >
+                            {item}
+                        </button>
+                    )
+                )}
+
+                <button
+                    type="button"
+                    aria-label="Next page"
+                    disabled={page >= totalPages}
+                    onClick={() => onChange(page + 1)}
+                    className={navBtn}
+                    style={{ background: cardBg, border: cardBorder }}
+                >
+                    <FiChevronRight size={15} />
+                </button>
+            </nav>
+        </div>
+    );
+};
+
 // ---------- Main ----------
 const Notifications = () => {
     const navigate = useNavigate();
@@ -238,9 +374,9 @@ const Notifications = () => {
     const { mutate: markReadMutation, isPending: isMarking } =
         useMarkNotificationRead();
 
-    console.log('this is notifications', notificationsData?.data)
-
     const [filter, setFilter] = useState<FilterTab>("all");
+    const [page, setPage] = useState(1);
+    const perPage = useItemsPerPage();
     /** Optimistic read overrides: id → is_read */
     const [readOverrides, setReadOverrides] = useState<Record<string, boolean>>(
         {}
@@ -268,10 +404,29 @@ const Notifications = () => {
     const { addToast } = useGlobalContext();
 
     const unreadCount = notifications.filter((n) => !n.read).length;
-    const visible =
+    const filtered =
         filter === "unread"
             ? notifications.filter((n) => !n.read)
             : notifications;
+
+    // Pagination (client-side: the API returns every notification in one response)
+    const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+    // Clamp so deleting / marking read / resizing never leaves us on an empty page
+    const currentPage = Math.min(page, totalPages);
+    const visible = filtered.slice(
+        (currentPage - 1) * perPage,
+        currentPage * perPage
+    );
+
+    const goToPage = (next: number) => {
+        setPage(next);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    const changeFilter = (tab: FilterTab) => {
+        setFilter(tab);
+        setPage(1);
+    };
 
     const markAsRead = (id: string, showToast = true) => {
         const current = notifications.find((n) => n.id === id);
@@ -311,6 +466,13 @@ const Notifications = () => {
 
     const handleRowClick = (n: Notification) => {
         if (!n.read) markAsRead(n.id, true);
+
+        // Mentor notifications always go to the mentor dashboard
+        if (n.type === "mentor") {
+            navigate(MENTOR_ROUTE);
+            return;
+        }
+
         if (n.link) {
             if (n.link.startsWith("http")) {
                 window.open(n.link, "_blank", "noopener,noreferrer");
@@ -322,7 +484,6 @@ const Notifications = () => {
 
     const handleDelete = (id: string) => {
         setHiddenIds((prev) => new Set(prev).add(id));
-        // Optional: call DELETE notifications/{id}/ when you have the endpoint
     };
 
     const markAllRead = () => {
@@ -384,7 +545,7 @@ const Notifications = () => {
                         <button
                             key={tab}
                             type="button"
-                            onClick={() => setFilter(tab)}
+                            onClick={() => changeFilter(tab)}
                             className={`border-b-2 pb-3 text-xs font-semibold capitalize transition-colors ${filter === tab
                                 ? "border-[#a6ff00] text-white"
                                 : "border-transparent text-white/40 hover:text-white"
@@ -401,17 +562,29 @@ const Notifications = () => {
                 </div>
 
                 {visible.length > 0 ? (
-                    <div className="space-y-3">
-                        {visible.map((n) => (
-                            <NotificationRow
-                                key={n.id}
-                                notification={n}
-                                onMarkRead={(id) => markAsRead(id, true)}
-                                onDelete={handleDelete}
-                                onClick={() => handleRowClick(n)}
+                    <>
+                        <div className="space-y-3">
+                            {visible.map((n) => (
+                                <NotificationRow
+                                    key={n.id}
+                                    notification={n}
+                                    onMarkRead={(id) => markAsRead(id, true)}
+                                    onDelete={handleDelete}
+                                    onClick={() => handleRowClick(n)}
+                                />
+                            ))}
+                        </div>
+
+                        {totalPages > 1 && (
+                            <Pagination
+                                page={currentPage}
+                                totalPages={totalPages}
+                                totalItems={filtered.length}
+                                perPage={perPage}
+                                onChange={goToPage}
                             />
-                        ))}
-                    </div>
+                        )}
+                    </>
                 ) : (
                     <EmptyState filter={filter} />
                 )}

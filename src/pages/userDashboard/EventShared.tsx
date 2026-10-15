@@ -545,7 +545,7 @@ export const ModalShell: React.FC<{
             onClick={close}
         >
             <div
-                className={`w-full bg-neutral-900/50 ${maxWidth} max-h-[85vh] rounded-2xl p-6 shadow-2xl transition-all duration-200 ease-out ${show ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-3'
+                className={`w-full bg-neutral-900 ${maxWidth} max-h-[85vh] rounded-2xl p-6 shadow-2xl transition-all duration-200 ease-out ${show ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-3'
                     } ${className}`}
                 style={{
                     backdropFilter: 'blur(24px)',

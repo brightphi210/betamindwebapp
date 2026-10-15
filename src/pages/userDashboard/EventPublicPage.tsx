@@ -3,7 +3,9 @@ import { FaArrowRight } from 'react-icons/fa6';
 import {
     FiLoader,
     FiMail,
+    FiMinus,
     FiPhone,
+    FiPlus,
     FiShare2,
     FiTag,
     FiUser,
@@ -36,6 +38,9 @@ import {
 
 const EVENT_SUCCESS_URL = 'https://betamindwebapp.vercel.app/event/success';
 
+/** Max tickets one person can buy in a single order */
+const MAX_TICKETS_PER_ORDER = 10;
+
 const RichText: React.FC<{ html: string }> = ({ html }) => (
     <>
         <div
@@ -67,7 +72,7 @@ const pageBg =
     'radial-gradient(ellipse 400px 500px at 50% -150px, rgba(205, 220, 57, 0.05), rgba(0, 4, 2, 0.7)), linear-gradient(180deg, rgba(6, 10, 4, 0.85) 0%, #000000 60%)';
 
 const fieldClass =
-    'w-full rounded-xl px-4 py-4 text-sm text-white placeholder-white/30 outline-none';
+    'w-full rounded-xl px-3 py-4 text-sm text-white placeholder-white/30 outline-none';
 
 type PublicTicket = {
     id: string;
@@ -76,6 +81,9 @@ type PublicTicket = {
     description: string;
     image?: string | null;
 };
+
+const formatPrice = (amount: number) =>
+    amount === 0 ? 'Free' : formatNaira(amount, 'Free');
 
 const PartyIcon = () => (
     <svg
@@ -272,24 +280,71 @@ const ImageLightbox: React.FC<{
     );
 };
 
+// ─── Quantity stepper ──────────────────────────────────────────────────────
+const QuantityStepper: React.FC<{
+    value: number;
+    min?: number;
+    max: number;
+    onChange: (next: number) => void;
+}> = ({ value, min = 1, max, onChange }) => (
+    <div
+        className="inline-flex items-center rounded-lg"
+        style={{ background: 'rgba(255,255,255,0.06)' }}
+    >
+        <button
+            type="button"
+            aria-label="Decrease quantity"
+            disabled={value <= min}
+            onClick={() => onChange(Math.max(min, value - 1))}
+            className="flex h-9 w-9 items-center justify-center text-white disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+        >
+            <FiMinus size={14} />
+        </button>
+        <span
+            className="min-w-8 text-center text-sm font-bold text-white tabular-nums"
+            aria-live="polite"
+        >
+            {value}
+        </span>
+        <button
+            type="button"
+            aria-label="Increase quantity"
+            disabled={value >= max}
+            onClick={() => onChange(Math.min(max, value + 1))}
+            className="flex h-9 w-9 items-center justify-center text-white disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+        >
+            <FiPlus size={14} />
+        </button>
+    </div>
+);
+
 // ─── Registration modal ────────────────────────────────────────────────────
 type RegisterStep = 'form' | 'confirm' | 'success';
 
 type RegisterDraft = {
     name: string;
     email: string;
+    confirmEmail: string;
     whatsapp: string;
+    confirmWhatsapp: string;
 };
 
 const sanitizePhoneInput = (value: string) => value.replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '');
 
+const digitsOnly = (value: string) => value.replace(/\D/g, '');
+
+const emailsMatch = (a: string, b: string) =>
+    a.trim().toLowerCase() === b.trim().toLowerCase();
+
 const validateRegistrationDraft = (draft: RegisterDraft): string => {
     if (!draft.name.trim()) return 'Full name is required.';
     if (!/\S+@\S+\.\S+/.test(draft.email.trim())) return 'Enter a valid email address.';
+    if (!emailsMatch(draft.email, draft.confirmEmail)) return 'Email addresses do not match.';
 
-    const digits = draft.whatsapp.replace(/\D/g, '');
+    const digits = digitsOnly(draft.whatsapp);
     if (!digits) return 'Phone number is required.';
     if (digits.length < 10) return 'Phone number must be at least 10 digits.';
+    if (digits !== digitsOnly(draft.confirmWhatsapp)) return 'Phone numbers do not match.';
 
     return '';
 };
@@ -297,15 +352,40 @@ const validateRegistrationDraft = (draft: RegisterDraft): string => {
 const emptyRegisterDraft: RegisterDraft = {
     name: '',
     email: '',
+    confirmEmail: '',
     whatsapp: '',
+    confirmWhatsapp: '',
 };
+
+const TextField: React.FC<
+    React.InputHTMLAttributes<HTMLInputElement> & {
+        label: string;
+        icon: React.ReactNode;
+        hint?: string;
+    }
+> = ({ label, icon, hint, ...inputProps }) => (
+    <div>
+        <label className="mb-2 block text-sm font-semibold text-white">
+            {label}
+        </label>
+        <div
+            className="flex items-center gap-0 rounded-md"
+            style={{ background: 'rgba(255,255,255,0.04)' }}
+        >
+            <span className="pl-4 text-white pr-0 mr-0">{icon}</span>
+            <input {...inputProps} className={`${fieldClass} bg-transparent ml-0`} />
+        </div>
+        {hint && <p className="mt-1.5 text-xs text-red-400">{hint}</p>}
+    </div>
+);
 
 const RegisterModal: React.FC<{
     eventId: string;
     eventTitle: string;
     selectedTicket: PublicTicket | null;
+    quantity: number;
     onClose: () => void;
-}> = ({ eventId, eventTitle, selectedTicket, onClose }) => {
+}> = ({ eventId, eventTitle, selectedTicket, quantity, onClose }) => {
     const [step, setStep] = useState<RegisterStep>('form');
     const [draft, setDraft] = useState<RegisterDraft>(emptyRegisterDraft);
     const [error, setError] = useState('');
@@ -320,12 +400,18 @@ const RegisterModal: React.FC<{
 
     const hasPaidTicket = !!selectedTicket && Number(selectedTicket.price) > 0;
 
-    const priceLabel =
-        selectedTicket == null
-            ? 'Free'
-            : selectedTicket.price === 0
-                ? 'Free'
-                : formatNaira(selectedTicket.price, 'Free');
+    const unitPrice = selectedTicket?.price ?? 0;
+    const totalPrice = unitPrice * quantity;
+    const unitPriceLabel = formatPrice(unitPrice);
+    const totalLabel = formatPrice(totalPrice);
+
+    // Inline mismatch hints (only once the user has typed in the confirm field)
+    const emailMismatch =
+        draft.confirmEmail.length > 0 &&
+        !emailsMatch(draft.email, draft.confirmEmail);
+    const phoneMismatch =
+        draft.confirmWhatsapp.length > 0 &&
+        digitsOnly(draft.whatsapp) !== digitsOnly(draft.confirmWhatsapp);
 
     /** Validate form → move to confirmation step */
     const handleGoToConfirm = () => {
@@ -355,6 +441,8 @@ const RegisterModal: React.FC<{
                     data: {
                         ...ticketPayload,
                         ticket: selectedTicket.id,
+                        // NOTE: make sure the backend accepts `quantity`
+                        quantity,
                         // Same pattern as mentor booking – redirect after Paystack
                         callback_url: EVENT_SUCCESS_URL,
                     },
@@ -380,6 +468,7 @@ const RegisterModal: React.FC<{
                 ...ticketPayload,
                 event: eventId,
                 // ticket_id: selectedTicket?.id, // uncomment when backend supports it
+                quantity, // NOTE: make sure the backend accepts `quantity`
             });
             setStep('success');
         } catch (err: any) {
@@ -397,6 +486,9 @@ const RegisterModal: React.FC<{
             // Stay on confirm so user can retry or go back
         }
     };
+
+    const stickyFooter =
+        'max-sm:sticky max-sm:bottom-0 max-sm:-mx-1 max-sm:px-1 max-sm:pt-3 max-sm:pb-3 max-sm:bg-[#0a0d08] max-sm:border-t max-sm:border-white/10';
 
     return (
         <ModalShell onClose={onClose} maxWidth="max-w-md" className="overflow-y-auto">
@@ -450,6 +542,9 @@ const RegisterModal: React.FC<{
                                 <div className="flex-1 min-w-0">
                                     <p className="text-white text-sm font-semibold truncate">
                                         {selectedTicket.name}
+                                        <span className="text-white/50 font-normal">
+                                            {' '}× {quantity}
+                                        </span>
                                     </p>
                                     <p className="text-white/40 text-xs mt-0.5 line-clamp-1">
                                         {selectedTicket.description}
@@ -457,113 +552,102 @@ const RegisterModal: React.FC<{
                                 </div>
 
                                 <span className="text-sm text-white font-bold shrink-0">
-                                    {priceLabel}
+                                    {totalLabel}
                                 </span>
                             </div>
                         )}
 
                         <div className="space-y-4">
-                            <div>
-                                <label className="mb-2 block text-sm font-semibold text-white">
-                                    Name
-                                </label>
-                                <div
-                                    className="flex items-center gap-3 rounded-md"
-                                    style={{
-                                        background: 'rgba(255,255,255,0.04)',
-                                    }}
-                                >
-                                    <span className="pl-4 text-white/40">
-                                        <FiUser size={15} />
-                                    </span>
-                                    <input
-                                        value={draft.name}
-                                        onChange={(e) =>
-                                            setDraft((d) => ({
-                                                ...d,
-                                                name: e.target.value,
-                                            }))
-                                        }
-                                        placeholder="Your full name"
-                                        className={`${fieldClass} bg-transparent`}
-                                    />
-                                </div>
-                            </div>
+                            <TextField
+                                label="Name"
+                                icon={<FiUser size={15} />}
+                                value={draft.name}
+                                onChange={(e) =>
+                                    setDraft((d) => ({ ...d, name: e.target.value }))
+                                }
+                                placeholder="Your full name"
+                                autoComplete="name"
+                            />
 
-                            <div>
-                                <label className="mb-2 block text-sm font-semibold text-white">
-                                    Email
-                                </label>
-                                <div
-                                    className="flex items-center gap-3 rounded-md"
-                                    style={{
-                                        background: 'rgba(255,255,255,0.04)',
-                                    }}
-                                >
-                                    <span className="pl-4 text-white/40">
-                                        <FiMail size={15} />
-                                    </span>
-                                    <input
-                                        type="email"
-                                        value={draft.email}
-                                        onChange={(e) =>
-                                            setDraft((d) => ({
-                                                ...d,
-                                                email: e.target.value,
-                                            }))
-                                        }
-                                        placeholder="you@example.com"
-                                        className={`${fieldClass} bg-transparent`}
-                                    />
-                                </div>
-                            </div>
+                            <TextField
+                                label="Email"
+                                icon={<FiMail size={15} />}
+                                type="email"
+                                value={draft.email}
+                                onChange={(e) =>
+                                    setDraft((d) => ({ ...d, email: e.target.value }))
+                                }
+                                placeholder="you@example.com"
+                                autoComplete="email"
+                            />
 
-                            <div>
-                                <label className="mb-2 block text-sm font-semibold text-white">
-                                    WhatsApp Number
-                                </label>
-                                <div
-                                    className="flex items-center gap-3 rounded-md"
-                                    style={{
-                                        background: 'rgba(255,255,255,0.04)',
-                                    }}
-                                >
-                                    <span className="pl-4 text-white/40">
-                                        <FiPhone size={15} />
-                                    </span>
-                                    <input
-                                        type="tel"
-                                        value={draft.whatsapp}
-                                        onChange={(e) =>
-                                            setDraft((d) => ({
-                                                ...d,
-                                                whatsapp: sanitizePhoneInput(e.target.value),
-                                            }))
-                                        }
-                                        placeholder="08012345678"
-                                        className={`${fieldClass} bg-transparent`}
-                                    />
-                                </div>
-                            </div>
+                            <TextField
+                                label="Confirm Email"
+                                icon={<FiMail size={15} />}
+                                type="email"
+                                value={draft.confirmEmail}
+                                onChange={(e) =>
+                                    setDraft((d) => ({
+                                        ...d,
+                                        confirmEmail: e.target.value,
+                                    }))
+                                }
+                                placeholder="Re-enter your email"
+                                autoComplete="off"
+                                hint={emailMismatch ? 'Email addresses do not match.' : undefined}
+                            />
 
-                            {error && (
+                            <TextField
+                                label="WhatsApp Number"
+                                icon={<FiPhone size={15} />}
+                                type="tel"
+                                value={draft.whatsapp}
+                                onChange={(e) =>
+                                    setDraft((d) => ({
+                                        ...d,
+                                        whatsapp: sanitizePhoneInput(e.target.value),
+                                    }))
+                                }
+                                placeholder="08012345678"
+                                autoComplete="tel"
+                            />
+
+                            <TextField
+                                label="Confirm WhatsApp Number"
+                                icon={<FiPhone size={15} />}
+                                type="tel"
+                                value={draft.confirmWhatsapp}
+                                onChange={(e) =>
+                                    setDraft((d) => ({
+                                        ...d,
+                                        confirmWhatsapp: sanitizePhoneInput(e.target.value),
+                                    }))
+                                }
+                                placeholder="Re-enter your number"
+                                autoComplete="off"
+                                hint={phoneMismatch ? 'Phone numbers do not match.' : undefined}
+                            />
+
+                            {error && !emailMismatch && !phoneMismatch && (
                                 <p className="text-xs text-red-400">{error}</p>
                             )}
                         </div>
 
-                        <Button
-                            variant="white"
-                            className="mt-6 w-full"
-                            disabled={!isValid}
-                            onClick={handleGoToConfirm}
-                        >
-                            <span className="flex items-center justify-center gap-2">
-                                {hasPaidTicket
-                                    ? `Review & Pay`
-                                    : 'Review Registration'}
-                            </span>
-                            <FaArrowRight size={15} />
-                        </Button>
+                        <div className={`mt-6 ${stickyFooter}`}>
+                            <Button
+                                variant="white"
+                                className="w-full"
+                                disabled={!isValid}
+                                onClick={handleGoToConfirm}
+                            >
+                                <span className="flex items-center justify-center gap-2">
+                                    {hasPaidTicket
+                                        ? `Review & Pay`
+                                        : 'Review Registration'}
+                                </span>
+                                <FaArrowRight size={15} />
+                            </Button>
+                        </div>
                     </>
                 ) : step === 'confirm' ? (
                     <>
@@ -600,12 +684,20 @@ const RegisterModal: React.FC<{
                                 </span>
                             </div>
                             {selectedTicket && (
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-white/40 text-xs">Ticket</span>
-                                    <span className="text-white text-xs font-normal">
-                                        {selectedTicket.name}
-                                    </span>
-                                </div>
+                                <>
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-white/40 text-xs">Ticket</span>
+                                        <span className="text-white text-xs font-normal">
+                                            {selectedTicket.name}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-white/40 text-xs">Quantity</span>
+                                        <span className="text-white text-xs font-normal">
+                                            {quantity} × {unitPriceLabel}
+                                        </span>
+                                    </div>
+                                </>
                             )}
                             <div className="flex items-center justify-between gap-2">
                                 <span className="text-white/40 text-xs">Name</span>
@@ -636,7 +728,7 @@ const RegisterModal: React.FC<{
                                     className="text-base font-black"
                                     style={{ color: hasPaidTicket ? '#a6ff00' : 'rgba(255,255,255,0.9)' }}
                                 >
-                                    {priceLabel}
+                                    {totalLabel}
                                 </span>
                             </div>
                         </div>
@@ -651,7 +743,7 @@ const RegisterModal: React.FC<{
                             <p className="text-xs text-red-400 mb-4">{error}</p>
                         )}
 
-                        <div className="flex gap-3">
+                        <div className={`flex gap-3 ${stickyFooter}`}>
                             <button
                                 type="button"
                                 onClick={() => {
@@ -678,7 +770,7 @@ const RegisterModal: React.FC<{
                                             ? 'Processing payment...'
                                             : 'Registering...'
                                         : hasPaidTicket
-                                            ? `Pay ${priceLabel}`
+                                            ? `Pay ${totalLabel}`
                                             : 'Confirm Registration'}
                                     {isRegistering || isPaying ? (
                                         <FiLoader size={14} className="animate-spin" />
@@ -705,11 +797,11 @@ const RegisterModal: React.FC<{
                             {selectedTicket && (
                                 <>
                                     {' '}
-                                    with the{' '}
+                                    with{' '}
                                     <span className="font-semibold text-white/80">
-                                        {selectedTicket.name}
+                                        {quantity} × {selectedTicket.name}
                                     </span>{' '}
-                                    ticket
+                                    {quantity > 1 ? 'tickets' : 'ticket'}
                                 </>
                             )}
                             . Keep an eye on your inbox for updates.
@@ -741,6 +833,7 @@ const EventPublicPage: React.FC = () => {
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(
         null
     );
+    const [quantity, setQuantity] = useState(1);
 
     const event: ApiEvent | undefined = eventDetail?.data;
 
@@ -823,10 +916,43 @@ const EventPublicPage: React.FC = () => {
     const effectiveSelected =
         selectedTicket ?? (tickets.length === 1 ? tickets[0] : null);
 
+    // Quantity limits: per-order cap, further limited by remaining capacity
+    const remainingSpots =
+        event.capacity === null || event.capacity === undefined
+            ? null
+            : Math.max(Number(event.capacity) - registeredCount, 0);
+    const maxQuantity = Math.max(
+        1,
+        Math.min(MAX_TICKETS_PER_ORDER, remainingSpots ?? MAX_TICKETS_PER_ORDER)
+    );
+    const safeQuantity = Math.min(quantity, maxQuantity);
+
+    const handleSelectTicket = (ticketId: string) => {
+        if (ticketId !== selectedTicketId) {
+            setSelectedTicketId(ticketId);
+            setQuantity(1);
+        }
+    };
+
+    const totalPrice = effectiveSelected
+        ? effectiveSelected.price * safeQuantity
+        : 0;
+    const totalLabel = formatPrice(totalPrice);
+
+    const ctaDisabled = hasMultipleTickets && !effectiveSelected;
+    const ctaLabel = effectiveSelected
+        ? effectiveSelected.price === 0
+            ? `Register · ${effectiveSelected.name}${safeQuantity > 1 ? ` × ${safeQuantity}` : ''}`
+            : `Get ${safeQuantity > 1 ? `${safeQuantity} × ` : ''}${effectiveSelected.name} · ${totalLabel}`
+        : hasMultipleTickets
+            ? 'Select a ticket to continue'
+            : 'Click to Register';
+
     return (
         <div className="w-full min-h-screen" style={{ background: pageBg }}>
             <PublicNavbar />
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 lg:pt-28 pt-24">
+            {/* Extra bottom padding on mobile so content isn't hidden behind the fixed bar */}
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-28 pb-40 lg:pb-28 lg:pt-28 pt-24">
                 {selectedImage && (
                     <ImageLightbox
                         src={selectedImage}
@@ -1066,20 +1192,14 @@ const EventPublicPage: React.FC = () => {
                                 <div className="flex flex-col gap-3">
                                     {tickets.map((ticket) => {
                                         const isSelected =
-                                            (selectedTicketId ??
-                                                (tickets.length === 1
-                                                    ? tickets[0].id
-                                                    : null)) === ticket.id;
-                                        const priceText =
-                                            ticket.price === 0
-                                                ? 'Free'
-                                                : formatNaira(ticket.price, 'Free');
+                                            effectiveSelected?.id === ticket.id;
+                                        const priceText = formatPrice(ticket.price);
 
                                         return (
                                             <button
                                                 key={ticket.id}
                                                 type="button"
-                                                onClick={() => setSelectedTicketId(ticket.id)}
+                                                onClick={() => handleSelectTicket(ticket.id)}
                                                 className="w-full text-left rounded-xl p-2 sm:p-2 transition-all cursor-pointer"
                                                 style={{
                                                     background: isSelected
@@ -1157,11 +1277,48 @@ const EventPublicPage: React.FC = () => {
                                         );
                                     })}
                                 </div>
+
+                                {/* Quantity selector */}
+                                {effectiveSelected && (
+                                    <div
+                                        className="mt-4 flex items-center justify-between gap-3 rounded-xl p-3"
+                                        style={{ background: 'rgba(255,255,255,0.03)' }}
+                                    >
+                                        <div className="min-w-0">
+                                            <p className="text-white text-sm font-semibold">
+                                                Quantity
+                                            </p>
+                                            <p className="text-white/40 text-xs mt-0.5">
+                                                {maxQuantity === 1
+                                                    ? 'Only 1 ticket available'
+                                                    : `Up to ${maxQuantity} per order`}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <QuantityStepper
+                                                value={safeQuantity}
+                                                max={maxQuantity}
+                                                onChange={setQuantity}
+                                            />
+                                            <span
+                                                className="hidden sm:block min-w-20 text-right text-sm font-bold"
+                                                style={{
+                                                    color:
+                                                        totalPrice === 0
+                                                            ? 'rgba(255,255,255,0.5)'
+                                                            : '#a6ff00',
+                                                }}
+                                            >
+                                                {totalLabel}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        {/* Registration CTA */}
-                        <div>
+                        {/* Registration CTA – desktop / tablet (inline) */}
+                        <div className="hidden lg:block">
                             <p className="text-white/50 text-sm mb-4">
                                 {hasMultipleTickets
                                     ? 'Select a ticket above, then register to join this event.'
@@ -1171,21 +1328,39 @@ const EventPublicPage: React.FC = () => {
                             <Button
                                 variant="white"
                                 className="w-full py-3.5 text-xs"
-                                disabled={
-                                    hasMultipleTickets && !effectiveSelected
-                                }
+                                disabled={ctaDisabled}
                                 onClick={() => setShowRegisterModal(true)}
                             >
-                                {effectiveSelected
-                                    ? effectiveSelected.price === 0
-                                        ? `Register · ${effectiveSelected.name}`
-                                        : `Get ${effectiveSelected.name} · ${formatNaira(effectiveSelected.price, 'Free')}`
-                                    : hasMultipleTickets
-                                        ? 'Select a ticket to continue'
-                                        : 'Click to Register'}
+                                {ctaLabel}
                             </Button>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Registration CTA – mobile / tablet (fixed bottom bar) */}
+            <div
+                className="lg:hidden fixed inset-x-0 bottom-0 z-40 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+                style={{
+                    background: 'rgba(6,10,4,0.92)',
+                    backdropFilter: 'blur(12px)',
+                    borderTop: '1px solid rgba(205,220,57,.15)',
+                }}
+            >
+                <div className="mx-auto flex max-w-5xl items-center gap-3">
+
+                    <Button
+                        variant="white"
+                        className="flex-1 py-3.5 text-xs"
+                        disabled={ctaDisabled}
+                        onClick={() => setShowRegisterModal(true)}
+                    >
+                        {effectiveSelected
+                            ? totalPrice === 0
+                                ? 'Register'
+                                : `Pay ${totalLabel}`
+                            : ctaLabel}
+                    </Button>
                 </div>
             </div>
 
@@ -1194,6 +1369,7 @@ const EventPublicPage: React.FC = () => {
                     eventId={event.id}
                     eventTitle={event.title}
                     selectedTicket={effectiveSelected}
+                    quantity={safeQuantity}
                     onClose={() => setShowRegisterModal(false)}
                 />
             )}

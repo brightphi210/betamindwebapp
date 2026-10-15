@@ -142,7 +142,7 @@ const MentorOnboardingSuccess: React.FC<MentorOnboardingSuccessProps> = ({
                         </span>
                     </Button>
 
-                    <Button variant="white" onClick={() => navigate("dashboard/mentor/overview")}>
+                    <Button variant="white" onClick={() => navigate("/" + "dashboard/mentor/overview")}>
                         <span className="flex items-center justify-center gap-2">
                             Mentor profile
                         </span>
