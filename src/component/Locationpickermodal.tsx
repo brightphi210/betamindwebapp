@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FiLoader, FiMapPin, FiSearch, FiX } from 'react-icons/fi';
 
-// Free, no-key geocoder built on OpenStreetMap data (https://photon.komoot.io).
-// Fair-use only: keep the debounce below, and don't call it on every keystroke.
 const PHOTON_URL = 'https://photon.komoot.io/api/';
 
 // Roughly Nigeria's bounding box: minLon,minLat,maxLon,maxLat.
