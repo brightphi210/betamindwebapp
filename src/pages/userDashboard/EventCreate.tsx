@@ -16,6 +16,7 @@ import { SiGooglemeet, SiZoom } from 'react-icons/si';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { useNavigate } from 'react-router-dom';
+import LocationPickerModal from '../../component/Locationpickermodal';
 import MyButton from '../../component/ui/Button';
 import { useCreateEvents } from '../../hooks/mutations/allMutation';
 import { useGlobalContext } from '../../providers/GlobalContext';
@@ -740,6 +741,7 @@ const EventCreate: React.FC = () => {
 
     const [locationType, setLocationType] = useState<LocationType>('offline');
     const [location, setLocation] = useState('');
+    const [showLocationModal, setShowLocationModal] = useState(false);
     const [meetingPlatform, setMeetingPlatform] =
         useState<MeetingPlatform>('google_meet');
 
@@ -1403,17 +1405,21 @@ const EventCreate: React.FC = () => {
                                 {locationType === 'offline' ? (
                                     <div>
                                         <label className="block text-white/40 text-xs mb-1.5">
-                                            Venue address or link
+                                            Venue address
                                         </label>
-                                        <input
-                                            value={location}
-                                            onChange={(e) =>
-                                                setLocation(e.target.value)
-                                            }
-                                            placeholder="e.g. 14 Aba Road, Port Harcourt"
-                                            className="w-full rounded-lg px-3.5 py-2.5 text-white text-sm placeholder-white/25 outline-none transition-colors focus:border-[#a6ff00]/50"
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowLocationModal(true)}
+                                            className="w-full flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-left text-sm cursor-pointer transition-colors hover:border-[#a6ff00]/40"
                                             style={fieldStyle}
-                                        />
+                                        >
+                                            <FiMapPin size={14} className="text-white/30 shrink-0" />
+                                            <span
+                                                className={`truncate ${location ? 'text-white' : 'text-white/25'}`}
+                                            >
+                                                {location || 'Search venue or address'}
+                                            </span>
+                                        </button>
                                     </div>
                                 ) : (
                                     <div>
@@ -1768,6 +1774,17 @@ const EventCreate: React.FC = () => {
                     submitEvent();
                 }}
             />
+
+            {showLocationModal && (
+                <LocationPickerModal
+                    initialValue={location}
+                    onClose={() => setShowLocationModal(false)}
+                    onSelect={(addr) => {
+                        setLocation(addr);
+                        setShowLocationModal(false);
+                    }}
+                />
+            )}
 
             <style>{`
                 .quill-dark-wrapper .ql-toolbar.ql-snow {

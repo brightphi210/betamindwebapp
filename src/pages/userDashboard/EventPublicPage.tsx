@@ -4,6 +4,7 @@ import {
     FiLoader,
     FiMail,
     FiMinus,
+    FiNavigation,
     FiPhone,
     FiPlus,
     FiShare2,
@@ -40,6 +41,8 @@ const EVENT_SUCCESS_URL = 'https://betamindwebapp.vercel.app/event/success';
 
 /** Max tickets one person can buy in a single order */
 const MAX_TICKETS_PER_ORDER = 10;
+
+const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
 const RichText: React.FC<{ html: string }> = ({ html }) => (
     <>
@@ -191,6 +194,37 @@ const NotFoundState: React.FC = () => (
         </div>
     </div>
 );
+
+// ─── Event map (Google Maps Embed + directions link) ───────────────────────
+const EventMap: React.FC<{ address: string }> = ({ address }) => {
+    const q = encodeURIComponent(address);
+    return (
+        <div className="mb-8">
+            <h3 className="text-white font-bold text-sm mb-3 uppercase tracking-wide">
+                Location
+            </h3>
+            {GOOGLE_MAPS_KEY && (
+                <iframe
+                    title="Event location map"
+                    className="w-full h-64 rounded-xl border-0"
+                    style={{ border: '1px solid rgba(205,220,57,.1)' }}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    src={`https://www.google.com/maps/embed/v1/place?key=${GOOGLE_MAPS_KEY}&q=${q}`}
+                />
+            )}
+            <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${q}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center gap-2 rounded-md bg-white px-4 py-2.5 text-xs font-semibold text-black transition-transform hover:scale-[1.01]"
+            >
+                <FiNavigation size={13} />
+                Get directions
+            </a>
+        </div>
+    );
+};
 
 // ─── Animated image lightbox ───────────────────────────────────────────────
 const LIGHTBOX_ANIMATION_MS = 260;
@@ -1147,6 +1181,11 @@ const EventPublicPage: React.FC = () => {
                                     : `Cap ${event.capacity}`}
                             </span>
                         </div>
+
+                        {/* Google Map (in-person events with an address) */}
+                        {!isOnline && event.location && (
+                            <EventMap address={event.location} />
+                        )}
 
                         {/* Attendees */}
                         {attendees.length > 0 ? (
